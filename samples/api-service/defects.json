@@ -1,0 +1,96 @@
+{
+  "project": "api-service",
+  "description": "统一通知服务 API 示例项目 - 注入缺陷清单",
+  "defects": [
+    {
+      "id": "DEFECT-001",
+      "category": "需求缺失",
+      "title": "审计日志功能不在需求范围内",
+      "description": "代码中多处使用了 logger.info(\"[审计日志]...\") 记录审计日志（如 NotificationController 的 send、batchSend、handleCallback、autoReply 方法），但需求文档 REQ-001~REQ-010 中没有任何关于审计日志的需求。这属于代码实现了需求中未定义的功能。",
+      "location": "NotificationController.java",
+      "lines": "send(), batchSend(), handleCallback(), autoReply() 方法中的 logger.info 调用",
+      "severity": "low"
+    },
+    {
+      "id": "DEFECT-002",
+      "category": "代码超范围实现",
+      "title": "自动回复功能超出需求范围",
+      "description": "NotificationController.autoReply() 方法实现了用户回复通知时自动响应的功能，该功能在需求文档 REQ-001~REQ-010 中完全没有提及。这是一个完整的超范围特性实现，包含了独立的业务逻辑和审计日志。",
+      "location": "NotificationController.java",
+      "lines": "autoReply() 方法（第240-270行）",
+      "severity": "medium"
+    },
+    {
+      "id": "DEFECT-003",
+      "category": "业务逻辑不一致",
+      "title": "限流阈值与需求不一致",
+      "description": "需求 REQ-003 明确要求每个用户每分钟最多发送10条通知，但代码中 NotificationService.RATE_LIMIT_PER_MINUTE 常量值为20，是需求规定的两倍。",
+      "location": "NotificationService.java",
+      "lines": "RATE_LIMIT_PER_MINUTE = 20",
+      "severity": "high"
+    },
+    {
+      "id": "DEFECT-004",
+      "category": "业务逻辑不一致",
+      "title": "幂等去重时间窗口与需求不一致",
+      "description": "需求 REQ-002 明确要求幂等去重的时间窗口为60秒，但代码中 NotificationService.IDEMPOTENT_WINDOW_SECONDS 常量值为30秒，仅为需求规定的一半。",
+      "location": "NotificationService.java",
+      "lines": "IDEMPOTENT_WINDOW_SECONDS = 30",
+      "severity": "high"
+    },
+    {
+      "id": "DEFECT-005",
+      "category": "约束条件不满足",
+      "title": "发送参数校验不完整",
+      "description": "需求 REQ-001 要求对必填参数（用户ID、渠道类型、通知内容）进行校验，但 NotificationService.validateParams() 方法仅校验了 userId 是否为空，未对 channel 和 content 参数进行非空和合法性校验。",
+      "location": "NotificationService.java",
+      "lines": "validateParams() 方法",
+      "severity": "high"
+    },
+    {
+      "id": "DEFECT-006",
+      "category": "约束条件不满足",
+      "title": "模板内容长度限制与需求不一致",
+      "description": "需求 REQ-004 明确要求模板内容不得超过500字符，但 TemplateManager.validate() 方法中的长度校验阈值为1000字符，是需求规定的两倍。",
+      "location": "TemplateManager.java",
+      "lines": "validate() 方法中的 content.length() > 1000 判断",
+      "severity": "medium"
+    },
+    {
+      "id": "DEFECT-007",
+      "category": "基础代码缺陷",
+      "title": "重试方法中存在空 catch 块",
+      "description": "NotificationService.retryWithBackoff() 方法中，重试发送的 catch 块为空，吞掉了异常信息。当重试仍然失败时，无法追踪失败原因，也无法正确标记通知为最终失败状态。",
+      "location": "NotificationService.java",
+      "lines": "retryWithBackoff(String notificationId) 方法中的 catch 块",
+      "severity": "medium"
+    },
+    {
+      "id": "DEFECT-008",
+      "category": "基础代码缺陷",
+      "title": "批量添加黑名单存在空 catch 块",
+      "description": "BlacklistManager.batchAdd() 方法中，循环调用 add() 时的 catch 块为空，单条添加失败被静默忽略。虽然返回了成功计数，但无法得知哪些用户添加失败以及失败原因。",
+      "location": "BlacklistManager.java",
+      "lines": "batchAdd() 方法中的 catch 块",
+      "severity": "low"
+    },
+    {
+      "id": "DEFECT-009",
+      "category": "基础代码缺陷",
+      "title": "模板渲染存在变量注入风险",
+      "description": "TemplateManager.render() 方法中，对变量值未进行任何转义或过滤处理。如果变量值包含正则特殊字符（如 $、\\），在 Matcher.appendReplacement 时会抛出异常或产生非预期结果。",
+      "location": "TemplateManager.java",
+      "lines": "render() 方法中 matcher.appendReplacement(result, varValue) 调用",
+      "severity": "medium"
+    },
+    {
+      "id": "DEFECT-010",
+      "category": "基础代码缺陷",
+      "title": "渠道分布统计存在潜在 NPE 风险",
+      "description": "NotificationService.getChannelDistribution() 方法中，虽然使用了 containsKey 检查，但如果某条通知的 channel 字段为 null，ConcurrentHashMap 不允许 null key，在 containsKey(null) 时虽不会 NPE，但逻辑上会遗漏统计。更严重的是，如果 future 代码修改导致 channel 直接传入 put 操作，将抛出 NullPointerException。",
+      "location": "NotificationService.java",
+      "lines": "getChannelDistribution() 方法",
+      "severity": "low"
+    }
+  ]
+}

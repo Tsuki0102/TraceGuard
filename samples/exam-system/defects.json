@@ -1,0 +1,183 @@
+{
+  "project": "exam-system",
+  "description": "在线考试系统 - 注入缺陷清单 (Ground Truth)",
+  "defects": [
+    {
+      "id": "DEF-001",
+      "type": "需求缺失",
+      "severity": "MEDIUM",
+      "title": "考试提醒功能无需求依据",
+      "description": "Exam.java 中定义了 reminderMinutes 字段和对应的 getter/setter，表示考试提醒功能（提前N分钟提醒学生）。但 requirements.txt 中没有任何关于考试提醒的需求条目。",
+      "location": {
+        "file": "code/com/sample/exam/Exam.java",
+        "lines": "30-31",
+        "method": "field declaration + getter/setter"
+      },
+      "evidence": "private int reminderMinutes; // 考试提醒时间(分钟)，提前多久提醒学生 - 代码中使用了但需求未提及"
+    },
+    {
+      "id": "DEF-002",
+      "type": "代码超范围实现",
+      "severity": "MEDIUM",
+      "title": "自动生成学习计划功能超出需求范围",
+      "description": "ExamService.java 中实现了 generateStudyPlan() 方法，可以根据学生成绩自动生成个性化学习计划。该功能不在 requirements.txt 的任何需求条目中定义，属于代码超范围实现。",
+      "location": {
+        "file": "code/com/sample/exam/ExamService.java",
+        "lines": "348-369",
+        "method": "generateStudyPlan"
+      },
+      "evidence": "public String generateStudyPlan(String studentId, String examId) - 此方法不在任何 REQ 中定义"
+    },
+    {
+      "id": "DEF-003",
+      "type": "业务逻辑不一致",
+      "severity": "HIGH",
+      "title": "及格分数判断逻辑反转",
+      "description": "getStatistics() 方法中计算及格率时，使用 s < exam.getPassingScore() 来判断是否及格，逻辑完全反转。正确应该是 s >= exam.getPassingScore() 才算及格。当前代码将不及格的人数当作及格人数统计。",
+      "location": {
+        "file": "code/com/sample/exam/ExamService.java",
+        "lines": "251",
+        "method": "getStatistics"
+      },
+      "evidence": "if (s < exam.getPassingScore()) { passCount++; } // 应该是 s >= exam.getPassingScore()"
+    },
+    {
+      "id": "DEF-004",
+      "type": "业务逻辑不一致",
+      "severity": "HIGH",
+      "title": "考试超时提交逻辑反转",
+      "description": "submitExam() 方法中的超时判断逻辑完全反转。当 elapsed < duration（正常时间内）时拒绝提交返回 false，而超时后（elapsed >= duration）反而允许提交。REQ-004 要求超时后自动提交，正常时间内可以自由提交。",
+      "location": {
+        "file": "code/com/sample/exam/ExamService.java",
+        "lines": "128-129",
+        "method": "submitExam"
+      },
+      "evidence": "if (elapsed < exam.getDuration()) { return false; } // 逻辑反转：正常时间内拒绝提交"
+    },
+    {
+      "id": "DEF-005",
+      "type": "约束条件不满足",
+      "severity": "HIGH",
+      "title": "学生答案缺少 null 检查",
+      "description": "autoGrade() 方法中从 answerStore 获取学生答案后，未检查 studentAnswer 是否为 null 就直接传递给评分方法。当学生未作答某道题时，studentAnswer 为 null，导致后续 gradeSingleChoice 和 gradeTrueFalse 中调用 null.equals() 抛出 NullPointerException。",
+      "location": {
+        "file": "code/com/sample/exam/ExamService.java",
+        "lines": "152-158",
+        "method": "autoGrade"
+      },
+      "evidence": "String studentAnswer = studentAnswers.get(question.getId()); // 未做 null 检查就传入评分方法"
+    },
+    {
+      "id": "DEF-006",
+      "type": "约束条件不满足",
+      "severity": "MEDIUM",
+      "title": "考试时长缺少合法性校验",
+      "description": "createExam() 方法未对 duration 参数进行合法性校验。duration 可以为 0 或负数，这在业务上是不合理的。REQ-001 定义了考试时长（单位分钟），隐含约束为正值。",
+      "location": {
+        "file": "code/com/sample/exam/ExamService.java",
+        "lines": "37-42",
+        "method": "createExam"
+      },
+      "evidence": "public Exam createExam(String id, String title, int duration, int passingScore) // 缺少 duration > 0 校验"
+    },
+    {
+      "id": "DEF-007",
+      "type": "基础代码缺陷",
+      "severity": "LOW",
+      "title": "batchImport 中空 catch 块吞掉异常",
+      "description": "QuestionBank.batchImport() 方法中存在两层空的 catch 块，当导入数据格式错误时静默忽略所有异常，既不记录日志也不通知调用方。这会导致数据丢失问题难以排查。",
+      "location": {
+        "file": "code/com/sample/exam/QuestionBank.java",
+        "lines": "163-164, 167-168",
+        "method": "batchImport"
+      },
+      "evidence": "catch (Exception e) { // BUG: 空的 catch 块，吞掉了所有异常 }"
+    },
+    {
+      "id": "DEF-008",
+      "type": "基础代码缺陷",
+      "severity": "HIGH",
+      "title": "排名比较器违反传递性约定",
+      "description": "calculateRanking() 中的排序比较器在两个值相等时返回 1 而非 0，违反了 Comparator 的传递性约定（sgn(compare(x,y)) == -sgn(compare(y,x)) 且 compare(x,y)>0 && compare(y,z)>0 蕴含 compare(x,z)>0）。当存在相同分数时可能导致排序结果不确定或抛出 IllegalArgumentException。",
+      "location": {
+        "file": "code/com/sample/exam/ExamService.java",
+        "lines": "206-210",
+        "method": "calculateRanking"
+      },
+      "evidence": "if (a.getValue() <= b.getValue()) return 1; return -1; // 相等时返回1，违反传递性"
+    },
+    {
+      "id": "DEF-009",
+      "type": "基础代码缺陷",
+      "severity": "HIGH",
+      "title": "数组越界异常",
+      "description": "detectCheating() 方法中访问 answerList.get(answerList.size())，但 List 的有效索引范围是 0 到 size()-1。此处会抛出 IndexOutOfBoundsException。应该是 answerList.get(answerList.size() - 1)。",
+      "location": {
+        "file": "code/com/sample/exam/ExamService.java",
+        "lines": "334",
+        "method": "detectCheating"
+      },
+      "evidence": "String last = answerList.get(answerList.size()); // 应该是 size()-1"
+    },
+    {
+      "id": "DEF-010",
+      "type": "约束条件不满足",
+      "severity": "HIGH",
+      "title": "单选题评分方法缺少 null 检查",
+      "description": "GradingService.gradeSingleChoice() 方法直接调用 studentAnswer.equals()，当 studentAnswer 为 null 时会抛出 NullPointerException。gradeTrueFalse() 存在相同问题。",
+      "location": {
+        "file": "code/com/sample/exam/GradingService.java",
+        "lines": "28-32",
+        "method": "gradeSingleChoice"
+      },
+      "evidence": "if (studentAnswer.equals(question.getAnswer())) // studentAnswer 可能为 null"
+    },
+    {
+      "id": "DEF-011",
+      "type": "需求缺失",
+      "severity": "LOW",
+      "title": "标签页切换次数阈值未在需求中定义",
+      "description": "detectCheating() 方法中硬编码了标签页切换阈值为 5 次（switches > 5），但 REQ-008 中只提到需要检测切换标签页行为，未定义具体的阈值。该阈值为代码自行决定，缺少需求依据。",
+      "location": {
+        "file": "code/com/sample/exam/ExamService.java",
+        "lines": "315",
+        "method": "detectCheating"
+      },
+      "evidence": "if (switches != null && switches > 5) // 阈值5未在需求中定义"
+    },
+    {
+      "id": "DEF-012",
+      "type": "基础代码缺陷",
+      "severity": "MEDIUM",
+      "title": "判断题评分方法同样缺少 null 检查",
+      "description": "GradingService.gradeTrueFalse() 与 gradeSingleChoice() 存在相同的 null 检查缺失问题。当学生未作答判断题时，studentAnswer 为 null，调用 equals 方法会抛出 NullPointerException。",
+      "location": {
+        "file": "code/com/sample/exam/GradingService.java",
+        "lines": "65-69",
+        "method": "gradeTrueFalse"
+      },
+      "evidence": "if (studentAnswer.equals(question.getAnswer())) // studentAnswer 可能为 null"
+    }
+  ],
+  "summary": {
+    "total_defects": 12,
+    "by_type": {
+      "需求缺失": 2,
+      "代码超范围实现": 1,
+      "业务逻辑不一致": 2,
+      "约束条件不满足": 3,
+      "基础代码缺陷": 4
+    },
+    "by_severity": {
+      "HIGH": 6,
+      "MEDIUM": 4,
+      "LOW": 2
+    },
+    "by_file": {
+      "ExamService.java": 8,
+      "GradingService.java": 2,
+      "QuestionBank.java": 1,
+      "Exam.java": 1
+    }
+  }
+}

@@ -1,0 +1,8 @@
+# OPS-04：frontend 构建上下文专属 .dockerignore——排除 node_modules/dist，避免整包传入拖慢构建
+node_modules/
+dist/
+*.log
+.git/
+.gitignore
+.idea/
+.vscode/

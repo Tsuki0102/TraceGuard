@@ -1,0 +1,8 @@
+# GAP-036/008 等全栈测试用 profile：指向本地 MySQL（与 application-dev.yml 一致，root/123456）
+# OPS-03：端口支持环境变量覆盖（CI 用随机主机端口避免并行冲突，本机默认 3306）
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:${MYSQL_PORT:3306}/traceguard?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD:123456}

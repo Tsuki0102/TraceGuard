@@ -1,0 +1,135 @@
+# GAP-037：CI 流水线
+# - 触发：push master/main / pull_request（当前本地分支为 master，兼容后续迁移 main）
+# - job1 后端：JDK 21 + MySQL 8.0 service -> mvn -B test，失败即阻断 PR，附测试报告 artifact
+# - job2 前端：npm ci && npm run build
+# - 依赖缓存：Maven (~/.m2) 与 npm 缓存，均使用官方 actions 内置缓存
+name: CI
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+
+jobs:
+  # SEC-01 防复发：gitleaks 密钥扫描（任何提交一旦携带密钥/令牌即阻断 CI）
+  secret-scan:
+    name: Secret Scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # OPS-03：依赖漏洞扫描（OWASP dependency-check；continue-on-error 避免 NVD 数据慢/限流阻塞主流程）
+  dependency-check:
+    name: Dependency Vulnerability Scan
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Run OWASP dependency-check
+        run: mvn -B org.owasp:dependency-check-maven:check -DfailBuildOnCVSS=9 -Dformat=HTML
+
+  backend:
+    name: Backend (mvn test)
+    runs-on: ubuntu-latest
+    services:
+      # 仅 MySQL 约定：用 service container 起 MySQL 8.0，满足 application-test.yml 的 root/123456
+      # OPS-03：端口随机映射（随机主机端口），避免并行冲突；测试通过 MYSQL_PORT 环境变量读取实际端口
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: "123456"
+          MYSQL_DATABASE: traceguard
+        ports:
+          - 3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -p123456"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21 (temurin, m2 缓存)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Initialize database schema (init.sql)
+        run: |
+          MYSQL_CID=$(docker ps -q --filter "ancestor=mysql:8.0")
+          if [ -z "$MYSQL_CID" ]; then echo "::error::未找到 MySQL service 容器"; exit 1; fi
+          docker cp src/main/resources/sql/init.sql "$MYSQL_CID":/tmp/init.sql
+          docker exec "$MYSQL_CID" mysql -uroot -p123456 -e "source /tmp/init.sql"
+
+      - name: Run tests (mvn -B test, MySQL 随机端口)
+        run: MYSQL_PORT=${{ job.services.mysql.ports['3306'] }} mvn -B test
+
+      - name: Upload backend test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-surefire-reports
+          path: backend/target/surefire-reports
+          if-no-files-found: ignore
+
+      - name: Upload JaCoCo coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-jacoco-report
+          path: backend/target/site/jacoco
+          if-no-files-found: ignore
+
+  frontend:
+    name: Frontend (npm ci && npm run build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20 (npm 缓存)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Upload frontend build output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+          if-no-files-found: ignore

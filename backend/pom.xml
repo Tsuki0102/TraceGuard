@@ -1,0 +1,296 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>2.7.18</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>com.traceguard</groupId>
+    <artifactId>traceguard-backend</artifactId>
+    <version>1.0.0</version>
+    <name>TraceGuard Backend</name>
+    <description>软件需求-代码一致性验证与缺陷自动检测系统</description>
+
+    <properties>
+        <!-- 依赖适配：Alloy 6.2.0 与 Soot 4.4.1 均要求 Java 11+ 字节码（运行环境 JDK 21 不变，非 JDK 迁移） -->
+        <java.version>21</java.version>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
+        <mybatis-plus.version>3.5.3.1</mybatis-plus.version>
+        <javaparser.version>3.25.5</javaparser.version>
+        <!-- OPS-12：POI 5.2.3 存在 CVE-2025-31672（poi-ooxml 解析用户上传 docx 可达），升至 5.4.1 -->
+        <poi.version>5.4.1</poi.version>
+        <pdfbox.version>2.0.32</pdfbox.version>
+        <commonmark.version>0.21.0</commonmark.version>
+        <hutool.version>5.8.23</hutool.version>
+        <knife4j.version>4.1.0</knife4j.version>
+        <jjwt.version>0.11.5</jjwt.version>
+        <langchain4j.version>0.34.0</langchain4j.version>
+    </properties>
+
+    <!-- Soot 的 JDK 模块类解析（AsmJava9ClassProvider）依赖 heros；heros 的 guava 是版本区间[33.5.0,)，
+         会触发 maven.google.com 元数据下载卡死，故用 dependencyManagement 固定版本覆盖该区间 -->
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>com.google.guava</groupId>
+                <artifactId>guava</artifactId>
+                <version>33.7.1-jre</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-websocket</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-crypto</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-api</artifactId>
+            <version>${jjwt.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-impl</artifactId>
+            <version>${jjwt.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-jackson</artifactId>
+            <version>${jjwt.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-boot-starter</artifactId>
+            <version>${mybatis-plus.version}</version>
+        </dependency>
+
+        <!-- OPS-12：mysql-connector-java 8.0.33 存在 CVE-2023-22102，迁移至新坐标 com.mysql:mysql-connector-j 8.4.x -->
+        <dependency>
+            <groupId>com.mysql</groupId>
+            <artifactId>mysql-connector-j</artifactId>
+            <version>8.4.0</version>
+            <scope>runtime</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>com.github.javaparser</groupId>
+            <artifactId>javaparser-core</artifactId>
+            <version>${javaparser.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.github.javaparser</groupId>
+            <artifactId>javaparser-symbol-solver-core</artifactId>
+            <version>${javaparser.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi-ooxml</artifactId>
+            <version>${poi.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.pdfbox</groupId>
+            <artifactId>pdfbox</artifactId>
+            <version>${pdfbox.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.commonmark</groupId>
+            <artifactId>commonmark</artifactId>
+            <version>${commonmark.version}</version>
+        </dependency>
+
+        <!-- Apache HttpClient（AUD-02：LLM OpenAI 兼容客户端改用其实现，修复 HttpURLConnection 读取超时
+             对 DashScope 等流式响应失效导致的无限挂起；同时修复生产环境 LLM 调用挂起时熔断/重试形同虚设的缺陷） -->
+        <dependency>
+            <groupId>org.apache.httpcomponents</groupId>
+            <artifactId>httpclient</artifactId>
+            <version>4.5.14</version>
+        </dependency>
+
+        <dependency>
+            <groupId>cn.hutool</groupId>
+            <artifactId>hutool-all</artifactId>
+            <version>${hutool.version}</version>
+        </dependency>
+
+        <!-- fastjson2 JSON 处理（OPS-12：2.0.47 落后多个安全修复，升至 2.0.53+） -->
+        <dependency>
+            <groupId>com.alibaba.fastjson2</groupId>
+            <artifactId>fastjson2</artifactId>
+            <version>2.0.53</version>
+        </dependency>
+
+        <!-- GAP-044：LangChain 真集成（langchain4j 编排本地 CodeLlama 一致性判定链）。
+             可选依赖：缺省不启用；配置 traceguard.llm.engine=langchain 且依赖存在时生效，
+             不可用时（无依赖/下游异常）自动回退 self 引擎，主流程保持规则 + OpenAI 兼容客户端。 -->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-open-ai</artifactId>
+            <version>${langchain4j.version}</version>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- 中文分词（需求文本TF-IDF语义相似度计算） -->
+        <dependency>
+            <groupId>com.huaban</groupId>
+            <artifactId>jieba-analysis</artifactId>
+            <version>1.0.2</version>
+        </dependency>
+
+        <!-- AUD-05：本地 BGE 语义向量化（ONNX Runtime 推理，零外部依赖，离线可用）。
+             可选依赖：未配置 model-path 或模型文件缺失时 EmbeddingService 自动回退为不可用，主流程保持规则模式。 -->
+        <dependency>
+            <groupId>com.microsoft.onnxruntime</groupId>
+            <artifactId>onnxruntime</artifactId>
+            <version>1.17.0</version>
+        </dependency>
+
+        <!-- Alloy Analyzer 官方发行包（GAP-002/022：真实语义求解，fat jar 内含 kodkod + Sat4j，需 Java 17+ 字节码） -->
+        <dependency>
+            <groupId>org.alloytools</groupId>
+            <artifactId>org.alloytools.alloy.core</artifactId>
+            <version>6.2.0</version>
+        </dependency>
+
+        <!-- Soot 静态分析框架（GAP-003/022：字节码级 CFG，需 Java 11+；4.3.0 起发布组改为 org.soot-oss）。
+             使用 4.7.0：4.4.1 在 JDK 21 上无法解析 jrt-fs 中的 JDK 类（SootClassNotFoundException），
+             4.7.0 为官方维护版本，支持现代 JDK（其官方测试即含全套 add-opens JVM 参数） -->
+        <dependency>
+            <groupId>org.soot-oss</groupId>
+            <artifactId>soot</artifactId>
+            <version>4.7.0</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.slf4j</groupId>
+                    <artifactId>slf4j-api</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.slf4j</groupId>
+                    <artifactId>slf4j-simple</artifactId>
+                </exclusion>
+                <!-- 仅需 Java 字节码 CFG，排除 DEX 支持依赖（宿主 maven.google.com 访问不稳定） -->
+                <exclusion>
+                    <groupId>com.android.tools.smali</groupId>
+                    <artifactId>smali-dexlib2</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+        <dependency>
+            <groupId>com.github.xiaoymin</groupId>
+            <artifactId>knife4j-openapi2-spring-boot-starter</artifactId>
+            <version>${knife4j.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <excludes>
+                        <exclude>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </exclude>
+                    </excludes>
+                </configuration>
+            </plugin>
+            <!-- Soot 4.x 在 JDK 17+ 上解析 JDK 类（jrt-fs）与字节码需要开放 JDK 模块（GAP-003）；
+                 flags 与 Soot 官方测试配置一致 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <argLine>@{argLine} --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.reflect=ALL-UNNAMED --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/java.util.regex=ALL-UNNAMED --add-opens=java.base/java.util.stream=ALL-UNNAMED --add-opens=java.base/java.io=ALL-UNNAMED --add-opens=java.base/java.net=ALL-UNNAMED --add-opens=java.base/java.nio.file=ALL-UNNAMED --add-opens=java.base/java.nio.channels.spi=ALL-UNNAMED --add-opens=java.base/sun.nio.ch=ALL-UNNAMED --add-opens=java.base/jdk.internal.jimage=ALL-UNNAMED</argLine>
+                    <!-- TST-04：重型评测/并发/性能测试以 @Tag("perf") 标记，默认排除（避免拖垮 CI 与全量基线）；
+                         需要时用 mvn test -Pperf 单独运行 -->
+                    <excludedGroups>perf</excludedGroups>
+                </configuration>
+            </plugin>
+            <!-- TST-06：JaCoCo 覆盖率度量——mvn test 后生成 target/site/jacoco/ 报告 -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>0.8.11</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+    <!-- TST-04：perf profile——单独运行重型 @Tag("perf") 测试（默认 test 阶段排除） -->
+    <profiles>
+        <profile>
+            <id>perf</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-surefire-plugin</artifactId>
+                        <configuration>
+                            <groups>perf</groups>
+                            <excludedGroups combine.self="override"/>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+</project>

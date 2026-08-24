@@ -1,0 +1,98 @@
+================================================================================
+                    在线考试系统 - 需求规格说明书
+                    Online Examination System - Requirements Specification
+================================================================================
+
+版本: 1.0
+日期: 2026-08-20
+状态: Draft
+
+--------------------------------------------------------------------------------
+REQ-001 | 创建考试 | Priority: HIGH
+--------------------------------------------------------------------------------
+系统应支持创建考试，考试信息包括：考试标题(title)、考试时长(duration，单位分钟)、
+及格分数线(passingScore)。考试创建后默认状态为"未发布"(UNPUBLISHED)，
+需要管理员手动发布后才能供学生参加。
+
+--------------------------------------------------------------------------------
+REQ-002 | 题目管理 | Priority: HIGH
+--------------------------------------------------------------------------------
+系统应支持题目的增删改查(CRUD)操作。题目类型包括：
+  - 单选题(SINGLE_CHOICE)
+  - 多选题(MULTI_CHOICE)
+  - 判断题(TRUE_FALSE)
+  - 简答题(ESSAY)
+每道题目需包含题干内容、选项(客观题)、正确答案、难度等级和分值。
+
+--------------------------------------------------------------------------------
+REQ-003 | 试卷生成 | Priority: HIGH
+--------------------------------------------------------------------------------
+Exam paper generation: The system shall support automatic paper generation
+by randomly selecting questions from the question bank based on difficulty
+level (EASY, MEDIUM, HARD). Administrators can specify the number of questions
+for each type and difficulty to compose the exam paper.
+
+--------------------------------------------------------------------------------
+REQ-004 | 学生参加考试 | Priority: HIGH
+--------------------------------------------------------------------------------
+学生可以开始考试并在线答题。系统需要记录考试开始时间，当考试时间超过
+规定时长(duration)后，系统应自动提交试卷(auto-submit on timeout)。
+学生在考试过程中可以保存答案，最终提交后不可修改。
+
+--------------------------------------------------------------------------------
+REQ-005 | 客观题自动评分 | Priority: HIGH
+--------------------------------------------------------------------------------
+Auto grading for objective questions: The system shall automatically grade
+single choice, multiple choice, and true/false questions by comparing
+student answers with the correct answers. 多选题需要全部选对才得分。
+
+--------------------------------------------------------------------------------
+REQ-006 | 主观题人工阅卷 | Priority: MEDIUM
+--------------------------------------------------------------------------------
+简答题(ESSAY)类型题目需要教师手动评分。系统应提供人工阅卷工作流，
+教师可以查看学生答案并给出分数和评语。All essay questions must be
+manually reviewed before the final score is published.
+
+--------------------------------------------------------------------------------
+REQ-007 | 成绩统计与排名 | Priority: MEDIUM
+--------------------------------------------------------------------------------
+系统应提供考试成绩的统计分析功能，包括：
+  - 平均分(average score)
+  - 最高分(highest score)
+  - 最低分(lowest score)
+  - 及格率(pass rate)
+  - 学生排名(ranking)
+统计结果应支持按考试维度查看。
+
+--------------------------------------------------------------------------------
+REQ-008 | 防作弊检测 | Priority: MEDIUM
+--------------------------------------------------------------------------------
+Anti-cheating detection: The system shall detect potential cheating behaviors
+including 切换标签页检测(switch tab detection) and 重复答案检测
+(duplicate answer detection). When cheating is detected, the system should
+flag the exam record for further review by the instructor.
+
+--------------------------------------------------------------------------------
+REQ-009 | 成绩复核与申诉 | Priority: LOW
+--------------------------------------------------------------------------------
+学生可以在成绩公布后申请成绩复核。Reexamination and appeal workflow:
+学生提交申诉请求 -> 教师审核 -> 给出复核结果。
+每个申诉需要有明确的申诉理由和处理状态。
+
+--------------------------------------------------------------------------------
+REQ-010 | 导出考试结果 | Priority: LOW
+--------------------------------------------------------------------------------
+Export exam results to report: The system shall support exporting exam
+results and statistics into a readable report format. 报告应包含学生姓名、
+各题得分、总分、排名等信息，支持纯文本格式导出。
+
+--------------------------------------------------------------------------------
+REQ-011 | 题库导入导出 | Priority: LOW
+--------------------------------------------------------------------------------
+Question bank import/export: The system shall support batch import and
+export of questions. 支持批量操作，导入时需要进行格式校验，
+导出时按题目类型和难度分类整理。
+
+================================================================================
+                         END OF REQUIREMENTS
+================================================================================

@@ -1,0 +1,163 @@
+# 性能基准工程需求规格说明书
+# 版本: 1.0  生成器: BenchmarkProjectGenerator
+
+REQ-0001: 支持Entity001的创建，创建时校验名称非空且金额大于0，否则返回错误。
+
+REQ-0002: 支持按ID查询Entity001详情，查询不到时返回null。
+
+REQ-0003: 支持更新Entity001，更新后状态由PENDING流转为PROCESSING，不允许跳过中间状态。
+
+REQ-0004: 支持Entity001状态流转到COMPLETED，必须校验金额非负与总量守恒。
+
+REQ-0005: 支持Entity002的创建，创建时校验名称非空且金额大于0，否则返回错误。
+
+REQ-0006: 支持按ID查询Entity002详情，查询不到时返回null。
+
+REQ-0007: 支持更新Entity002，更新后状态由PENDING流转为PROCESSING，不允许跳过中间状态。
+
+REQ-0008: 支持Entity002状态流转到COMPLETED，必须校验金额非负与总量守恒。
+
+REQ-0009: 支持Entity003的创建，创建时校验名称非空且金额大于0，否则返回错误。
+
+REQ-0010: 支持按ID查询Entity003详情，查询不到时返回null。
+
+REQ-0011: 支持更新Entity003，更新后状态由PENDING流转为PROCESSING，不允许跳过中间状态。
+
+REQ-0012: 支持Entity003状态流转到COMPLETED，必须校验金额非负与总量守恒。
+
+REQ-0013: 支持Entity004的创建，创建时校验名称非空且金额大于0，否则返回错误。
+
+REQ-0014: 支持按ID查询Entity004详情，查询不到时返回null。
+
+REQ-0015: 支持更新Entity004，更新后状态由PENDING流转为PROCESSING，不允许跳过中间状态。
+
+REQ-0016: 支持Entity004状态流转到COMPLETED，必须校验金额非负与总量守恒。
+
+REQ-0017: 支持Entity005的创建，创建时校验名称非空且金额大于0，否则返回错误。
+
+REQ-0018: 支持按ID查询Entity005详情，查询不到时返回null。
+
+REQ-0019: 支持更新Entity005，更新后状态由PENDING流转为PROCESSING，不允许跳过中间状态。
+
+REQ-0020: 支持Entity005状态流转到COMPLETED，必须校验金额非负与总量守恒。
+
+REQ-0021: 支持Entity006的创建，创建时校验名称非空且金额大于0，否则返回错误。
+
+REQ-0022: 支持按ID查询Entity006详情，查询不到时返回null。
+
+REQ-0023: 支持更新Entity006，更新后状态由PENDING流转为PROCESSING，不允许跳过中间状态。
+
+REQ-0024: 支持Entity006状态流转到COMPLETED，必须校验金额非负与总量守恒。
+
+REQ-0025: 支持Entity007的创建，创建时校验名称非空且金额大于0，否则返回错误。
+
+REQ-0026: 支持按ID查询Entity007详情，查询不到时返回null。
+
+REQ-0027: 支持更新Entity007，更新后状态由PENDING流转为PROCESSING，不允许跳过中间状态。
+
+REQ-0028: 支持Entity007状态流转到COMPLETED，必须校验金额非负与总量守恒。
+
+REQ-0029: 支持Entity008的创建，创建时校验名称非空且金额大于0，否则返回错误。
+
+REQ-0030: 支持按ID查询Entity008详情，查询不到时返回null。
+
+REQ-0031: 支持更新Entity008，更新后状态由PENDING流转为PROCESSING，不允许跳过中间状态。
+
+REQ-0032: 支持Entity008状态流转到COMPLETED，必须校验金额非负与总量守恒。
+
+REQ-0033: 支持Entity009的创建，创建时校验名称非空且金额大于0，否则返回错误。
+
+REQ-0034: 支持按ID查询Entity009详情，查询不到时返回null。
+
+REQ-0035: 支持更新Entity009，更新后状态由PENDING流转为PROCESSING，不允许跳过中间状态。
+
+REQ-0036: 支持Entity009状态流转到COMPLETED，必须校验金额非负与总量守恒。
+
+REQ-0037: 支持Entity010的创建，创建时校验名称非空且金额大于0，否则返回错误。
+
+REQ-0038: 支持按ID查询Entity010详情，查询不到时返回null。
+
+REQ-0039: 支持更新Entity010，更新后状态由PENDING流转为PROCESSING，不允许跳过中间状态。
+
+REQ-0040: 支持Entity010状态流转到COMPLETED，必须校验金额非负与总量守恒。
+
+REQ-0041: 支持Entity011的创建，创建时校验名称非空且金额大于0，否则返回错误。
+
+REQ-0042: 支持按ID查询Entity011详情，查询不到时返回null。
+
+REQ-0043: 支持更新Entity011，更新后状态由PENDING流转为PROCESSING，不允许跳过中间状态。
+
+REQ-0044: 支持Entity011状态流转到COMPLETED，必须校验金额非负与总量守恒。
+
+REQ-0045: 支持Entity012的创建，创建时校验名称非空且金额大于0，否则返回错误。
+
+REQ-0046: 支持按ID查询Entity012详情，查询不到时返回null。
+
+REQ-0047: 支持更新Entity012，更新后状态由PENDING流转为PROCESSING，不允许跳过中间状态。
+
+REQ-0048: 支持Entity012状态流转到COMPLETED，必须校验金额非负与总量守恒。
+
+REQ-0049: 支持Entity013的创建，创建时校验名称非空且金额大于0，否则返回错误。
+
+REQ-0050: 支持按ID查询Entity013详情，查询不到时返回null。
+
+REQ-0051: 支持更新Entity013，更新后状态由PENDING流转为PROCESSING，不允许跳过中间状态。
+
+REQ-0052: 支持Entity013状态流转到COMPLETED，必须校验金额非负与总量守恒。
+
+REQ-0053: 支持Entity014的创建，创建时校验名称非空且金额大于0，否则返回错误。
+
+REQ-0054: 支持按ID查询Entity014详情，查询不到时返回null。
+
+REQ-0055: 支持更新Entity014，更新后状态由PENDING流转为PROCESSING，不允许跳过中间状态。
+
+REQ-0056: 支持Entity014状态流转到COMPLETED，必须校验金额非负与总量守恒。
+
+REQ-0057: 支持Entity015的创建，创建时校验名称非空且金额大于0，否则返回错误。
+
+REQ-0058: 支持按ID查询Entity015详情，查询不到时返回null。
+
+REQ-0059: 支持更新Entity015，更新后状态由PENDING流转为PROCESSING，不允许跳过中间状态。
+
+REQ-0060: 支持Entity015状态流转到COMPLETED，必须校验金额非负与总量守恒。
+
+REQ-0061: 支持Entity016的创建，创建时校验名称非空且金额大于0，否则返回错误。
+
+REQ-0062: 支持按ID查询Entity016详情，查询不到时返回null。
+
+REQ-0063: 支持更新Entity016，更新后状态由PENDING流转为PROCESSING，不允许跳过中间状态。
+
+REQ-0064: 支持Entity016状态流转到COMPLETED，必须校验金额非负与总量守恒。
+
+REQ-0065: 支持Entity017的创建，创建时校验名称非空且金额大于0，否则返回错误。
+
+REQ-0066: 支持按ID查询Entity017详情，查询不到时返回null。
+
+REQ-0067: 支持更新Entity017，更新后状态由PENDING流转为PROCESSING，不允许跳过中间状态。
+
+REQ-0068: 支持Entity017状态流转到COMPLETED，必须校验金额非负与总量守恒。
+
+REQ-0069: 支持Entity018的创建，创建时校验名称非空且金额大于0，否则返回错误。
+
+REQ-0070: 支持按ID查询Entity018详情，查询不到时返回null。
+
+REQ-0071: 支持更新Entity018，更新后状态由PENDING流转为PROCESSING，不允许跳过中间状态。
+
+REQ-0072: 支持Entity018状态流转到COMPLETED，必须校验金额非负与总量守恒。
+
+REQ-0073: 支持Entity019的创建，创建时校验名称非空且金额大于0，否则返回错误。
+
+REQ-0074: 支持按ID查询Entity019详情，查询不到时返回null。
+
+REQ-0075: 支持更新Entity019，更新后状态由PENDING流转为PROCESSING，不允许跳过中间状态。
+
+REQ-0076: 支持Entity019状态流转到COMPLETED，必须校验金额非负与总量守恒。
+
+REQ-0077: 支持Entity020的创建，创建时校验名称非空且金额大于0，否则返回错误。
+
+REQ-0078: 支持按ID查询Entity020详情，查询不到时返回null。
+
+REQ-0079: 支持更新Entity020，更新后状态由PENDING流转为PROCESSING，不允许跳过中间状态。
+
+REQ-0080: 支持Entity020状态流转到COMPLETED，必须校验金额非负与总量守恒。
+

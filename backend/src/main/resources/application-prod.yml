@@ -1,0 +1,125 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /api
+
+spring:
+  application:
+    name: traceguard
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DB:traceguard}?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD:}
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 200MB
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: GMT+8
+  sql:
+    init:
+      mode: always
+      encoding: UTF-8
+      schema-locations: classpath:sql/init.sql
+  output:
+    ansi:
+      enabled: never
+
+mybatis-plus:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: com.traceguard.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl
+  global-config:
+    db-config:
+      id-type: assign_id
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+logging:
+  file:
+    name: logs/traceguard.log
+  level:
+    root: info
+    com.traceguard: info
+
+traceguard:
+  # SEC-05：生产 CORS 白名单必须显式注入部署域名（逗号分隔），无默认回退（缺失时仅拒绝跨域携带凭证，本域访问不受影响）
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:}
+  jwt:
+    # SEC-02：生产环境必须通过环境变量注入 JWT_SECRET，无默认回退（缺失时启动即失败）
+    secret: ${JWT_SECRET}
+    expire-hours: 24
+  storage:
+    upload-path: /data/traceguard/uploads/
+    backup-path: /data/traceguard/backups/
+    # SEC-02/03：生产加密密钥一律环境变量注入，无默认回退（缺失时启动即失败）
+    encrypt-key: ${STORAGE_ENCRYPT_KEY}
+  backup:
+    encrypt-key: ${BACKUP_ENCRYPT_KEY}
+  analysis:
+    default-threshold-t1: 0.8
+    default-threshold-t2: 0.5
+    default-weight-alpha: 0.4
+    default-weight-beta: 0.35
+    default-weight-gamma: 0.25
+    # FR-REQ-004：形式化规约校验失败是否阻断后续分析流程（简化校验器存在误报，默认关闭）
+    strict-spec-verify: false
+  mysql:
+    database: ${MYSQL_DB:traceguard}
+    bin-path: /usr/bin/
+  # GAP-002：Alloy 真实语义求解
+  alloy:
+    enabled: true
+    timeout-seconds: 30
+    max-instances: 5
+    max-scope: 6
+  # GAP-003：Soot 字节码级 CFG
+  soot:
+    enabled: true
+    compile-timeout-seconds: 60
+    method-cfg-timeout-seconds: 10
+  # GAP-021：大模型编排（默认关闭，配置密钥并开启后生效）
+  llm:
+    enabled: ${LLM_ENABLED:false}
+    providers:
+      deepseek:
+        base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
+        api-key: ${DEEPSEEK_API_KEY:}
+        timeout-seconds: 60
+      glm:
+        base-url: ${GLM_BASE_URL:https://open.bigmodel.cn/api/paas/v4}
+        api-key: ${GLM_API_KEY:}
+        timeout-seconds: 60
+      local:
+        base-url: http://localhost:8000
+        api-key: ""
+        timeout-seconds: 120
+      qwen:
+        base-url: ${QWEN_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
+        api-key: ${QWEN_API_KEY:}
+        timeout-seconds: 60
+    routing:
+      requirement: glm
+      alloy: deepseek
+      code-explain: deepseek
+      defect-explain: deepseek
+      consistency-check: qwen
+    models:
+      requirement: glm-5.3
+      alloy: deepseek-v4-flash
+      code-explain: deepseek-v4-flash
+      defect-explain: deepseek-v4-flash
+      consistency-check: qwen-max
+    max-concurrent-calls: 4
+    max-calls-per-stage: 200
+    # SEC-02：生产环境必须通过环境变量注入 LLM_CONFIG_KEY，无默认回退（缺失时启动即失败）
+    config-encrypt-key: ${LLM_CONFIG_KEY}
+
+knife4j:
+  enable: false

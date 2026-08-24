@@ -1,0 +1,88 @@
+[
+  {
+    "id": "SPEC-001",
+    "requirement": {
+      "originalText": "用户登录失败连续 5 次后，账户应被锁定 10 分钟",
+      "requirementType": "security",
+      "stateSet": ["unlocked", "locked"],
+      "initialState": "unlocked",
+      "stateTransitions": {
+        "from": "unlocked",
+        "trigger": "loginFailed",
+        "condition": "failureCount >= 5",
+        "to": "locked"
+      },
+      "invariants": ["lockedState => failureCount >= 5"],
+      "atomicConstraints": ["failureCount 在登录成功后重置为 0", "锁定时间 >= 10 分钟"]
+    },
+    "formalSpec": {
+      "alloyCode": "sig LoginState {}\none sig Unlocked extends LoginState {}\none sig Locked extends LoginState {}\n\nvar var state: LoginState\nvar var failureCount: Int\n\npred loginFailed {\n  failureCount' = failureCount + 1\n  failureCount >= 5 => state' = Locked\n}\n\npred loginSuccess {\n  failureCount' = 0\n  state' = Unlocked\n}\n\nfact Invariants {\n  always (state = Locked => failureCount >= 5)\n}",
+      "verificationStatus": "passed",
+      "verificationResult": "No counterexample found within scope 5"
+    },
+    "conversionQuality": {
+      "semanticSimilarity": 0.92,
+      "constraintCoverage": 1.0,
+      "invariantPreservation": true,
+      "manualReviewComment": "形式化规约完整捕获了状态转移和不变量"
+    }
+  },
+  {
+    "id": "SPEC-002",
+    "requirement": {
+      "originalText": "订单支付成功后，库存应自动扣减，若库存不足则生成缺货登记",
+      "requirementType": "business",
+      "stateSet": ["pending", "paid", "shipped", "backorder"],
+      "initialState": "pending",
+      "stateTransitions": [
+        {
+          "from": "pending",
+          "trigger": "paymentSuccess",
+          "condition": "stock > 0",
+          "to": "paid"
+        },
+        {
+          "from": "pending",
+          "trigger": "paymentSuccess",
+          "condition": "stock = 0",
+          "to": "backorder"
+        }
+      ],
+      "invariants": ["paid => stock >= 0", "backorder => stock = 0"],
+      "atomicConstraints": ["库存扣减原子操作", "缺货登记需记录用户 ID 和商品 ID"]
+    },
+    "formalSpec": {
+      "alloyCode": "sig OrderState {}\none sig Pending extends OrderState {}\none sig Paid extends OrderState {}\none sig Backorder extends OrderState {}\n\nvar var state: OrderState\nvar var stock: Int\n\npred paymentSuccess {\n  stock > 0 => {\n    stock' = stock - 1\n    state' = Paid\n  }\n  stock = 0 => state' = Backorder\n}\n\nfact Invariants {\n  always (state = Paid => stock >= 0)\n  always (state = Backorder => stock = 0)\n}",
+      "verificationStatus": "passed",
+      "verificationResult": "All constraints satisfied"
+    },
+    "conversionQuality": {
+      "semanticSimilarity": 0.89,
+      "constraintCoverage": 0.95,
+      "invariantPreservation": true,
+      "manualReviewComment": "缺货登记细节（用户 ID、商品 ID）未在规约中显式建模，建议补充"
+    }
+  },
+  {
+    "id": "SPEC-003",
+    "requirement": {
+      "originalText": "文件上传大小不得超过 100MB，且仅允许 PDF 和 DOCX 格式",
+      "requirementType": "validation",
+      "stateSet": ["valid", "invalid_size", "invalid_format"],
+      "initialState": "valid",
+      "atomicConstraints": ["fileSize <= 100MB", "fileType in {PDF, DOCX}"],
+      "ambiguityReport": null
+    },
+    "formalSpec": {
+      "alloyCode": "sig FileType {}\none sig PDF extends FileType {}\none sig DOCX extends FileType {}\n\npred validateUpload[fileSize: Int, fileType: FileType] {\n  fileSize <= 100 * 1024 * 1024\n  fileType in PDF + DOCX\n}",
+      "verificationStatus": "passed",
+      "verificationResult": "Validation rules correctly encoded"
+    },
+    "conversionQuality": {
+      "semanticSimilarity": 0.95,
+      "constraintCoverage": 1.0,
+      "invariantPreservation": true,
+      "manualReviewComment": "规约简洁准确，完全捕获了上传约束"
+    }
+  }
+]

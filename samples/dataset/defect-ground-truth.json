@@ -1,0 +1,55 @@
+{
+  "description": "GAP-007 缺陷 Ground Truth：聚合 GAP-035 三样例工程 defects.json（统一 schema，供评测对齐）。三工程原始清单分别位于 ../ecommerce-order/defects.json、../api-service/defects.json、../exam-system/defects.json。",
+  "sources": [
+    "../ecommerce-order/defects.json",
+    "../api-service/defects.json",
+    "../exam-system/defects.json"
+  ],
+  "defects": [
+    { "id": "D01", "project": "ecommerce-order", "file": "OrderService.java", "method": "loadDiscountConfig", "type": "约束条件不满足", "subType": "资源未释放", "relatedReq": "REQ-003" },
+    { "id": "D02", "project": "ecommerce-order", "file": "OrderService.java", "method": "grantPoints", "type": "需求缺失", "subType": "未定义功能实现", "relatedReq": "" },
+    { "id": "D03", "project": "ecommerce-order", "file": "OrderService.java", "method": "batchExportOrders", "type": "代码超范围实现", "subType": "未定义功能实现", "relatedReq": "" },
+    { "id": "D04", "project": "ecommerce-order", "file": "OrderService.java", "method": "completeOrder", "type": "业务逻辑不一致", "subType": "阈值条件反转", "relatedReq": "REQ-003" },
+    { "id": "D05", "project": "ecommerce-order", "file": "OrderService.java", "method": "payOrder", "type": "约束条件不满足", "subType": "缺少空值校验", "relatedReq": "REQ-004" },
+    { "id": "D06", "project": "ecommerce-order", "file": "OrderService.java", "method": "queryByCustomer", "type": "基础代码缺陷", "subType": "空指针风险", "relatedReq": "REQ-009" },
+    { "id": "D07", "project": "ecommerce-order", "file": "OrderService.java", "method": "createOrder", "type": "基础代码缺陷", "subType": "空catch块", "relatedReq": "REQ-001" },
+    { "id": "D08", "project": "ecommerce-order", "file": "OrderService.java", "method": "validateOrder", "type": "基础代码缺陷", "subType": "数组越界风险", "relatedReq": "REQ-002" },
+    { "id": "D09", "project": "ecommerce-order", "file": "OrderService.java", "method": "refundOrder", "type": "业务逻辑不一致", "subType": "计算逻辑错误", "relatedReq": "REQ-006" },
+    { "id": "D10", "project": "ecommerce-order", "file": "OrderService.java", "method": "autoConfirmReceipt", "type": "约束条件不满足", "subType": "状态流转违规", "relatedReq": "REQ-003" },
+    { "id": "D11", "project": "ecommerce-order", "file": "InventoryManager.java", "method": "checkStock", "type": "业务逻辑不一致", "subType": "业务规则不完整", "relatedReq": "REQ-005" },
+    { "id": "D12", "project": "ecommerce-order", "file": "PaymentProcessor.java", "method": "refund", "type": "基础代码缺陷", "subType": "空指针风险", "relatedReq": "REQ-006" },
+    { "id": "API-001", "project": "api-service", "file": "NotificationController.java", "method": "send", "type": "需求缺失", "subType": "审计日志无需求依据", "relatedReq": "" },
+    { "id": "API-002", "project": "api-service", "file": "NotificationController.java", "method": "autoReply", "type": "代码超范围实现", "subType": "自动回复无需求依据", "relatedReq": "" },
+    { "id": "API-003", "project": "api-service", "file": "NotificationService.java", "method": "checkRateLimit", "type": "业务逻辑不一致", "subType": "限流阈值不一致", "relatedReq": "REQ-003" },
+    { "id": "API-004", "project": "api-service", "file": "NotificationService.java", "method": "checkIdempotent", "type": "业务逻辑不一致", "subType": "幂等窗口不一致", "relatedReq": "REQ-002" },
+    { "id": "API-005", "project": "api-service", "file": "NotificationService.java", "method": "validateParams", "type": "约束条件不满足", "subType": "参数校验不完整", "relatedReq": "REQ-001" },
+    { "id": "API-006", "project": "api-service", "file": "TemplateManager.java", "method": "validate", "type": "约束条件不满足", "subType": "模板长度限制不一致", "relatedReq": "REQ-004" },
+    { "id": "API-007", "project": "api-service", "file": "NotificationService.java", "method": "retryWithBackoff", "type": "基础代码缺陷", "subType": "空catch块", "relatedReq": "REQ-009" },
+    { "id": "API-008", "project": "api-service", "file": "BlacklistManager.java", "method": "batchAdd", "type": "基础代码缺陷", "subType": "空catch块", "relatedReq": "REQ-008" },
+    { "id": "API-009", "project": "api-service", "file": "TemplateManager.java", "method": "render", "type": "基础代码缺陷", "subType": "变量注入风险", "relatedReq": "REQ-004" },
+    { "id": "API-010", "project": "api-service", "file": "NotificationService.java", "method": "getChannelDistribution", "type": "基础代码缺陷", "subType": "空指针风险", "relatedReq": "REQ-010" },
+    { "id": "EX-001", "project": "exam-system", "file": "Exam.java", "method": "field declaration", "type": "需求缺失", "subType": "考试提醒无需求依据", "relatedReq": "" },
+    { "id": "EX-002", "project": "exam-system", "file": "ExamService.java", "method": "generateStudyPlan", "type": "代码超范围实现", "subType": "学习计划无需求依据", "relatedReq": "" },
+    { "id": "EX-003", "project": "exam-system", "file": "ExamService.java", "method": "getStatistics", "type": "业务逻辑不一致", "subType": "及格判断逻辑反转", "relatedReq": "REQ-007" },
+    { "id": "EX-004", "project": "exam-system", "file": "ExamService.java", "method": "submitExam", "type": "业务逻辑不一致", "subType": "超时判断逻辑反转", "relatedReq": "REQ-004" },
+    { "id": "EX-005", "project": "exam-system", "file": "ExamService.java", "method": "autoGrade", "type": "约束条件不满足", "subType": "缺少空值校验", "relatedReq": "REQ-004" },
+    { "id": "EX-006", "project": "exam-system", "file": "ExamService.java", "method": "createExam", "type": "约束条件不满足", "subType": "缺少合法性校验", "relatedReq": "REQ-001" },
+    { "id": "EX-007", "project": "exam-system", "file": "QuestionBank.java", "method": "batchImport", "type": "基础代码缺陷", "subType": "空catch块", "relatedReq": "REQ-011" },
+    { "id": "EX-008", "project": "exam-system", "file": "ExamService.java", "method": "calculateRanking", "type": "基础代码缺陷", "subType": "比较器传递性违反", "relatedReq": "REQ-007" },
+    { "id": "EX-009", "project": "exam-system", "file": "ExamService.java", "method": "detectCheating", "type": "基础代码缺陷", "subType": "数组越界", "relatedReq": "REQ-008" },
+    { "id": "EX-010", "project": "exam-system", "file": "GradingService.java", "method": "gradeSingleChoice", "type": "约束条件不满足", "subType": "缺少空值校验", "relatedReq": "REQ-005" },
+    { "id": "EX-011", "project": "exam-system", "file": "ExamService.java", "method": "detectCheating", "type": "需求缺失", "subType": "阈值无需求依据", "relatedReq": "REQ-008" },
+    { "id": "EX-012", "project": "exam-system", "file": "GradingService.java", "method": "gradeTrueFalse", "type": "基础代码缺陷", "subType": "缺少空值校验", "relatedReq": "REQ-005" }
+  ],
+  "summary": {
+    "total": 34,
+    "by_project": { "ecommerce-order": 12, "api-service": 10, "exam-system": 12 },
+    "by_type": {
+      "需求缺失": 4,
+      "代码超范围实现": 3,
+      "业务逻辑不一致": 7,
+      "约束条件不满足": 8,
+      "基础代码缺陷": 12
+    }
+  }
+}

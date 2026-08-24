@@ -1,0 +1,110 @@
+[
+  {
+    "id": "D01",
+    "file": "OrderService.java",
+    "line": 99,
+    "type": "约束条件不满足",
+    "subtype": "资源未释放",
+    "relatedReq": "REQ-003",
+    "description": "FileInputStream 未在 finally 块中关闭，当 loadDiscountConfig 方法执行完毕后流资源泄漏，应使用 try-with-resources 或在 finally 中调用 close()"
+  },
+  {
+    "id": "D02",
+    "file": "OrderService.java",
+    "line": 89,
+    "type": "需求缺失",
+    "subtype": "未定义功能实现",
+    "relatedReq": "",
+    "description": "积分赠送逻辑 grantPoints() 不在需求规格说明书中定义，需求 REQ-001~REQ-012 均未涉及会员积分功能，属于超出需求范围的实现"
+  },
+  {
+    "id": "D03",
+    "file": "OrderService.java",
+    "line": 371,
+    "type": "代码超范围实现",
+    "subtype": "未定义功能实现",
+    "relatedReq": "",
+    "description": "batchExportOrders() 批量导出订单功能不在需求规格中，需求仅定义了按ID/客户/状态查询（REQ-008~REQ-010），未定义任何导出功能"
+  },
+  {
+    "id": "D04",
+    "file": "OrderService.java",
+    "line": 173,
+    "type": "业务逻辑不一致",
+    "subtype": "阈值条件反转",
+    "relatedReq": "REQ-003",
+    "description": "completeOrder 方法中状态判断条件错误：使用 currentIndex > completedIndex 判断，但 completedIndex 为最大值(3)，该条件永远不成立，导致任何状态的订单都能被完成，违反了 REQ-003 的状态流转顺序约束。应使用 currentIndex < completedIndex - 1 来校验前置状态"
+  },
+  {
+    "id": "D05",
+    "file": "OrderService.java",
+    "line": 123,
+    "type": "约束条件不满足",
+    "subtype": "缺少空值校验",
+    "relatedReq": "REQ-004",
+    "description": "payOrder 方法中 orderStore.get(orderId) 返回结果未做 null 检查，当传入不存在的 orderId 时，第123行 order.getStatus() 会抛出 NullPointerException，违反 REQ-004 的支付状态校验约束"
+  },
+  {
+    "id": "D06",
+    "file": "OrderService.java",
+    "line": 259,
+    "type": "基础代码缺陷",
+    "subtype": "空指针风险",
+    "relatedReq": "REQ-009",
+    "description": "queryByCustomer 方法中，当参数 customerId 为 null 时，order.getCustomerId().equals(null) 不会报错但逻辑不正确；更严重的是如果某个订单的 customerId 字段本身为 null，则 order.getCustomerId().equals(customerId) 会抛出 NullPointerException"
+  },
+  {
+    "id": "D07",
+    "file": "OrderService.java",
+    "line": 82,
+    "type": "基础代码缺陷",
+    "subtype": "空catch块",
+    "relatedReq": "REQ-001",
+    "description": "createOrder 方法中加载折扣配置的 try-catch 块为空 catch，异常被静默吞掉。当配置文件不存在或格式错误时，折扣逻辑被跳过但订单仍正常创建，可能导致金额计算不正确且无任何日志记录"
+  },
+  {
+    "id": "D08",
+    "file": "OrderService.java",
+    "line": 328,
+    "type": "基础代码缺陷",
+    "subtype": "数组越界风险",
+    "relatedReq": "REQ-002",
+    "description": "validateOrder 方法中 order.getItems().get(0) 未检查列表是否为空，当 items 为空 ArrayList 时调用 get(0) 会抛出 IndexOutOfBoundsException。应先检查 items.isEmpty() 或使用 items.size() > 0 守卫"
+  },
+  {
+    "id": "D09",
+    "file": "OrderService.java",
+    "line": 235,
+    "type": "业务逻辑不一致",
+    "subtype": "计算逻辑错误",
+    "relatedReq": "REQ-006",
+    "description": "refundOrder 方法中退款金额计算为 order.getAmount() * 0.9，扣除了10%手续费。但需求 REQ-006 仅要求退款处理，未定义任何手续费规则，应全额退款 order.getAmount()"
+  },
+  {
+    "id": "D10",
+    "file": "OrderService.java",
+    "line": 395,
+    "type": "约束条件不满足",
+    "subtype": "状态流转违规",
+    "relatedReq": "REQ-003",
+    "description": "autoConfirmReceipt 方法将 PAID 状态的订单直接设置为 COMPLETED，跳过了 SHIPPED 状态，违反了 REQ-003 规定的 PENDING->PAID->SHIPPED->COMPLETED 顺序流转约束"
+  },
+  {
+    "id": "D11",
+    "file": "InventoryManager.java",
+    "line": 45,
+    "type": "业务逻辑不一致",
+    "subtype": "业务规则不完整",
+    "relatedReq": "REQ-005",
+    "description": "checkStock 方法仅检查总库存 stock >= quantity，未考虑已预留库存 reservedMap 中的数量。当存在预留库存时，实际可用库存 = 总库存 - 预留库存，当前逻辑可能导致超卖，违反 REQ-005 的库存充足检查要求"
+  },
+  {
+    "id": "D12",
+    "file": "PaymentProcessor.java",
+    "line": 65,
+    "type": "基础代码缺陷",
+    "subtype": "空指针风险",
+    "relatedReq": "REQ-006",
+    "description": "refund 方法中 paymentRecords.get(orderId) 返回的 record 未做 null 检查，当传入不存在的 orderId 时，第65行 record.status 会抛出 NullPointerException"
+  }
+]

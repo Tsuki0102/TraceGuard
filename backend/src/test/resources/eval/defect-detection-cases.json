@@ -1,0 +1,123 @@
+[
+  {
+    "id": "DEFECT-001",
+    "requirement": {
+      "originalText": "密码修改后需使用新密码重新登录",
+      "requirementType": "security",
+      "stateSet": ["logged_in", "logged_out"],
+      "initialState": "logged_in",
+      "stateTransitions": {
+        "from": "logged_in",
+        "trigger": "passwordChanged",
+        "to": "logged_out"
+      },
+      "invariants": ["passwordChanged => sessionInvalidated"]
+    },
+    "codeUnit": {
+      "filePath": "src/main/java/com/traceguard/controller/AuthController.java",
+      "className": "AuthController",
+      "methodName": "changePassword",
+      "codeContent": "@PostMapping(\"/change-password\")\npublic Result changePassword(@RequestBody ChangePasswordRequest request) {\n  User user = userService.getCurrentUser();\n  userService.updatePassword(user.getId(), request.getNewPassword());\n  // 未使当前 session 失效\n  return Result.success();\n}"
+    },
+    "defect": {
+      "defectType": "serious_inconsistent",
+      "defectSubType": "state_transition_missing",
+      "reason": "代码未实现需求要求的状态转移（passwordChanged => logged_out），用户修改密码后仍可保持登录状态",
+      "repairSuggestion": "在 updatePassword 成功后调用 logout() 或使当前 token/session 失效",
+      "codeSnippet": "// 缺少：tokenBlacklist.add(currentToken) 或 session.invalidate()",
+      "severity": "high"
+    },
+    "detectionQuality": {
+      "precision": 0.95,
+      "recall": 1.0,
+      "falsePositive": false,
+      "manualReviewComment": "准确检测到状态转移缺失缺陷"
+    }
+  },
+  {
+    "id": "DEFECT-002",
+    "requirement": {
+      "originalText": "订单支付成功后，库存应自动扣减",
+      "requirementType": "business",
+      "atomicConstraints": ["paymentSuccess => stockDecremented", "stockDecremented 是原子操作"],
+      "invariants": ["stock >= 0"]
+    },
+    "codeUnit": {
+      "filePath": "src/main/java/com/traceguard/service/OrderService.java",
+      "className": "OrderService",
+      "methodName": "processPayment",
+      "codeContent": "@Transactional\npublic void processPayment(String orderId) {\n  Order order = orderRepository.findById(orderId);\n  paymentGateway.charge(order.getAmount());\n  // 未检查库存\n  order.setStatus(\"paid\");\n  orderRepository.save(order);\n}"
+    },
+    "defect": {
+      "defectType": "serious_inconsistent",
+      "defectSubType": "constraint_violation",
+      "reason": "代码未实现库存扣减逻辑，违反了需求的原子约束 paymentSuccess => stockDecremented",
+      "repairSuggestion": "在支付成功后调用 inventoryService.decreaseStock(order.getProductId(), 1)",
+      "codeSnippet": "// 缺少：inventoryService.decreaseStock(...)",
+      "severity": "critical"
+    },
+    "detectionQuality": {
+      "precision": 1.0,
+      "recall": 0.98,
+      "falsePositive": false,
+      "manualReviewComment": "精确检测到业务约束违反"
+    }
+  },
+  {
+    "id": "DEFECT-003",
+    "requirement": {
+      "originalText": "文件上传大小不得超过 100MB",
+      "requirementType": "validation",
+      "atomicConstraints": ["fileSize <= 100MB"]
+    },
+    "codeUnit": {
+      "filePath": "src/main/java/com/traceguard/controller/UploadController.java",
+      "className": "UploadController",
+      "methodName": "uploadFile",
+      "codeContent": "@PostMapping(\"/upload\")\npublic Result uploadFile(@RequestParam(\"file\") MultipartFile file) {\n  // 未校验文件大小\n  String path = saveFile(file);\n  return Result.success(path);\n}"
+    },
+    "defect": {
+      "defectType": "general_inconsistent",
+      "defectSubType": "missing_validation",
+      "reason": "代码未实现文件大小校验约束",
+      "repairSuggestion": "在 saveFile 前添加：if (file.getSize() > 100 * 1024 * 1024) throw new ValidationException(\"文件大小不得超过 100MB\")",
+      "codeSnippet": "// 缺少：file.getSize() <= 100MB 校验",
+      "severity": "medium"
+    },
+    "detectionQuality": {
+      "precision": 0.92,
+      "recall": 0.95,
+      "falsePositive": false,
+      "manualReviewComment": "检测到输入验证缺失，但可通过 Spring multipart 配置间接实现"
+    }
+  },
+  {
+    "id": "DEFECT-004",
+    "requirement": {
+      "originalText": "连续登录失败 5 次后锁定账户 10 分钟",
+      "requirementType": "security",
+      "stateSet": ["active", "locked"],
+      "atomicConstraints": ["failureCount >= 5 => locked", "lockDuration >= 10 minutes"]
+    },
+    "codeUnit": {
+      "filePath": "src/main/java/com/traceguard/service/LoginService.java",
+      "className": "LoginService",
+      "methodName": "authenticate",
+      "codeContent": "public boolean authenticate(String username, String password) {\n  User user = userRepository.findByUsername(username);\n  if (passwordEncoder.matches(password, user.getPassword())) {\n    loginFailureCounter.reset(username);\n    return true;\n  } else {\n    int failures = loginFailureCounter.increment(username);\n    // 未实现锁定逻辑\n    return false;\n  }\n}"
+    },
+    "defect": {
+      "defectType": "serious_inconsistent",
+      "defectSubType": "incomplete_implementation",
+      "reason": "代码仅记录失败次数，未实现 failureCount >= 5 时的账户锁定和 10 分钟锁定时长控制",
+      "repairSuggestion": "在 increment 后添加：if (failures >= 5) accountLocker.lock(username, Duration.ofMinutes(10))",
+      "codeSnippet": "// 缺少：failureCount >= 5 时调用 accountLocker.lock()",
+      "severity": "critical"
+    },
+    "detectionQuality": {
+      "precision": 0.97,
+      "recall": 1.0,
+      "falsePositive": false,
+      "manualReviewComment": "准确检测到安全约束实现不完整"
+    }
+  }
+]

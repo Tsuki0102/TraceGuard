@@ -1,0 +1,14 @@
+# OPS-04：backend 构建上下文专属 .dockerignore——Docker 只读构建上下文根的 .dockerignore，
+# 仓库根那份对 ./backend 上下文无效；此处排除 target（class/报告）/运行数据，避免整包传入拖慢构建
+target/
+node_modules/
+dist/
+uploads/
+backups/
+logs/
+*.log
+*.jar
+.git/
+.gitignore
+.idea/
+.vscode/

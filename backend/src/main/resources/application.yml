@@ -1,0 +1,190 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /api
+
+spring:
+  profiles:
+    active: dev
+  application:
+    name: traceguard
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DB:traceguard}?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    # SEC-15：数据库凭据经环境变量注入（MYSQL_USER/MYSQL_PASSWORD），不硬编码弱口令
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD:123456}
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 200MB
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: GMT+8
+  # springfox(knife4j) 要求使用 Ant 风格路径匹配，否则启动时抛 NPE
+  mvc:
+    pathmatch:
+      matching-strategy: ant_path_matcher
+
+mybatis-plus:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: com.traceguard.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      id-type: assign_id
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+traceguard:
+  # SEC-05：CORS 跨域来源白名单（逗号分隔），dev 默认本地前端；prod 通过 CORS_ALLOWED_ORIGINS 注入部署域名
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://127.0.0.1:3000}
+  jwt:
+    secret: ${JWT_SECRET:TraceGuard-JWT-Secret-Key-2026-For-Requirement-Code-Consistency-System-Must-Be-Long}
+    expire-hours: 72
+  # 登录失败限流（需求5.2.2 访问安全）：连续失败 max-attempts 次后锁定 lock-minutes 分钟
+  login:
+    max-attempts: 5
+    lock-minutes: 10
+  storage:
+    upload-path: ./uploads/
+    backup-path: ./backups/
+    # 上传文件落盘加密密钥（需求5.2.1 敏感数据加密存储，生产环境请通过环境变量注入）
+    # SEC-02：dev 本地保留可开发默认值；prod 配置覆盖为无回退（缺失即拒绝启动）
+    encrypt-key: ${STORAGE_ENCRYPT_KEY:TraceGuard#2026!UploadSecret}
+  # GAP-027：生产密钥强制改密控制（SEC-02：默认开启，prod 使用默认密钥即拒绝启动）
+  security:
+    reject-default-secrets: ${REJECT_DEFAULT_SECRETS:true}
+  # 备份加密密钥（需求6.3 备份数据安全）。SEC-03：集中到配置以便 ConfigAuditor 审计；
+  # 生产通过 BACKUP_ENCRYPT_KEY 注入独立密钥（见 application-prod.yml）
+  backup:
+    encrypt-key: ${BACKUP_ENCRYPT_KEY:TraceGuard#2024!BackupSecret}
+  # GAP-025：性能调优（受控线程池）
+  perf:
+    # 代码解析并行线程数（0=默认 min(4, CPU核)）
+    parse-threads: 0
+    # 一致性计算块内并行线程数（0=默认 min(4, CPU核)）
+    consistency-threads: 0
+    # 批量写库每批行数
+    batch-size: 500
+  analysis:
+    default-threshold-t1: 0.8
+    default-threshold-t2: 0.5
+    default-weight-alpha: 0.4
+    default-weight-beta: 0.35
+    default-weight-gamma: 0.25
+    # FR-REQ-004：形式化规约校验失败是否阻断后续分析流程（GAP-013：默认开启）
+    strict-spec-verify: true
+    # FUN-04：代码超范围实现的负例抑制下限——未匹配代码单元与需求最大相似度 ≥ 该值时不判超范围（降低误报）
+    out-of-scope-sim-limit: ${OUT_OF_SCOPE_SIM_LIMIT:0.5}
+    # FUN-09：隐含业务规则可配置词表（JSON 数组：[{"reqKeywords":"库存,充足","evidence":["reserved","预留"],"risk":0.30}]）。
+    # 留空使用内置默认（库存/退款/幂等），可覆盖以适配不同领域
+    business-rule-words: ${BUSINESS_RULE_WORDS:}
+    # CQ-06：缺陷子类型判定阈值（ThresholdConfigHolder 配置化，默认值与历史行为一致，仅消除魔法值）
+    defect-thresholds:
+      con-match: ${DEFECT_CON_MATCH:0.6}
+      inv-sat: ${DEFECT_INV_SAT:0.7}
+      cos-sim: ${DEFECT_COS_SIM:0.2}
+    # AUD-10：可扩展语言选择（默认 java/alloy，与改造前行为一致；扩展 C#/Python/TLA+ 时在此切换）
+    code-language: java
+    spec-language: alloy
+  # GAP-002：Alloy 真实语义求解（关闭即回退结构校验）
+  alloy:
+    enabled: true
+    timeout-seconds: 30
+    max-instances: 5
+    max-scope: 6
+  # GAP-003：Soot 字节码级 CFG（关闭即全量 AST CFG）
+  soot:
+    enabled: true
+    compile-timeout-seconds: 60
+    method-cfg-timeout-seconds: 10
+  # GAP-021：大模型编排（多 provider + 按环节路由；默认关闭，配置密钥并开启后生效）
+  llm:
+    enabled: false
+    providers:
+      deepseek:
+        base-url: https://api.deepseek.com
+        api-key: ${DEEPSEEK_API_KEY:}
+        timeout-seconds: 60
+      glm:
+        base-url: https://open.bigmodel.cn/api/paas/v4
+        api-key: ${GLM_API_KEY:}
+        timeout-seconds: 60
+      local:
+        base-url: http://localhost:8000
+        api-key: ""
+        timeout-seconds: 120
+      qwen:
+        base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
+        api-key: ${QWEN_API_KEY:}
+        timeout-seconds: 60
+      # GAP-043：本地 CodeLlama 真集成（Ollama/vLLM 提供的 OpenAI 兼容端点）。
+      # 拉起：ollama pull codellama:7b && ollama serve（默认 http://localhost:11434/v1）
+      codellama:
+        base-url: ${CODELLAMA_BASE_URL:http://localhost:11434/v1}
+        api-key: ""   # Ollama 不校验密钥，占位即可
+        timeout-seconds: 120
+    # GAP-046 LLM 增强引擎：self=OpenAI 兼容客户端（默认）；langchain=langchain4j 编排（GAP-044，需依赖可用）
+    engine: ${LLM_ENGINE:self}
+    routing:
+      requirement: glm
+      alloy: deepseek
+      code-explain: deepseek
+      defect-explain: deepseek
+      consistency-check: qwen
+    models:
+      requirement: glm-5.3
+      alloy: deepseek-v4-flash
+      code-explain: deepseek-v4-flash
+      defect-explain: deepseek-v4-flash
+      consistency-check: qwen-max
+    max-concurrent-calls: 4
+    max-calls-per-stage: 200
+    # tg_llm_config 表 api_key 加密密钥（GAP-021，生产请通过环境变量注入）
+    config-encrypt-key: ${LLM_CONFIG_KEY:TraceGuard#2026!LlmConfigSecret}
+    embedding:          # GAP-004
+      provider: ${EMBEDDING_PROVIDER:local} # openai | local（默认 local：启用本地 BGE ONNX 离线向量化，零外部依赖；模型缺失时自动回退规则模式）
+      base-url: ${EMBEDDING_BASE_URL:https://api.deepseek.com}
+      api-key: ${EMBEDDING_API_KEY:}
+      model: text-embedding-v3
+      batch-size: 16
+      timeout-seconds: 30
+      # AUD-05：provider=local 时使用，指向 BGE 系列 ONNX 模型文件（与同目录 vocab.txt 一起）
+      # 例：./models/bge-small-zh-v1.5/onnx/model.onnx（可用 scripts/download_bge_model.sh 下载并自动写入 .env）
+      # dev 默认指向项目根 models/（脚本运行目录为 backend/）；prod 经 EMBEDDING_MODEL_PATH 注入
+      model-path: ${EMBEDDING_MODEL_PATH:../models/bge-small-zh-v1.5/onnx/model.onnx}
+      model-dim: ${EMBEDDING_MODEL_DIM:512}   # bge-small 系列=512，bge-base=768，依模型而定
+      normalize: ${EMBEDDING_NORMALIZE:true}   # BGE 默认对输出做 L2 归一化
+  # GAP-009：第三方项目管理工具集成
+  integration:
+    jira:
+      enabled: false
+      base-url: ${JIRA_BASE_URL:}
+      username: ${JIRA_USER:}
+      token: ${JIRA_TOKEN:}
+      project-key: ${JIRA_PROJECT_KEY:}
+    zentao:
+      enabled: false
+      base-url: ${ZENTAO_BASE_URL:}
+      token: ${ZENTAO_TOKEN:}
+      product-id: ${ZENTAO_PRODUCT_ID:}
+    timeout-seconds: 10
+    circuit-failure-threshold: 5
+    circuit-open-seconds: 300
+    # GAP-009 入站同步（远程->本地）：定时轮询已推送缺陷状态变化并回写本地
+    # 无需公网地址；enabled=true 后每 cron 周期自动同步
+    inbound-sync:
+      enabled: ${INBOUND_SYNC_ENABLED:false}
+      # 默认每 5 分钟执行一次（演示可临时改为 "*/20 * * * * *" 每 20 秒）
+      cron: ${INBOUND_SYNC_CRON:0 */5 * * * *}
+      batch-size: 200
+
+knife4j:
+  enable: true
+  setting:
+    language: zh_cn

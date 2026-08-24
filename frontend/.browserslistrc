@@ -1,0 +1,4 @@
+# 支持的浏览器（SRS 5.5.2：Chrome/Edge/Firefox 100+）
+chrome >= 100
+edge >= 100
+firefox >= 100

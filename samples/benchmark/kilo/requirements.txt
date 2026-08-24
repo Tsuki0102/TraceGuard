@@ -1,0 +1,59 @@
+# 性能基准工程需求规格说明书
+# 版本: 1.0  生成器: BenchmarkProjectGenerator
+
+REQ-0001: 支持Entity001的创建，创建时校验名称非空且金额大于0，否则返回错误。
+
+REQ-0002: 支持按ID查询Entity001详情，查询不到时返回null。
+
+REQ-0003: 支持更新Entity001，更新后状态由PENDING流转为PROCESSING，不允许跳过中间状态。
+
+REQ-0004: 支持Entity001状态流转到COMPLETED，必须校验金额非负与总量守恒。
+
+REQ-0005: 支持Entity002的创建，创建时校验名称非空且金额大于0，否则返回错误。
+
+REQ-0006: 支持按ID查询Entity002详情，查询不到时返回null。
+
+REQ-0007: 支持更新Entity002，更新后状态由PENDING流转为PROCESSING，不允许跳过中间状态。
+
+REQ-0008: 支持Entity002状态流转到COMPLETED，必须校验金额非负与总量守恒。
+
+REQ-0009: 支持Entity003的创建，创建时校验名称非空且金额大于0，否则返回错误。
+
+REQ-0010: 支持按ID查询Entity003详情，查询不到时返回null。
+
+REQ-0011: 支持更新Entity003，更新后状态由PENDING流转为PROCESSING，不允许跳过中间状态。
+
+REQ-0012: 支持Entity003状态流转到COMPLETED，必须校验金额非负与总量守恒。
+
+REQ-0013: 支持Entity004的创建，创建时校验名称非空且金额大于0，否则返回错误。
+
+REQ-0014: 支持按ID查询Entity004详情，查询不到时返回null。
+
+REQ-0015: 支持更新Entity004，更新后状态由PENDING流转为PROCESSING，不允许跳过中间状态。
+
+REQ-0016: 支持Entity004状态流转到COMPLETED，必须校验金额非负与总量守恒。
+
+REQ-0017: 支持Entity005的创建，创建时校验名称非空且金额大于0，否则返回错误。
+
+REQ-0018: 支持按ID查询Entity005详情，查询不到时返回null。
+
+REQ-0019: 支持更新Entity005，更新后状态由PENDING流转为PROCESSING，不允许跳过中间状态。
+
+REQ-0020: 支持Entity005状态流转到COMPLETED，必须校验金额非负与总量守恒。
+
+REQ-0021: 支持Entity006的创建，创建时校验名称非空且金额大于0，否则返回错误。
+
+REQ-0022: 支持按ID查询Entity006详情，查询不到时返回null。
+
+REQ-0023: 支持更新Entity006，更新后状态由PENDING流转为PROCESSING，不允许跳过中间状态。
+
+REQ-0024: 支持Entity006状态流转到COMPLETED，必须校验金额非负与总量守恒。
+
+REQ-0025: 支持Entity007的创建，创建时校验名称非空且金额大于0，否则返回错误。
+
+REQ-0026: 支持按ID查询Entity007详情，查询不到时返回null。
+
+REQ-0027: 支持更新Entity007，更新后状态由PENDING流转为PROCESSING，不允许跳过中间状态。
+
+REQ-0028: 支持Entity007状态流转到COMPLETED，必须校验金额非负与总量守恒。
+

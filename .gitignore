@@ -1,0 +1,52 @@
+# ===== 构建产物（可重建，无需纳入版本控制） =====
+backend/target/
+frontend/dist/
+frontend/node_modules/
+installer-staging/
+*.class
+# OPS-06：jar 打包产物（installer-staging 内 fat jar 数十 MB，可重建不提交）
+*.jar
+
+# ===== 安装包 / 发布产物 =====
+installer-out/
+dist-release/
+
+# ===== 运行时数据 / 模型（OPS-06） =====
+uploads/
+backups/
+runtime/
+models/
+backend/uploads/
+backend/backups/
+scripts/smoke72h/
+backend/target-test-*.log
+
+# ===== 日志 / 临时 / 崩溃转储 =====
+logs/
+*.log
+*.err
+*.tmp
+*.bak
+*.dump
+*.dumpstream
+*.hprof
+hs_err_pid*
+
+# ===== 环境变量（含密钥，禁止提交） =====
+.env
+.env.local
+
+# ===== IDE / 工具工作数据 =====
+.idea/
+.vscode/
+.workbuddy/
+.codebuddy/
+*.iml
+.settings/
+.project
+.classpath
+
+# ===== OS =====
+Thumbs.db
+Desktop.ini
+.DS_Store

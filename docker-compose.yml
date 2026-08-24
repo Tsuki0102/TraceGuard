@@ -1,0 +1,89 @@
+# OPS-05：删除已废弃的 version 字段（Compose v2 忽略）；backend 增加 healthcheck；
+# frontend 改就绪依赖；JWT_SECRET 等密钥无默认回退（缺失即拒绝启动）；资源限制与日志轮转
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: traceguard-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-traceguard@2026}
+      MYSQL_DATABASE: traceguard
+      # SEC-15：创建专用应用账号（仅授权 traceguard 库），backend 不再以 root 连库
+      MYSQL_USER: ${MYSQL_APP_USER:-traceguard}
+      MYSQL_PASSWORD: ${MYSQL_APP_PASSWORD:-traceguard@2026}
+      TZ: Asia/Shanghai
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_general_ci
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      # SEC-15：密码经容器环境变量（$$ 转义为 $）由 shell 运行时读取，不落进镜像配置 argv
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u$$MYSQL_USER -p$$MYSQL_PASSWORD"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    mem_limit: 1g
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  backend:
+    build: ./backend
+    container_name: traceguard-backend
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_DB: traceguard
+      # SEC-15：专用应用账号连接，避免 root 直连
+      MYSQL_USER: ${MYSQL_APP_USER:-traceguard}
+      MYSQL_PASSWORD: ${MYSQL_APP_PASSWORD:-traceguard@2026}
+      # SEC-02/03：以下密钥均需在 compose 环境（.env 或 shell）注入，无默认回退，缺失即拒绝启动
+      JWT_SECRET: ${JWT_SECRET}
+      STORAGE_ENCRYPT_KEY: ${STORAGE_ENCRYPT_KEY}
+      LLM_CONFIG_KEY: ${LLM_CONFIG_KEY}
+      BACKUP_ENCRYPT_KEY: ${BACKUP_ENCRYPT_KEY}
+      TZ: Asia/Shanghai
+    volumes:
+      - app-data:/data/traceguard
+      - app-logs:/app/logs
+    ports:
+      - "8080:8080"
+    # OPS-05：backend 健康检查——TCP 探活 8080（前端依赖 service_healthy 就绪）
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080'"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+    mem_limit: 1g
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  frontend:
+    build: ./frontend
+    container_name: traceguard-frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "80:80"
+    mem_limit: 512m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  mysql-data:
+  app-data:
+  app-logs:

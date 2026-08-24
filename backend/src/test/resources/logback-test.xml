@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <!-- AUD-02：评测期日志配置。
+         关闭 RestTemplate/Apache HttpClient 的 DEBUG wire 日志：其每字节 [0xe4][0xbd] 形式的
+         超长请求体日志使 IO 开销巨大，拖慢 55 对 LLM 判定进程（10 分钟仅完成一半）；
+         置为 ERROR 后 qwen-plus 每次调用 <1s，评测可快速完成。 -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+    <logger name="org.apache.http" level="ERROR"/>
+    <logger name="org.apache.http.wire" level="ERROR"/>
+    <logger name="org.springframework.web.client.RestTemplate" level="ERROR"/>
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+</configuration>
