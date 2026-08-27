@@ -2,12 +2,15 @@ package com.traceguard.eval;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.traceguard.config.LlmProperties;
 import com.traceguard.core.ConsistencyChecker;
 import com.traceguard.entity.CodeUnit;
 import com.traceguard.entity.ConsistencyResult;
 import com.traceguard.entity.Requirement;
+import com.traceguard.service.impl.LocalBgeEmbeddingClient;
 import com.traceguard.util.CodeDefectPatternDetector;
 import com.traceguard.util.JavaCodeParserUtil;
+import com.traceguard.util.SemanticVectorUtil;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -62,9 +65,40 @@ class ThresholdCalibrationEvalTest {
     /** 标注对 -> 计算得分快照 */
     private static final List<PairScore> pairScores = new ArrayList<>();
 
+    /** FUN-04b：源工程 -> 类名 -> 同类方法签名列表（LLM 判定的分工上下文） */
+    private static final Map<String, Map<String, List<String>>> classContexts = new HashMap<>();
+
+    /** 收集每个类的公开方法签名（供 LLM 判定“其他方法分工”证据），每条截断至 120 字符 */
+    private static void collectClassContext(String source, List<CodeUnit> codeUnits) {
+        Map<String, List<String>> byClass = classContexts.computeIfAbsent(source, k -> new HashMap<>());
+        for (CodeUnit u : codeUnits) {
+            if (u.getClassName() == null || u.getMethodName() == null || "<init>".equals(u.getMethodName())) {
+                continue;
+            }
+            String sig = extractFirstLine(u.getCodeContent());
+            if (sig.isEmpty()) continue;
+            byClass.computeIfAbsent(u.getClassName(), k -> new ArrayList<>()).add(sig);
+        }
+    }
+
+    /** 取代码首行非注解非空行（通常是方法签名） */
+    private static String extractFirstLine(String content) {
+        if (content == null) return "";
+        for (String raw : content.split("\n")) {
+            String t = raw.trim();
+            if (t.isEmpty() || t.startsWith("/") || t.startsWith("*") || t.startsWith("//")) continue;
+            return t.length() > 120 ? t.substring(0, 120) : t;
+        }
+        return "";
+    }
+
+    /** FUN-04①：本次标定是否启用本地 BGE 语义向量 */
+    private static volatile boolean bgeEnabled = false;
+
     private static class PairScore {
         String id;
         String source;
+        String className;       // FUN-04b：所属类名（分工上下文检索键）
         String defectType;      // 标注主类型（consistent 对为空）
         boolean groundTruthDefective;
         double totalSimilarity;
@@ -86,6 +120,8 @@ class ThresholdCalibrationEvalTest {
         labelRoot.path("pairs").forEach(p -> labelById.put(p.path("id").asText(), p));
 
         ConsistencyChecker checker = new ConsistencyChecker();
+        // FUN-04①：默认启用本地 BGE Embedding 恢复语义维度区分度（EMBEDDING_MODEL_PATH 已注入时走 BGE，否则 TF-IDF 降级）
+        LocalBgeEmbeddingClient bge = buildLocalBgeClient();
         long idSeq = 1;
         for (String source : SOURCES) {
             Path sourceDir = datasetDir.getParent().resolve(source);
@@ -93,10 +129,17 @@ class ThresholdCalibrationEvalTest {
             idSeq += requirements.size();
             List<CodeUnit> codeUnits = parseCode(sourceDir, idSeq);
             idSeq += codeUnits.size();
+            if (bge != null && bge.available()) {
+                applyBgeSemanticVectors(bge, requirements, codeUnits);
+            }
+            collectClassContext(source, codeUnits); // FUN-04b：同类方法分工上下文（LLM 判定证据）
 
             // 生产链路计算（t1/t2 仅用于状态标注，得分与主类型不依赖其取值，这里用默认值）
+            // FUN-04b：类级证据（字段/常量声明）供量化边界核对信号使用
+            Map<String, List<String>> classEvidence =
+                    com.traceguard.util.ClassEvidenceScanner.scanConstants(sourceDir.resolve("code").toString());
             List<ConsistencyResult> results = checker.checkConsistency(
-                    0L, 0L, requirements, codeUnits, ALPHA, BETA, GAMMA, 0.8, 0.5);
+                    0L, 0L, requirements, codeUnits, null, classEvidence, ALPHA, BETA, GAMMA, 0.8, 0.5);
 
             Map<Long, Requirement> reqById = new HashMap<>();
             requirements.forEach(r -> reqById.put(r.getId(), r));
@@ -126,6 +169,7 @@ class ThresholdCalibrationEvalTest {
                 PairScore ps = new PairScore();
                 ps.id = e.getKey();
                 ps.source = source;
+                ps.className = cls;
                 ps.defectType = p.path("defectType").asText("");
                 ps.groundTruthDefective = "defective".equals(p.path("label").asText());
                 ps.totalSimilarity = r.getTotalSimilarity();
@@ -142,6 +186,50 @@ class ThresholdCalibrationEvalTest {
             }
         }
         assertFalse(pairScores.isEmpty(), "标定数据集为空：未能将标注对与计算结果对齐");
+
+        // 离线实验台（FUN-04b）：-Dgap046.dump=<path> 时导出标注对快照（需求原文/代码/得分/真值），
+        // 供 LLM 判定提示词离线调优使用，不改变标定逻辑本身。
+        String dumpPath = System.getProperty("gap046.dump");
+        if (dumpPath != null && !dumpPath.trim().isEmpty()) {
+            StringBuilder json = new StringBuilder("{\n  \"alpha\": ").append(ALPHA)
+                    .append(", \"beta\": ").append(BETA).append(", \"gamma\": ").append(GAMMA).append(",\n");
+            // FUN-04b：同类方法分工上下文（source -> class -> [签名...]）
+            json.append("  \"classes\": {\n");
+            int ci = 0;
+            for (Map.Entry<String, Map<String, List<String>>> se : classContexts.entrySet()) {
+                json.append("    \"").append(se.getKey()).append("\": {");
+                int cj = 0;
+                for (Map.Entry<String, List<String>> ce : se.getValue().entrySet()) {
+                    if (cj++ > 0) json.append(", ");
+                    json.append('"').append(ce.getKey()).append("\":").append(om().writeValueAsString(ce.getValue()));
+                }
+                json.append("}").append(++ci < classContexts.size() ? "," : "").append('\n');
+            }
+            json.append("  },\n  \"pairs\": [\n");
+            for (int i = 0; i < pairScores.size(); i++) {
+                PairScore ps = pairScores.get(i);
+                json.append("    {\"id\":\"").append(ps.id).append('"')
+                        .append(",\"source\":\"").append(ps.source).append('"')
+                        .append(",\"class\":\"").append(ps.className == null ? "" : ps.className).append('"')
+                        .append(",\"label\":\"").append(ps.groundTruthDefective ? "defective" : "consistent").append('"')
+                        .append(",\"defectType\":\"").append(ps.defectType == null ? "" : ps.defectType).append('"')
+                        .append(",\"total\":").append(ps.totalSimilarity)
+                        .append(",\"sem\":").append(ps.semanticSimilarity)
+                        .append(",\"con\":").append(ps.constraintMatch)
+                        .append(",\"inv\":").append(ps.invariantSatisfaction)
+                        .append(",\"risk\":").append(ps.defectRisk).append(',')
+                        .append("\"req\":").append(om().writeValueAsString(ps.reqText)).append(',')
+                        .append("\"code\":").append(om().writeValueAsString(ps.codeText)).append('}')
+                        .append(i < pairScores.size() - 1 ? "," : "").append('\n');
+            }
+            json.append("  ]\n}\n");
+            Files.write(Paths.get(dumpPath), json.toString().getBytes(StandardCharsets.UTF_8));
+            System.out.println("[GAP-046-DUMP] 已导出标注对快照 -> " + dumpPath + "（" + pairScores.size() + " 对）");
+        }
+    }
+
+    private static ObjectMapper om() {
+        return OM;
     }
 
     @Test
@@ -219,7 +307,13 @@ class ThresholdCalibrationEvalTest {
         sb.append("- **对齐标注对数**：").append(pairScores.size()).append("（范围外的需求缺失/代码超范围对不参与一致性矩阵标定）。\n");
         sb.append("- **计算链路**：生产 ConsistencyChecker（**标定链路权重** alpha=").append(ALPHA)
           .append("，beta=").append(BETA).append("，gamma=").append(GAMMA)
-          .append("；与生产默认 0.4/0.35/0.25 不同，见 application.yml；语义向量缺省走 TF-IDF + jieba + 中英词典降级路径；GAP-046 规则增强：约束匹配度由「需求约束点×代码实现证据」驱动）。\n");
+          .append("；与生产默认 0.4/0.35/0.25 不同，见 application.yml；");
+        if (bgeEnabled) {
+            sb.append("语义向量=本地 BGE（bge-small-zh-v1.5，ONNX 512 维，由 EMBEDDING_MODEL_PATH 或默认候选路径注入）");
+        } else {
+            sb.append("语义向量缺省走 TF-IDF + jieba + 中英词典降级路径");
+        }
+        sb.append("；GAP-046 规则增强：约束匹配度由「需求约束点×代码实现证据」驱动）。\n");
         sb.append("- **标定口径**：综合相似度 totalSimilarity < t1 判定为缺陷，按 GAP-007 四指标（AUD-02 定稿：检出即 TP，主类型单列）计算准确率/漏检率/误报率。\n\n");
 
         sb.append("## 二、推荐阈值\n\n");
@@ -345,6 +439,62 @@ class ThresholdCalibrationEvalTest {
             current.setOriginalText(body.toString().trim());
         }
         return list;
+    }
+
+    /** 构造本地 BGE 客户端（FUN-04①）：从 EMBEDDING_MODEL_PATH / 固定候选路径加载模型，加载失败返回 null（回退 TF-IDF） */
+    private static LocalBgeEmbeddingClient buildLocalBgeClient() {
+        String modelPath = System.getenv("EMBEDDING_MODEL_PATH");
+        if (modelPath == null || modelPath.trim().isEmpty()) {
+            String[] candidates = {
+                    "../models/bge-small-zh-v1.5/onnx/model.onnx",
+                    "models/bge-small-zh-v1.5/onnx/model.onnx",
+            };
+            for (String c : candidates) {
+                if (new File(c).isFile()) { modelPath = c; break; }
+            }
+        }
+        if (modelPath == null || modelPath.trim().isEmpty()) {
+            System.out.println("[GAP-023] 未找到 BGE 模型，标定走 TF-IDF+jieba 降级路径");
+            return null;
+        }
+        LlmProperties props = new LlmProperties();
+        LlmProperties.EmbeddingConfig ec = new LlmProperties.EmbeddingConfig();
+        ec.setProvider("local");
+        ec.setModelPath(modelPath);
+        ec.setModelDim(512);
+        ec.setNormalize(true);
+        props.setEmbedding(ec);
+        LocalBgeEmbeddingClient client = new LocalBgeEmbeddingClient(props);
+        if (client.available()) {
+            bgeEnabled = true;
+            System.out.println("[GAP-023] BGE 语义向量已启用（模型=" + modelPath + "）");
+        } else {
+            System.out.println("[GAP-023] BGE 加载失败，标定走 TF-IDF+jieba 降级路径");
+        }
+        return client;
+    }
+
+    /** 用本地 BGE 为需求/代码单元填充语义向量（SemanticVectorUtil JSON 格式），使 ConsistencyChecker 走稠密向量路径 */
+    private static void applyBgeSemanticVectors(LocalBgeEmbeddingClient bge, List<Requirement> requirements, List<CodeUnit> codeUnits) {
+        for (Requirement r : requirements) {
+            String text = r.getOriginalText();
+            if (text == null || text.trim().isEmpty()) continue;
+            float[] v = bge.embed(text);
+            if (v != null) {
+                r.setSemanticVector(SemanticVectorUtil.toJson(v, ""));
+            }
+        }
+        for (CodeUnit u : codeUnits) {
+            StringBuilder sb = new StringBuilder();
+            if (u.getClassName() != null) sb.append(u.getClassName()).append(' ');
+            if (u.getMethodName() != null) sb.append(u.getMethodName()).append(' ');
+            if (u.getLogicDescription() != null) sb.append(u.getLogicDescription());
+            if (sb.length() == 0) continue;
+            float[] v = bge.embed(sb.toString());
+            if (v != null) {
+                u.setSemanticVector(SemanticVectorUtil.toJson(v, ""));
+            }
+        }
     }
 
     /** 用生产 JavaCodeParserUtil 解析样例工程代码（AST 级，Soot 缺省自动降级） */

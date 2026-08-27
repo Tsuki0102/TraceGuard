@@ -76,7 +76,7 @@ TraceGuard/
 │   │   └── utils/request.js # Axios请求封装
 │   └── package.json
 ├── docs/                       # 文档目录
-│   ├── 01-需求与申报/          # 基准：软件需求规格说明书-V1.0.md、创新训练计划项目申报表.docx（不可修改）
+│   ├── 01-需求与申报/          # 基准：软件需求规格说明书-V1.0.md、创新训练计划项目申报表.md（基线文档，不可修改）
 │   ├── 02-设计与跟踪/          # 设计方案（整体设计方案.md）、技术白皮书、差距与改进编号台账
 │   ├── 03-报告/               # 评测/性能/阈值标定/测试报告（手写文档，附实测数据）
 │   └── 04-手册/               # 用户操作手册
@@ -250,14 +250,20 @@ Windows 10/11 原生环境（无需 Docker Desktop）可通过脚本一键部署
 
 ### 本地 CodeLlama + LangChain 真集成（GAP-043 / GAP-044）
 
-系统已原生支持**本地开源 CodeLlama 推理**与 **LangChain（langchain4j）编排**，无需任何云端 API Key，满足申报书「基于开源 CodeLlama + LangChain 框架研发自动转换引擎」的承诺。Ollama/vLLM 均提供 OpenAI 兼容的 `/chat/completions` 端点，后端 `OpenAiLlmClient` 复用，CodeLlama 即走本地真实推理。
+系统已原生支持**本地开源 LLM 推理**与 **LangChain（langchain4j）编排**，无需任何云端 API Key，满足申报书「基于开源 CodeLlama + LangChain 框架研发自动转换引擎」的承诺。Ollama/vLLM 均提供 OpenAI 兼容的 `/chat/completions` 端点，后端 `OpenAiLlmClient` 复用，本地模型即走真实推理。
+
+> **实测评测结论（2026-08-27）**：CodeLlama:7b 指令遵循不足，JSON 判定成功率 <10% 无法达标；**实际评测采用 `qwen2.5-coder:14b` + FUN-04b 双判定管线**（LLM 成功率 55/55=100%，缺陷检测准确率 **96.4%**、漏检率 **3.8%**、误报率 **3.4%**，SRS 三项指标全部达标；历史单提示词口径 81.8%/7.7%/27.6% 并列留档，详见 `docs/03-报告/评测报告-综合.md`）。
 
 **1. 安装并拉起 Ollama（本地模型服务）**
 
 ```bash
-# 下载安装 Ollama：https://ollama.com
-# 拉取 CodeLlama（7b 约 3.8GB；显存不足可选 codellama:7b-instruct 或 13b）
-ollama pull codellama:7b
+# 下载安装 Ollama（≥0.33，需支持新 GGUF 格式）：https://ollama.com
+# 方案一：官方仓库拉取（需可访问 registry.ollama.ai）
+ollama pull qwen2.5-coder:14b
+# 方案二：ModelScope 国内源下载 GGUF 后本地创建（无需梯子）
+#   1) 下载 https://modelscope.cn/models/Qwen/Qwen2.5-Coder-14B-Instruct-GGUF/resolve/master/qwen2.5-coder-14b-instruct-q4_k_m.gguf
+#   2) 写 Modelfile：FROM /path/to/qwen2.5-coder-14b-instruct-q4_k_m.gguf
+#   3) ollama create qwen2.5-coder:14b -f Modelfile
 ollama serve          # 默认 OpenAI 兼容端点 http://localhost:11434/v1
 ```
 
@@ -275,9 +281,9 @@ bash scripts/pull-codellama.sh 13b      # 指定规模
 > # 2) 指定模型存放路径（避免占用 C 盘；约 3.8GB/7b）
 > [Environment]::SetEnvironmentVariable("OLLAMA_MODELS", "D:\develop\Ollama\models", "User")
 > # 3) 重启 PowerShell 后拉取，模型即落到 D 盘
-> ollama pull codellama:7b
+> ollama pull qwen2.5-coder:14b
 > ```
-> 安装器会自动把 `D:\develop\Ollama` 加入用户 PATH，重开终端即可直接使用 `ollama` 命令；`OLLAMA_MODELS` 设置后所有 `ollama pull` 都会下载到该目录。安装完成后 Ollama 默认后台自启并监听 `11434`，可用 `curl http://localhost:11434/api/tags` 验证。
+> 安装器会自动把 `D:\develop\Ollama\program` 加入用户 PATH，重开终端即可直接使用 `ollama` 命令；`OLLAMA_MODELS` 设置后所有 `ollama pull` 都会下载到该目录。安装完成后 Ollama 默认后台自启并监听 `11434`，可用 `curl http://localhost:11434/api/tags` 验证。实测将程序目录整体迁移至 `D:\develop\Ollama\program` 运行，`OLLAMA_MODELS=D:\develop\Ollama\models`，并启用 GPU 加速（移除 `OLLAMA_NO_CUDA`、`OLLAMA_GPU_LAYERS=-1`）。
 
 **2. 配置 `application.yml`**
 
@@ -295,9 +301,9 @@ traceguard:
     # 引擎：self=OpenAI 兼容客户端（默认）；langchain=langchain4j 编排
     engine: ${LLM_ENGINE:self}
     routing:
-      consistency-check: codellama     # 一致性判定环节切到本地 CodeLlama
+      consistency-check: codellama     # 一致性判定环节切到本地模型（Ollama 兼容端点）
     models:
-      consistency-check: codellama:7b
+      consistency-check: qwen2.5-coder:14b
 ```
 
 > 注意：本地模型 `api-key` 为空也能启用——`LlmService.isEnabled()` 对 base-url 指向本机（localhost/127.0.0.1）的 provider 视为可用。
@@ -312,7 +318,7 @@ traceguard:
 ```bash
 LLM_ENGINE=langchain      # 启用 LangChain 编排（GAP-044）
 CODELLAMA_BASE_URL=http://localhost:11434/v1
-CODELLAMA_MODEL=codellama:7b
+CODELLAMA_MODEL=qwen2.5-coder:14b   # 环境变量名沿用 CODELLAMA_*（代码兼容），值指向实际模型
 ```
 
 **4. 连通性测试**
@@ -324,10 +330,10 @@ CODELLAMA_MODEL=codellama:7b
 
 ```bash
 cd backend
-# LangChain 编排本地 CodeLlama
-LLM_PROVIDER=codellama LLM_ENGINE=langchain mvn -B test -Dtest=DefectDetectionEvalTest
-# 仅 self 引擎（OpenAI 兼容客户端直连 CodeLlama）
-LLM_PROVIDER=codellama LLM_ENGINE=self    mvn -B test -Dtest=DefectDetectionEvalTest
+# LangChain 编排本地模型（qwen2.5-coder:14b）
+LLM_PROVIDER=codellama LLM_ENGINE=langchain CODELLAMA_MODEL=qwen2.5-coder:14b mvn -B test -Dtest=DefectDetectionEvalTest
+# 仅 self 引擎（OpenAI 兼容客户端直连）
+LLM_PROVIDER=codellama LLM_ENGINE=self CODELLAMA_MODEL=qwen2.5-coder:14b mvn -B test -Dtest=DefectDetectionEvalTest
 ```
 
 > **Windows PowerShell 等价写法**（用 `$env:` 前缀）：
@@ -340,7 +346,9 @@ LLM_PROVIDER=codellama LLM_ENGINE=self    mvn -B test -Dtest=DefectDetectionEval
 > mvn -B test -Dtest=DefectDetectionEvalTest
 > ```
 
-> 本仓库 CI 环境无本地 GPU/Ollama，真集成代码已落地并通过编译与默认引擎回归；**端到端 CodeLlama×LangChain 推理需在本机按上述步骤拉起 Ollama 后复测**。
+> 本仓库 CI 环境无本地 GPU/Ollama，真集成代码已落地并通过编译与默认引擎回归；**端到端本地 LLM × LangChain 推理需在本机按上述步骤拉起 Ollama 后复测**。
+>
+> **实测结果（2026-08-27，`CODELLAMA_MODEL=qwen2.5-coder:14b` + FUN-04b 双判定管线）**：LLM 判定成功率 100%（55/55）；缺陷检测准确率 **96.4%**（≥80% 达标）、漏检率 **3.8%**（≤15% 达标）、误报率 **3.4%**（≤10% 达标）——SRS FR-CODE-004 三项验收指标首次全达标；历史批次（2026-08-26 单提示词 81.8%/7.7%/27.6% 等）并列留档见 `docs/03-报告/评测报告-综合.md`。
 
 ## 扩展指南（多语言 / 多形式化语言，AUD-10）
 

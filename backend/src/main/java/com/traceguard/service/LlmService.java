@@ -200,9 +200,40 @@ public class LlmService {
                                                        double semanticSimilarity, double constraintMatch,
                                                        double invariantSatisfaction, double totalSimilarity,
                                                        String ruleDefectType) {
+        return judgeConsistency(requirementText, codeSnippet, semanticSimilarity, constraintMatch,
+                invariantSatisfaction, totalSimilarity, ruleDefectType, null, Double.NaN);
+    }
+
+    /**
+     * FUN-04b：一致性判定统一入口。提供类级证据时走双判定管线（交叉验证 + 规则仲裁 + 数值归属过滤）；
+     * 未提供证据或管线不可用时退化为与旧口径一致的单阶段判定。
+     *
+     * @param ctx 类级判定证据（同类方法分工清单 + 常量定义），可空
+     * @param ruleRisk 规则链路缺陷风险分（CodeDefectPatternDetector），用于分歧仲裁；NaN 表示不可用
+     */
+    public ConsistencyJudge.Judgement judgeConsistency(String requirementText, String codeSnippet,
+                                                       double semanticSimilarity, double constraintMatch,
+                                                       double invariantSatisfaction, double totalSimilarity,
+                                                       String ruleDefectType,
+                                                       ConsistencyJudge.JudgeContext ctx, double ruleRisk) {
         if (!isEnabled()) {
             return null;
         }
+        ConsistencyJudge judge = buildConsistencyJudge();
+        if (ctx == null || ctx.isEmpty()) {
+            return judge.judge(requirementText, codeSnippet, semanticSimilarity, constraintMatch,
+                    invariantSatisfaction, totalSimilarity, ruleDefectType);
+        }
+        ConsistencyJudge.Judgement dual = judge.judgeDual(requirementText, codeSnippet,
+                semanticSimilarity, constraintMatch, invariantSatisfaction, totalSimilarity,
+                ruleDefectType, ctx, ruleRisk);
+        return dual != null ? dual
+                : judge.judge(requirementText, codeSnippet, semanticSimilarity, constraintMatch,
+                        invariantSatisfaction, totalSimilarity, ruleDefectType);
+    }
+
+    /** 构造一致性判定组件（self 引擎默认；langchain 引擎复用一致性环节路由的 provider，GAP-043/044） */
+    private ConsistencyJudge buildConsistencyJudge() {
         ConsistencyJudge.Engine engine = ConsistencyJudge.Engine.SELF;
         LangChainAdapter langChain = null;
         if ("langchain".equalsIgnoreCase(properties.getEngine())) {
@@ -228,8 +259,7 @@ public class LlmService {
                 langChain = null;
             }
         }
-        return new ConsistencyJudge(executor, engine, langChain).judge(requirementText, codeSnippet,
-                semanticSimilarity, constraintMatch, invariantSatisfaction, totalSimilarity, ruleDefectType);
+        return new ConsistencyJudge(executor, engine, langChain);
     }
 
     // ==================== 既有公共 API（保留） ====================

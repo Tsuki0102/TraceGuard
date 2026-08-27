@@ -86,6 +86,23 @@ public class ConsistencyChecker {
                                                      Map<Long, String> specAlloyByReqId,
                                                      double alpha, double beta, double gamma,
                                                      double t1, double t2) {
+        // FUN-04b：未提供类级证据时按空证据处理（相关规则信号自动失效，保持既有行为）
+        return checkConsistency(taskId, projectId, requirements, codeUnits, specAlloyByReqId,
+                Collections.<String, List<String>>emptyMap(), alpha, beta, gamma, t1, t2);
+    }
+
+    /**
+     * FUN-04b 全参重载：classEvidenceByClass = 简单类名 -> 类级字段/常量声明行（ClassEvidenceScanner 扫描产物）。
+     * 提供后，缺陷模式检测可做跨方法的量化常量核对（需求显式数值边界 vs 类常量定义值），
+     * 覆盖幂等窗口/限流阈值类缺陷；未提供的类不受影响。
+     */
+    public List<ConsistencyResult> checkConsistency(Long taskId, Long projectId,
+                                                     List<Requirement> requirements,
+                                                     List<CodeUnit> codeUnits,
+                                                     Map<Long, String> specAlloyByReqId,
+                                                     Map<String, List<String>> classEvidenceByClass,
+                                                     double alpha, double beta, double gamma,
+                                                     double t1, double t2) {
         List<ConsistencyResult> results = new ArrayList<>();
         if (requirements == null || requirements.isEmpty() || codeUnits == null || codeUnits.isEmpty()) {
             return results;
@@ -134,7 +151,7 @@ public class ConsistencyChecker {
                     final Requirement req = requirements.get(i);
                     futures.add(CompletableFuture.supplyAsync(() -> computeReqPairs(
                             taskId, projectId, req, methodUnits, specCache, evidenceCache, cfgFeaturesCache,
-                            idfMap, reqVectors, codeVectors, alpha, beta, gamma, t1, t2), pool));
+                            idfMap, reqVectors, codeVectors, classEvidenceByClass, alpha, beta, gamma, t1, t2), pool));
                 }
                 for (CompletableFuture<List<ConsistencyResult>> f : futures) {
                     results.addAll(f.join());
@@ -177,6 +194,7 @@ public class ConsistencyChecker {
                                                     Map<String, Double> idfMap,
                                                     Map<Long, Map<String, Double>> reqVectors,
                                                     Map<Long, Map<String, Double>> codeVectors,
+                                                    Map<String, List<String>> classEvidenceByClass,
                                                     double alpha, double beta, double gamma,
                                                     double t1, double t2) {
         List<ConsistencyResult> reqResults = new ArrayList<>(codeUnits.size());
@@ -193,7 +211,10 @@ public class ConsistencyChecker {
             double totalSim = alpha * cosSim + beta * conMatch + gamma * invSat;
             // GAP-046：规则模式为主基线——缺陷风险由三部分合成（约束缺失 + 异常模式 + 语义错位），
             // 使行为级/隐含规则/需求缺失类缺陷可被可靠压到阈值以下；一致对约束覆盖好则几乎不扣分。
-            double defectRisk = synthesizeDefectRisk(reqDoc(req), code.getCodeContent(), conMatch, cosSim);
+            String clsName = code.getClassName() == null ? "" : code.getClassName();
+            java.util.List<String> classEvidence = classEvidenceByClass == null
+                    ? null : classEvidenceByClass.get(clsName.substring(clsName.lastIndexOf('.') + 1));
+            double defectRisk = synthesizeDefectRisk(reqDoc(req), code.getCodeContent(), conMatch, cosSim, classEvidence);
             double adjustedSim = totalSim * (1.0 - defectRisk * DEFECT_RISK_WEIGHT);
             ConsistencyResult result = new ConsistencyResult();
             result.setTaskId(taskId);
@@ -221,10 +242,16 @@ public class ConsistencyChecker {
      * 避免双重惩罚过强导致一致对误报。
      */
     private double synthesizeDefectRisk(String reqDoc, String codeContent, double conMatch, double cosSim) {
+        return synthesizeDefectRisk(reqDoc, codeContent, conMatch, cosSim, null);
+    }
+
+    /** FUN-04b：带类级证据的缺陷风险合成（quantitativeBoundMismatch 信号需要类常量清单） */
+    private double synthesizeDefectRisk(String reqDoc, String codeContent, double conMatch, double cosSim,
+                                        java.util.List<String> classEvidence) {
         if (StrUtil.isBlank(reqDoc) || StrUtil.isBlank(codeContent)) {
             return 0.0;
         }
-        return clamp01(CodeDefectPatternDetector.detectDefectRisk(reqDoc, codeContent));
+        return clamp01(CodeDefectPatternDetector.detectDefectRisk(reqDoc, codeContent, classEvidence));
     }
 
     private int consistencyThreadPoolSize() {

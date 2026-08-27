@@ -41,10 +41,15 @@ hs_err_pid*
 .vscode/
 .workbuddy/
 .codebuddy/
+.trae/
 *.iml
 .settings/
 .project
 .classpath
+
+# ===== 评测/实验中间产物（非交付物） =====
+backend/llm-verdicts.json
+tools/
 
 # ===== OS =====
 Thumbs.db

@@ -55,7 +55,8 @@ CREATE TABLE IF NOT EXISTS tg_analysis_task (
     execution_log LONGTEXT COMMENT '执行日志',
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-    deleted INT DEFAULT 0 COMMENT '删除标记'
+    deleted INT DEFAULT 0 COMMENT '删除标记',
+    INDEX idx_project_id (project_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='分析任务表';
 
 -- 需求语义单元表
@@ -524,3 +525,14 @@ CREATE TABLE IF NOT EXISTS tg_token_blacklist (
     PRIMARY KEY (jti),
     KEY idx_expire (expire_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='JWT 吊销黑名单（SEC-16）';
+
+-- ==================== E4：tg_analysis_task.project_id 查询索引（老库补充，幂等） ====================
+-- 已按 project_id 维度分页/统计查询，补充索引避免全表扫描；information_schema 判断保证可重复执行
+SET @task_idx := (SELECT COUNT(*) FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tg_analysis_task' AND INDEX_NAME = 'idx_project_id');
+SET @task_idx_sql := IF(@task_idx = 0,
+    'ALTER TABLE tg_analysis_task ADD INDEX idx_project_id (project_id)',
+    'SELECT 1');
+PREPARE task_idx_stmt FROM @task_idx_sql;
+EXECUTE task_idx_stmt;
+DEALLOCATE PREPARE task_idx_stmt;

@@ -19,6 +19,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -62,6 +63,12 @@ class DefectDetectionEvalTest {
     private static String engine = "rule";
     private static int llmOk = 0, llmFail = 0;
 
+    /** FUN-04b：双判定管线导出模式（-Dgap007.llm.export=<path> 且 verdict 文件缺失时启用） */
+    private static boolean exportMode = false;
+    private static Path exportPath;
+    /** 导出缓存：id -> {"consistent":bool,"defectType":"","reason":""}（仅成功判定） */
+    private static final Map<String, Map<String, Object>> pendingExport = new LinkedHashMap<>();
+
     private static class PairScore {
         String id;
         String defectType;       // 标注主类型（一致对为空）
@@ -91,6 +98,14 @@ class DefectDetectionEvalTest {
         }
         if (judge != null) {
             engine = "llm";
+            // FUN-04b：无 verdict 文件且显式指定导出路径时，用生产双判定管线逐条产出并落盘，
+            // 供后续复跑直接读文件（与标注规范第7节"LLM 判定结果保存为 llm-verdicts.json"一致）
+            String exportProp = System.getProperty("gap007.llm.export");
+            if (exportProp != null && !exportProp.trim().isEmpty() && verdictById.isEmpty()) {
+                exportMode = true;
+                exportPath = Paths.get(exportProp.trim());
+                System.out.println("[GAP-007] 启用双判定管线导出模式 -> " + exportPath);
+            }
         }
         Path datasetDir = resolveDatasetDir();
         JsonNode labelRoot = OM.readTree(Files.readString(datasetDir.resolve("consistency-labels.json")));
@@ -106,8 +121,11 @@ class DefectDetectionEvalTest {
             List<CodeUnit> codeUnits = parseCode(sourceDir, idSeq);
             idSeq += codeUnits.size();
 
+            // FUN-04b：类级证据（字段/常量声明）与生产链路同口径，供量化边界核对信号使用
+            Map<String, List<String>> classEvidence =
+                    com.traceguard.util.ClassEvidenceScanner.scanConstants(sourceDir.resolve("code").toString());
             List<ConsistencyResult> results = checker.checkConsistency(
-                    0L, 0L, requirements, codeUnits, ALPHA, BETA, GAMMA, T1, T2);
+                    0L, 0L, requirements, codeUnits, null, classEvidence, ALPHA, BETA, GAMMA, T1, T2);
 
             Map<Long, Requirement> reqById = new HashMap<>();
             requirements.forEach(r -> reqById.put(r.getId(), r));
@@ -163,18 +181,48 @@ class DefectDetectionEvalTest {
                         llmFail++;
                     }
                 } else if (judge != null && req != null && code != null) {
-                    ConsistencyJudge.Judgement j = judge.judge(
-                            req.getOriginalText(), code.getCodeContent(),
-                            r.getSemanticSimilarity(), r.getConstraintMatchDegree(),
-                            r.getInvariantSatisfaction(), r.getTotalSimilarity(), r.getDefectType());
-                    if (j != null) {
-                        llmOk++;
-                        ps.detected = !j.isConsistent();
-                        ps.detectedMainType = j.isConsistent() ? "" : j.getDefectType();
-                        ps.llmReason = j.getReason();
-                        ps.llmOverridden = true;
+                    if (exportMode) {
+                        // FUN-04b：生产双判定管线（变体A/B 交叉 + 规则仲裁 + 数值归属过滤）
+                        String clsName = code.getClassName() == null ? "" : code.getClassName();
+                        String simpleCls = clsName.substring(clsName.lastIndexOf('.') + 1);
+                        List<String> evLines = classEvidence.getOrDefault(simpleCls, List.of());
+                        ConsistencyJudge.JudgeContext ctx =
+                                ConsistencyJudge.JudgeContext.fromEvidence(evLines, code.getMethodName());
+                        double pairRisk = com.traceguard.util.CodeDefectPatternDetector.detectDefectRisk(
+                                req.getOriginalText(), code.getCodeContent(), evLines);
+                        ConsistencyJudge.Judgement j = judge.judgeDual(
+                                req.getOriginalText(), code.getCodeContent(),
+                                r.getSemanticSimilarity(), r.getConstraintMatchDegree(),
+                                r.getInvariantSatisfaction(), r.getTotalSimilarity(), r.getDefectType(),
+                                ctx, pairRisk);
+                        if (j != null) {
+                            llmOk++;
+                            ps.detected = !j.isConsistent();
+                            ps.detectedMainType = j.isConsistent() ? "" : j.getDefectType();
+                            ps.llmReason = j.getReason();
+                            ps.llmOverridden = true;
+                            Map<String, Object> node = new LinkedHashMap<>();
+                            node.put("consistent", j.isConsistent());
+                            node.put("defectType", j.getDefectType() == null ? "" : j.getDefectType());
+                            node.put("reason", j.getReason() == null ? "" : j.getReason());
+                            pendingExport.put(ps.id, node);
+                        } else {
+                            llmFail++;
+                        }
                     } else {
-                        llmFail++;
+                        ConsistencyJudge.Judgement j = judge.judge(
+                                req.getOriginalText(), code.getCodeContent(),
+                                r.getSemanticSimilarity(), r.getConstraintMatchDegree(),
+                                r.getInvariantSatisfaction(), r.getTotalSimilarity(), r.getDefectType());
+                        if (j != null) {
+                            llmOk++;
+                            ps.detected = !j.isConsistent();
+                            ps.detectedMainType = j.isConsistent() ? "" : j.getDefectType();
+                            ps.llmReason = j.getReason();
+                            ps.llmOverridden = true;
+                        } else {
+                            llmFail++;
+                        }
                     }
                 }
                 pairScores.add(ps);
@@ -206,6 +254,33 @@ class DefectDetectionEvalTest {
                     + "%，已整体回退规则基线（还原 " + reverted + " 对覆盖）");
         }
         assertFalse(pairScores.isEmpty(), "对齐标注对为空：无法评测");
+
+        // FUN-04b：导出双判定管线产物（id 按字典序，JSON 与消费端 Schema 一致）
+        if (exportMode && !pendingExport.isEmpty()) {
+            StringBuilder sb2 = new StringBuilder("{\n");
+            List<String> ids = new ArrayList<>(pendingExport.keySet());
+            java.util.Collections.sort(ids);
+            for (int i = 0; i < ids.size(); i++) {
+                String id = ids.get(i);
+                Map<String, Object> n = pendingExport.get(id);
+                sb2.append("  \"").append(id).append("\": {\"consistent\": ")
+                        .append(n.get("consistent"))
+                        .append(", \"defectType\": \"").append(n.get("defectType"))
+                        .append("\", \"reason\": \"").append(String.valueOf(n.get("reason")).replace("\"", "'"))
+                        .append("\"}").append(i < ids.size() - 1 ? "," : "").append('\n');
+            }
+            sb2.append("}\n");
+            try {
+                if (exportPath.getParent() != null) {
+                    Files.createDirectories(exportPath.getParent());
+                }
+                Files.writeString(exportPath, sb2.toString());
+                System.out.println("[GAP-007] 双判定管线导出完成 -> " + exportPath
+                        + "（" + pendingExport.size() + " 条成功判定）");
+            } catch (Exception e) {
+                System.out.println("[GAP-007] verdict 导出失败（不影响本次评测结论）: " + e.getMessage());
+            }
+        }
     }
 
     @Test

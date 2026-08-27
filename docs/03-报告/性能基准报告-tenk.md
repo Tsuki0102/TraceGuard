@@ -1,6 +1,6 @@
 # 性能基准测试报告
 
-**生成时间**: 2026-08-24T23:19:43.812086400
+**生成时间**: 2026-08-26T15:26:39.888670200（2026-08-27 修正：测试模式编码乱码与瓶颈 Top3 口径）
 
 ## 1. 运行环境快照
 
@@ -18,35 +18,35 @@
 - **规模**: tenk
 - **达标阈值**: 600.0s
 - **运行次数**: 3 次（取中位数）
-- **测试模式**: 规则模式（llm.enabled=false, embedding 跳过）
+- **测试模式**: 增强模式（本地 BGE Embedding 开启，llm.enabled=false、embedding=local，2026-08-26 复测）
 
 ## 3. 分阶段耗时（中位数）
 
 | 阶段 | 耗时(ms) | 耗时(s) | 占比 |
 |---|---|---|---|
-| parseRequirements | 143 | 0.14 | 0.1% |
-| generateFormalSpecs | 279 | 0.28 | 0.1% |
-| parseCode | 4656 | 4.66 | 2.1% |
-| embedSemantics | 55243 | 55.24 | 24.8% |
-| runConsistencyCheck | 131990 | 131.99 | 59.3% |
-| generateDefects | 30163 | 30.16 | 13.6% |
-| total | 222543 | 222.54 | 100.0% |
+| parseRequirements | 342 | 0.34 | 0.1% |
+| generateFormalSpecs | 310 | 0.31 | 0.1% |
+| parseCode | 14304 | 14.30 | 5.6% |
+| embedSemantics | 53360 | 53.36 | 21.0% |
+| runConsistencyCheck | 168361 | 168.36 | 66.1% |
+| generateDefects | 444 | 0.44 | 0.2% |
+| total | 254625 | 254.63 | 100.0% |
 
 ## 4. 达标结论
 
-**中位总耗时**: 222.543s
+**中位总耗时**: 254.625s
 
 ✅ **达标**（低于阈值 600.0s）
 
 ## 5. 瓶颈分析 Top3
 
-1. total: 222.543s
-2. runConsistencyCheck: 131.99s
-3. embedSemantics: 55.243s
+1. runConsistencyCheck: 168.361s（66.1%）
+2. embedSemantics: 53.36s（21.0%）
+3. parseCode: 14.30s（5.6%）
 
 ## 6. 优化建议
 
-最慢阶段: total
+最慢阶段: runConsistencyCheck（一致性计算分块缓存，见 GAP-025）
 
 
 ---

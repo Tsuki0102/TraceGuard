@@ -59,6 +59,18 @@ class PerformanceTest {
     private static final long KILO_THRESHOLD_MS = 2 * 60 * 1000;   // 2min
     private static final long TENK_THRESHOLD_MS = 10 * 60 * 1000;  // 10min
 
+    /**
+     * 运行次数覆盖（-Dperf.runs=N）。LLM 增强模式单次全链路可达小时级，
+     * 数据采集场景建议 -Dperf.runs=1 跑单次取完整阶段耗时。
+     */
+    private static final int RUNS_OVERRIDE = Integer.getInteger("perf.runs", 0);
+
+    /**
+     * 跳过达标断言（-Dperf.skip.threshold.check=true）。
+     * LLM 增强模式耗时远超规则模式阈值属预期行为，采集数据时跳过断言以免测试失败。
+     */
+    private static final boolean SKIP_THRESHOLD_CHECK = Boolean.getBoolean("perf.skip.threshold.check");
+
     /** 运行环境快照 */
     private static final Map<String, String> envSnapshot = new LinkedHashMap<>();
 
@@ -115,6 +127,8 @@ class PerformanceTest {
      * @param runs 运行次数（取中位数）
      */
     private void runBenchmark(String scale, long thresholdMs, int runs) throws Exception {
+        // -Dperf.runs=N 可覆盖默认次数（LLM 数据采集模式建议 1）
+        int effectiveRuns = RUNS_OVERRIDE > 0 ? RUNS_OVERRIDE : runs;
         File benchmarkDir = new File(benchmarkRoot, scale);
         assertTrue(benchmarkDir.exists() && benchmarkDir.isDirectory(),
                 "基准工程不存在: " + benchmarkDir.getAbsolutePath());
@@ -122,7 +136,7 @@ class PerformanceTest {
         List<Map<String, Long>> allTimings = new ArrayList<>();
         List<Long> totalTimes = new ArrayList<>();
 
-        for (int i = 0; i < runs; i++) {
+        for (int i = 0; i < effectiveRuns; i++) {
             // 创建项目记录
             Project project = createBenchmarkProject(scale, benchmarkDir);
 
@@ -133,9 +147,10 @@ class PerformanceTest {
             // 同步执行分析（不通过 @Async）
             analysisService.runAnalysis(task.getId());
 
-            // 等待任务完成（最多 30min 超时）
-            AnalysisTask completed = waitForTaskCompletion(task.getId(), thresholdMs * 2);
-            assertNotNull(completed, "任务未在合理时间内完成");
+            // 等待任务完成（默认 2 倍阈值超时；LLM 增强模式可用 -Dperf.wait.timeout.ms=... 放宽，见 FUN-06）
+            long waitTimeoutMs = Long.getLong("perf.wait.timeout.ms", thresholdMs * 2);
+            AnalysisTask completed = waitForTaskCompletion(task.getId(), waitTimeoutMs);
+            assertNotNull(completed, "任务未在合理时间内完成（超时 " + (waitTimeoutMs / 1000) + "s，LLM 模式可用 -Dperf.wait.timeout.ms=... 放宽）");
             assertEquals("completed", completed.getStatus(), "任务未成功完成");
 
             // 提取阶段耗时
@@ -163,6 +178,10 @@ class PerformanceTest {
         // 生成报告
         generatePerformanceReport(scale, medianTimings, passed, thresholdMs);
 
+        if (SKIP_THRESHOLD_CHECK) {
+            System.out.println("[perf] 已跳过达标断言（-Dperf.skip.threshold.check=true，数据采集模式）");
+            return;
+        }
         assertTrue(passed, scale + " 规模未达标（中位耗时 " + (medianTotal / 1000.0) + "s > " + (thresholdMs / 1000.0) + "s）");
     }
 

@@ -35,6 +35,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -1525,8 +1526,15 @@ public class AnalysisService {
                 specAlloyByReqId.put(s.getRequirementId(), s.getAlloyCode());
             }
         }
+        // FUN-04b：扫描类级判定证据（字段/常量声明），供量化边界核对规则与 LLM 判定的分工上下文使用；
+        // 扫描失败时为空 map，主链路行为不变
+        String evidenceCodePath = project.getCodeProjectPath();
+        Map<String, List<String>> classEvidenceByClass = (evidenceCodePath != null && new File(evidenceCodePath).exists())
+                ? com.traceguard.util.ClassEvidenceScanner.scanConstants(evidenceCodePath)
+                : Collections.emptyMap();
         List<ConsistencyResult> results = consistencyChecker.checkConsistency(
                 task.getId(), project.getId(), requirements, codeUnits, specAlloyByReqId,
+                classEvidenceByClass,
                 task.getWeightAlpha(), task.getWeightBeta(), task.getWeightGamma(),
                 task.getThresholdT1(), task.getThresholdT2()
         );
@@ -1553,10 +1561,19 @@ public class AnalysisService {
                     continue;
                 }
                 try {
+                    // FUN-04b：构造类级判定证据（分工清单+常量定义）与规则风险分，走双判定管线
+                    String cls = code.getClassName() == null ? "" : code.getClassName();
+                    String simpleCls = cls.substring(cls.lastIndexOf('.') + 1);
+                    ConsistencyJudge.JudgeContext ctx = ConsistencyJudge.JudgeContext.fromEvidence(
+                            classEvidenceByClass.get(simpleCls), code.getMethodName());
+                    double pairRisk = com.traceguard.util.CodeDefectPatternDetector.detectDefectRisk(
+                            req.getOriginalText(), code.getCodeContent(),
+                            classEvidenceByClass.getOrDefault(simpleCls, java.util.Collections.emptyList()));
                     ConsistencyJudge.Judgement j = llmService.judgeConsistency(
                             req.getOriginalText(), code.getCodeContent(),
                             r.getSemanticSimilarity(), r.getConstraintMatchDegree(),
-                            r.getInvariantSatisfaction(), r.getTotalSimilarity(), r.getDefectType());
+                            r.getInvariantSatisfaction(), r.getTotalSimilarity(), r.getDefectType(),
+                            ctx, pairRisk);
                     if (j == null) {
                         llmFail++;
                         continue;

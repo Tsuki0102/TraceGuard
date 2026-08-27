@@ -36,6 +36,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -471,6 +472,9 @@ public class JavaCodeParserUtil {
                     checkResourceLeak(method, relativePath, className, methodName, projectId, taskId, defects);
                     checkNullPointer(method, code, relativePath, className, methodName, projectId, taskId, defects);
                     checkArrayIndexOutOfBounds(method, code, relativePath, className, methodName, projectId, taskId, defects);
+                    checkFixedIndexOutOfBounds(method, relativePath, className, methodName, projectId, taskId, defects);
+                    checkEmptyListGetZero(method, code, relativePath, className, methodName, projectId, taskId, defects);
+                    checkComparatorTransitivity(method, relativePath, className, methodName, projectId, taskId, defects);
                     checkEmptyCatch(method, relativePath, className, methodName, projectId, taskId, defects);
                 }
             }, null);
@@ -567,6 +571,13 @@ public class JavaCodeParserUtil {
                     line[0] = obj.getBegin().map(p -> p.line).orElse(0);
                 }
             }
+            @Override
+            public void visit(MethodCallExpr call, Void arg) {
+                super.visit(call, arg);
+                if (line[0] < 0 && pattern.matcher(call.toString()).find()) {
+                    line[0] = call.getBegin().map(p -> p.line).orElse(0);
+                }
+            }
         }, null);
         return line[0];
     }
@@ -661,6 +672,71 @@ public class JavaCodeParserUtil {
                         "在catch块中记录日志（如LOGGER.warn）或向上抛出异常，至少保留异常现场信息"));
             }
         }, null);
+    }
+
+    /**
+     * 固定下标越界检测（FR-CODE-004）：X.get(X.size()) 或 X.get(X.length)——有效下标最大为 size-1/length-1，
+     * 使用 size()/length 作为下标必然越界（区别于循环差一错误 off-by-one）。
+     * 例：answers.get(answers.size()) 应改为 answers.get(answers.size()-1)。
+     */
+    private final Pattern fixedIndexPattern = Pattern.compile("\\.get\\s*\\(\\s*[^()]*\\.(size\\(\\)|length)\\s*\\)");
+    private void checkFixedIndexOutOfBounds(MethodDeclaration method, String filePath, String className, String methodName, Long projectId, Long taskId, List<CodeDefect> defects) {
+        String code = method.toString();
+        if (fixedIndexPattern.matcher(code).find()) {
+            int line = firstMatchLine(method, fixedIndexPattern);
+            if (line <= 0) line = method.getBegin().map(p -> p.line).orElse(0);
+            defects.add(createDefect(projectId, taskId, filePath, className, methodName, line,
+                    "数组越界风险", "high",
+                    "检测到使用集合/数组的 size()/length 作为下标直接取值（如 list.get(list.size())），有效下标范围为 0 到 size-1/length-1，该下标必然越界",
+                    "将下标改为 size()-1/length-1，或先判空/判边界再取值"));
+        }
+    }
+
+    /**
+     * 空集合取首元素越界风险（FR-CODE-004）：方法内出现 X.get(0)/X.get(1) 等字面小整数下标取值，
+     * 且方法内未先做 isEmpty()/size()>0 判空保护，集合为空时必然抛出 IndexOutOfBoundsException。
+     * 例：order.getItems().get(0)（未检查 items 是否为空）。
+     */
+    private final Pattern listGetZeroPattern = Pattern.compile("\\.get\\s*\\(\\s*(0|1)\\s*\\)");
+    private void checkEmptyListGetZero(MethodDeclaration method, String code, String filePath, String className, String methodName, Long projectId, Long taskId, List<CodeDefect> defects) {
+        if (listGetZeroPattern.matcher(code).find() && !code.contains("size() == 0") && !code.contains("size()>0") && !code.contains("size() > 0") && !code.contains("size() != 0") && !code.contains("size()<1") && !code.contains("size() < 1")) {
+            int line = firstMatchLine(method, listGetZeroPattern);
+            if (line <= 0) line = method.getBegin().map(p -> p.line).orElse(0);
+            defects.add(createDefect(projectId, taskId, filePath, className, methodName, line,
+                    "数组越界风险", "medium",
+                    "检测到对集合直接取下标 0/1 的元素，且方法内未见 isEmpty()/size() 判空保护，集合为空时将抛出越界异常",
+                    "取值前先判断集合非空：if (!list.isEmpty()) { list.get(0); }，或做好边界校验"));
+        }
+    }
+
+    /**
+     * 比较器传递性违反检测（FR-CODE-004）：排序 Comparator/Lambda 中当两个元素相等时返回非 0（应为 0），
+     * 违反 Comparator 的 sgn(compare(x,y)) == -sgn(compare(y,x)) 与相等返回 0 的约定，
+     * 可能导致排序结果不确定或抛出 IllegalArgumentException。
+     * 形态：(a, b) -> { if (a <= b) return 1; return -1; }（相等 a==b 时进入 a<=b 分支返回 1）。
+     */
+    private void checkComparatorTransitivity(MethodDeclaration method, String filePath, String className, String methodName, Long projectId, Long taskId, List<CodeDefect> defects) {
+        try {
+            method.accept(new VoidVisitorAdapter<Void>() {
+                @Override
+                public void visit(com.github.javaparser.ast.expr.LambdaExpr lambda, Void arg) {
+                    super.visit(lambda, arg);
+                    String body = lambda.getBody().toString();
+                    boolean hasReturnOne = body.contains("return 1");
+                    boolean hasLe = body.contains("<=");
+                    boolean hasReturnNeg = body.contains("return -1");
+                    if (hasReturnOne && hasLe && hasReturnNeg) {
+                        int line = lambda.getBegin().map(p -> p.line).orElse(0);
+                        defects.add(createDefect(projectId, taskId, filePath, className, methodName, line,
+                                "业务逻辑不一致", "high",
+                                "排序比较器在两个元素相等时返回非 0（如 if (a<=b) return 1; return -1;），违反 Comparator 传递性约定与相等返回 0 的要求",
+                                "相等时应返回 0：if (a.equals(b)) return 0; 或直接使用 Integer.compare(a, b)"));
+                    }
+                }
+            }, null);
+        } catch (Exception e) {
+            LOGGER.debug("checkComparatorTransitivity 跳过[{}#{}]: {}", className, methodName, e.getMessage());
+        }
     }
 
     private CodeDefect createDefect(Long projectId, Long taskId, String filePath, String className, String methodName, int line, String type, String severity, String desc, String suggestion) {

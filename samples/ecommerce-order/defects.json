@@ -106,5 +106,23 @@
     "subtype": "空指针风险",
     "relatedReq": "REQ-006",
     "description": "refund 方法中 paymentRecords.get(orderId) 返回的 record 未做 null 检查，当传入不存在的 orderId 时，第65行 record.status 会抛出 NullPointerException"
+  },
+  {
+    "id": "D13",
+    "file": "PaymentService.java",
+    "line": 110,
+    "type": "基础代码缺陷",
+    "subtype": "空catch块",
+    "relatedReq": "REQ-006",
+    "description": "doPayment 方法中 Thread.sleep 的 catch 块为空，忽略中断异常，异常被静默吞掉"
+  },
+  {
+    "id": "D14",
+    "file": "PaymentService.java",
+    "line": 122,
+    "type": "基础代码缺陷",
+    "subtype": "空catch块",
+    "relatedReq": "REQ-006",
+    "description": "doRefund 方法中 Thread.sleep 的 catch 块为空，忽略中断异常，异常被静默吞掉"
   }
 ]

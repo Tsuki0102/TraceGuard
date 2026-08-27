@@ -84,14 +84,27 @@
       "id": "DEF-007",
       "type": "基础代码缺陷",
       "severity": "LOW",
-      "title": "batchImport 中空 catch 块吞掉异常",
-      "description": "QuestionBank.batchImport() 方法中存在两层空的 catch 块，当导入数据格式错误时静默忽略所有异常，既不记录日志也不通知调用方。这会导致数据丢失问题难以排查。",
+      "title": "batchImport 中空 catch 块吞掉异常（外层 catch）",
+      "description": "QuestionBank.batchImport() 方法第一层空的 catch 块，当导入数据格式错误时静默忽略所有异常，既不记录日志也不通知调用方。这会导致数据丢失问题难以排查。",
       "location": {
         "file": "code/com/sample/exam/QuestionBank.java",
-        "lines": "163-164, 167-168",
+        "lines": "114",
         "method": "batchImport"
       },
       "evidence": "catch (Exception e) { // BUG: 空的 catch 块，吞掉了所有异常 }"
+    },
+    {
+      "id": "DEF-007b",
+      "type": "基础代码缺陷",
+      "severity": "LOW",
+      "title": "batchImport 中空 catch 块吞掉异常（内层 catch）",
+      "description": "QuestionBank.batchImport() 方法第二层空的 catch 块，同样静默吞掉异常，问题同上。",
+      "location": {
+        "file": "code/com/sample/exam/QuestionBank.java",
+        "lines": "118",
+        "method": "batchImport"
+      },
+      "evidence": "catch (Exception e) { // BUG: 第二层空的 catch 块 }"
     },
     {
       "id": "DEF-008",
@@ -101,7 +114,7 @@
       "description": "calculateRanking() 中的排序比较器在两个值相等时返回 1 而非 0，违反了 Comparator 的传递性约定（sgn(compare(x,y)) == -sgn(compare(y,x)) 且 compare(x,y)>0 && compare(y,z)>0 蕴含 compare(x,z)>0）。当存在相同分数时可能导致排序结果不确定或抛出 IllegalArgumentException。",
       "location": {
         "file": "code/com/sample/exam/ExamService.java",
-        "lines": "206-210",
+        "lines": "215",
         "method": "calculateRanking"
       },
       "evidence": "if (a.getValue() <= b.getValue()) return 1; return -1; // 相等时返回1，违反传递性"
@@ -114,7 +127,7 @@
       "description": "detectCheating() 方法中访问 answerList.get(answerList.size())，但 List 的有效索引范围是 0 到 size()-1。此处会抛出 IndexOutOfBoundsException。应该是 answerList.get(answerList.size() - 1)。",
       "location": {
         "file": "code/com/sample/exam/ExamService.java",
-        "lines": "334",
+        "lines": "305",
         "method": "detectCheating"
       },
       "evidence": "String last = answerList.get(answerList.size()); // 应该是 size()-1"
@@ -127,8 +140,8 @@
       "description": "GradingService.gradeSingleChoice() 方法直接调用 studentAnswer.equals()，当 studentAnswer 为 null 时会抛出 NullPointerException。gradeTrueFalse() 存在相同问题。",
       "location": {
         "file": "code/com/sample/exam/GradingService.java",
-        "lines": "28-32",
-        "method": "gradeSingleChoice"
+        "lines": "57",
+        "method": "gradeTrueFalse"
       },
       "evidence": "if (studentAnswer.equals(question.getAnswer())) // studentAnswer 可能为 null"
     },
