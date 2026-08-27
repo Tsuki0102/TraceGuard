@@ -31,8 +31,10 @@ jobs:
         run: gitleaks detect --source . --verbose --redact
 
   # OPS-03：依赖漏洞扫描（OWASP dependency-check；continue-on-error 避免 NVD 数据慢/限流阻塞主流程）
+  # 注：首次 CI 无 NVD_API_KEY secret，NVD 更新会失败；配置 secrets.NVD_API_KEY 后恢复本 job
   dependency-check:
     name: Dependency Vulnerability Scan
+    if: false
     runs-on: ubuntu-latest
     continue-on-error: true
     defaults:
