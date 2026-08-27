@@ -27,7 +27,8 @@ public class DefectTypeDistributionRenderer implements ReportSectionRenderer {
         if (typeDist instanceof Map && !((Map<?, ?>) typeDist).isEmpty()) {
             addHeading(doc, ReportSectionRenderer.chineseNumber(sectionNo) + "、" + sectionTitle, 14);
             for (Map.Entry<?, ?> entry : ((Map<?, ?>) typeDist).entrySet()) {
-                ReportWordStyles.addParagraph(doc, "• " + entry.getKey() + "：" + entry.getValue() + "个", 11, true);
+                // 用全角圆点 ●（U+25CF，GBK 中文字体均含），避免 U+2022 • 在 PDF 内嵌字体缺字形报 400
+                ReportWordStyles.addParagraph(doc, "● " + entry.getKey() + "：" + entry.getValue() + "个", 11, true);
             }
             ReportWordStyles.addSpacer(doc);
         }
@@ -39,7 +40,7 @@ public class DefectTypeDistributionRenderer implements ReportSectionRenderer {
         if (typeDist instanceof Map && !((Map<?, ?>) typeDist).isEmpty()) {
             cursor.sectionTitle(ReportSectionRenderer.chineseNumber(sectionNo) + "、" + sectionTitle);
             for (Map.Entry<?, ?> entry : ((Map<?, ?>) typeDist).entrySet()) {
-                cursor.line(11, false, "• " + entry.getKey() + "：" + entry.getValue() + "个");
+                cursor.line(11, false, "● " + entry.getKey() + "：" + entry.getValue() + "个");
             }
             cursor.spacer();
         }

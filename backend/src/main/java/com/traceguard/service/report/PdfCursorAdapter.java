@@ -120,6 +120,11 @@ public class PdfCursorAdapter {
         for (int i = 0; i < len; i++) {
             char c = text.charAt(i);
             float charWidth = charWidth(c, fontSize);
+            if (charWidth < 0) {
+                // 字体不支持该字形（如 U+2022 在 GBK 黑体中缺字），替换为 '?' 防止导出失败
+                c = '?';
+                charWidth = charWidth(c, fontSize);
+            }
             if (currentWidth + charWidth > maxWidth && lineBuf.length() > 0) {
                 writeOneLine(x, fontSize, bold, lineBuf.toString());
                 lineBuf.setLength(0);
@@ -154,11 +159,12 @@ public class PdfCursorAdapter {
         return w;
     }
 
+    /** 单字符宽度估算；字体不支持该字形时返回 -1（调用方替换为 '?'） */
     private float charWidth(char c, float fontSize) {
         try {
             return font.getStringWidth(String.valueOf(c)) / 1000f * fontSize;
         } catch (Exception e) {
-            return c < 0x7F ? fontSize * 0.55f : fontSize;
+            return -1;
         }
     }
 
