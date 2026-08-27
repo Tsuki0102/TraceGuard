@@ -12,6 +12,13 @@
 4. **缺陷自动定位与双向追溯** - 自动识别需求缺失、代码超范围、逻辑不一致等缺陷类型，生成需求-代码双向追溯矩阵
 5. **可视化全流程管理平台** - 提供从项目创建、文档上传、分析执行到报告查看的全流程可视化界面
 
+## 代码仓库与 CI
+
+- **远程仓库**：GitHub 私有仓库 https://github.com/Tsuki0102/TraceGuard （SSH: `git@github.com:Tsuki0102/TraceGuard.git`）
+- **CI 状态**：推 `master`/`main` 自动触发 GitHub Actions（`gitleaks` 密钥扫描 + 后端 `mvn test`（JDK 21 + MySQL 8.0 service）+ 前端 `npm ci && build`），2026-08-27 首次真实运行全绿
+- **本地开发约定**：PDF 报告导出测试（`ExportServiceTest`）标注 `@EnabledOnOs(OS.WINDOWS)`，CI Linux runner 自动跳过（依赖中文字体），本地 Windows 仍全量覆盖
+- 启用 OWASP dependency-check 需在仓库 Secrets 配置 `NVD_API_KEY`（当前临时禁用）
+
 ## 技术栈
 
 ### 后端
