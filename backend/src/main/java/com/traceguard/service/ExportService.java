@@ -687,11 +687,15 @@ public class ExportService {
         } catch (Exception e) {
             LOGGER.warn("内置字体加载失败[{}]: {}", bundled, e.getMessage());
         }
-        // 回退：系统字体扫描（保留原有路径）
+        // 回退：系统字体扫描（Windows + Linux CI 常见路径）
         String[] candidates = {
                 "C:/Windows/Fonts/msyh.ttc",
                 "C:/Windows/Fonts/simhei.ttf",
-                "C:/Windows/Fonts/simsun.ttc"
+                "C:/Windows/Fonts/simsun.ttc",
+                "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+                "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+                "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+                "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc"
         };
         for (String path : candidates) {
             File f = new File(path);
