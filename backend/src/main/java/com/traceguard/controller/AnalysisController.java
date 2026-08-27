@@ -44,7 +44,7 @@ public class AnalysisController {
     @ApiOperation(value = "上传代码工程", notes = "需通过项目归属权限校验；返回代码包存储路径")
     @PostMapping("/upload/code/{projectId}")
     public Result<String> uploadCode(@PathVariable Long projectId,
-                                      @RequestParam("file") MultipartFile file) throws Exception {
+                                      @RequestParam("file") MultipartFile file) {
         projectService.checkOwnership(projectId);
         String path = analysisService.uploadCodeProject(file, projectId);
         return Result.success(path);
@@ -57,7 +57,7 @@ public class AnalysisController {
     @ApiOperation(value = "单 Java 文件批量导入", notes = "FR-CODE-001 2.4：批量上传 .java 源文件到项目代码目录，替换当前代码工程")
     @PostMapping("/upload/code-files/{projectId}")
     public Result<String> uploadCodeFiles(@PathVariable Long projectId,
-                                          @RequestParam("files") MultipartFile[] files) throws Exception {
+                                          @RequestParam("files") MultipartFile[] files) {
         projectService.checkOwnership(projectId);
         String path = analysisService.uploadCodeFiles(files, projectId);
         return Result.success(path);

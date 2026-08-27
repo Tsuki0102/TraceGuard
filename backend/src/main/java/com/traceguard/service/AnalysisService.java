@@ -262,7 +262,7 @@ public class AnalysisService {
     }
 
     /** 批量导入需求文档（FR-REQ-001 多文档批量导入），路径以逗号分隔存储 */
-    public String uploadRequirements(MultipartFile[] files, Long projectId) throws Exception {
+    public String uploadRequirements(MultipartFile[] files, Long projectId) {
         if (files == null || files.length == 0) {
             throw new BusinessException(400, "请至少选择一个需求文档");
         }
@@ -270,12 +270,22 @@ public class AnalysisService {
         for (MultipartFile file : files) {
             validateFileSize(file.getSize(), file.getOriginalFilename());
             // GAP-031：上传前按魔数校验真实类型（防止伪扩展名）
-            FileStorageUtil.validateFileType(file);
+            try {
+                FileStorageUtil.validateFileType(file);
+            } catch (IOException e) {
+                throw new BusinessException(400, "需求文档校验失败：" + file.getOriginalFilename() + " - " + e.getMessage());
+            }
         }
         invalidateRequirementArtifacts(projectId);
         StringBuilder paths = new StringBuilder();
         for (MultipartFile file : files) {
-            String filePath = fileStorageUtil.saveFile(file, "requirements/" + projectId);
+            String filePath;
+            try {
+                filePath = fileStorageUtil.saveFile(file, "requirements/" + projectId);
+            } catch (IOException e) {
+                LOGGER.error("保存需求文档失败: projectId={}, file={}, error={}", projectId, file.getOriginalFilename(), e.getMessage(), e);
+                throw new BusinessException(500, "保存需求文档失败：" + file.getOriginalFilename() + " - " + e.getMessage());
+            }
             if (paths.length() > 0) paths.append(",");
             paths.append(filePath);
         }
@@ -288,27 +298,53 @@ public class AnalysisService {
         return paths.toString();
     }
 
-    public String uploadCodeProject(MultipartFile file, Long projectId) throws Exception {
+    public String uploadCodeProject(MultipartFile file, Long projectId) {
         // GAP-031：上传前按魔数校验真实类型（代码工程须为 ZIP）
-        FileStorageUtil.validateFileType(file);
+        try {
+            FileStorageUtil.validateFileType(file);
+        } catch (IOException e) {
+            throw new BusinessException(400, "代码工程校验失败：" + file.getOriginalFilename() + " - " + e.getMessage());
+        }
         invalidateCodeArtifacts(projectId);
-        String zipPath = fileStorageUtil.saveFile(file, "code/" + projectId);
+        String zipPath;
+        try {
+            zipPath = fileStorageUtil.saveFile(file, "code/" + projectId);
+        } catch (IOException e) {
+            LOGGER.error("保存代码工程文件失败: projectId={}, fileName={}, error={}", projectId, file.getOriginalFilename(), e.getMessage(), e);
+            throw new BusinessException(500, "保存代码工程文件失败: " + e.getMessage());
+        }
         projectService.checkStorageQuota(projectId);
         return unzipCodeProject(zipPath, projectId);
     }
 
     /** 解压已加密落盘的代码压缩包到独立目录并回写项目（解密临时文件用完即删，不留明文） */
-    private String unzipCodeProject(String zipPath, Long projectId) throws IOException {
+    private String unzipCodeProject(String zipPath, Long projectId) {
         String extractDir = uploadPath + "code/" + projectId + "/extracted_" + IdUtil.simpleUUID();
         File dir = new File(extractDir);
-        if (!dir.exists()) dir.mkdirs();
+        if (!dir.exists() && !dir.mkdirs()) {
+            throw new BusinessException(500, "无法创建解压目录: " + extractDir);
+        }
         File encrypted = new File(zipPath);
-        File plainZip = fileStorageUtil.ensurePlainFile(zipPath);
+        if (!encrypted.exists()) {
+            throw new BusinessException(500, "加密 ZIP 文件不存在: " + zipPath);
+        }
+        File plainZip = null;
         try {
+            plainZip = fileStorageUtil.ensurePlainFile(zipPath);
+            LOGGER.info("代码工程解密成功, encrypted={}, plain={}, size={}",
+                    encrypted.getAbsolutePath(), plainZip.getAbsolutePath(), plainZip.length());
             // GAP-031: 使用安全的 ZIP 解压工具（路径穿越防护、压缩炸弹防护、魔数校验）
             SecureZipUtil.safeUnzip(plainZip, dir);
+        } catch (IOException e) {
+            LOGGER.error("ZIP 解压失败: encryptedPath={}, plainPath={}, destDir={}, error={}",
+                    encrypted.getAbsolutePath(),
+                    plainZip == null ? "null" : plainZip.getAbsolutePath(),
+                    dir.getAbsolutePath(), e.getMessage(), e);
+            throw new BusinessException(500, "代码工程 ZIP 解压失败: " + e.getMessage());
         } finally {
-            fileStorageUtil.cleanupPlainFile(plainZip, encrypted);
+            if (plainZip != null) {
+                fileStorageUtil.cleanupPlainFile(plainZip, encrypted);
+            }
         }
         Project project = projectMapper.selectById(projectId);
         if (project != null) {
@@ -373,7 +409,7 @@ public class AnalysisService {
      * 适用于零散 .java 源文件场景：多选批量上传，保存到项目独立代码目录（明文，供解析），
      * 更新 project.codeProjectPath 并失效旧代码产物。与 ZIP 代码工程上传互为补充。
      */
-    public String uploadCodeFiles(MultipartFile[] files, Long projectId) throws Exception {
+    public String uploadCodeFiles(MultipartFile[] files, Long projectId) {
         if (files == null || files.length == 0) {
             throw new BusinessException(400, "请至少选择一个 Java 文件");
         }
@@ -391,7 +427,11 @@ public class AnalysisService {
                 continue;
             }
             // SEC-09：与 ZIP/需求文档链路统一魔数校验（文本检测），防伪造 .java 扩展名上传二进制文件
-            FileStorageUtil.validateFileType(file);
+            try {
+                FileStorageUtil.validateFileType(file);
+            } catch (IOException e) {
+                throw new BusinessException(400, "Java 源文件校验失败：" + name + " - " + e.getMessage());
+            }
             validateCodeFileSize(file.getSize(), cleanName);
             validFiles.add(file);
         }
@@ -409,6 +449,9 @@ public class AnalysisService {
             File target = uniqueFile(targetDir, cleanName);
             try (InputStream in = file.getInputStream(); FileOutputStream out = new FileOutputStream(target)) {
                 in.transferTo(out);
+            } catch (IOException e) {
+                LOGGER.error("保存 Java 源文件失败: projectId={}, file={}, error={}", projectId, cleanName, e.getMessage(), e);
+                throw new BusinessException(500, "保存 Java 源文件失败：" + cleanName + " - " + e.getMessage());
             }
         }
         projectService.checkStorageQuota(projectId);
