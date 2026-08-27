@@ -341,25 +341,22 @@ public class ExportService {
         try (XWPFDocument doc = new XWPFDocument();
              ByteArrayOutputStream out = new ByteArrayOutputStream()) {
 
-            // 报告主标题
+            // 报告主标题（封面）
             String reportTitle = (template.getTitle() != null && !template.getTitle().isEmpty())
                     ? template.getTitle() : "软件需求-代码一致性校验与缺陷检测报告";
-            XWPFParagraph title = doc.createParagraph();
-            title.setAlignment(ParagraphAlignment.CENTER);
-            XWPFRun titleRun = title.createRun();
-            titleRun.setText(reportTitle);
-            titleRun.setBold(true);
-            titleRun.setFontSize(20);
+            ReportWordStyles.addCenteredParagraph(doc, reportTitle, 22, true, ReportWordStyles.COLOR_HEADING);
 
             // 4.4 整改：封面副标题（报告排版自定义）
             if (template.getSubtitle() != null && !template.getSubtitle().isEmpty()) {
-                XWPFParagraph sub = doc.createParagraph();
-                sub.setAlignment(ParagraphAlignment.CENTER);
-                XWPFRun subRun = sub.createRun();
-                subRun.setText(template.getSubtitle());
-                subRun.setFontSize(13);
-                subRun.setColor("595959");
+                ReportWordStyles.addCenteredParagraph(doc, template.getSubtitle(), 13, false, ReportWordStyles.COLOR_GRAY);
             }
+
+            // 封面信息区：空行 + 项目名称 + 报告生成时间（居中）
+            ReportWordStyles.addSpacer(doc);
+            ReportWordStyles.addCoverInfo(doc, "项目名称：" + nullToEmpty(ctx.project.getProjectName()));
+            ReportWordStyles.addCoverInfo(doc, "报告生成时间：" + DTF.format(LocalDateTime.now()));
+            ReportWordStyles.addSpacer(doc);
+            ReportWordStyles.addSpacer(doc);
 
             // 4.4 整改：页眉文本（报告排版自定义，空=系统默认）
             String headerText = (template.getHeaderText() != null && !template.getHeaderText().isEmpty())
@@ -406,7 +403,7 @@ public class ExportService {
             PDType0Font font = loadChineseFont(doc);
             PdfCursorAdapter cursor = new PdfCursorAdapter(doc, font);
 
-            // 报告主标题
+            // 报告主标题（封面）
             String reportTitle = (template.getTitle() != null && !template.getTitle().isEmpty())
                     ? template.getTitle() : "软件需求-代码一致性校验与缺陷检测报告";
             cursor.line(18, true, reportTitle);
@@ -414,9 +411,12 @@ public class ExportService {
             if (template.getSubtitle() != null && !template.getSubtitle().isEmpty()) {
                 cursor.line(12, false, template.getSubtitle());
             }
-            cursor.line(12, false, "项目名称：" + nullToEmpty(ctx.project.getProjectName()));
-            cursor.line(12, false, "报告生成时间：" + DTF.format(LocalDateTime.now()));
-            cursor.gap();
+            // 封面信息区：留白 + 项目名称 + 报告生成时间
+            cursor.spacer();
+            cursor.line(11, false, "项目名称：" + nullToEmpty(ctx.project.getProjectName()));
+            cursor.line(11, false, "报告生成时间：" + DTF.format(LocalDateTime.now()));
+            cursor.spacer();
+            cursor.spacer();
 
             // 按模板 sections 顺序渲染各章节
             List<SectionConfig> sections = parseSections(template.getSections());

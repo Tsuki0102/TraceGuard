@@ -1,8 +1,6 @@
 package com.traceguard.service.report;
 
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
-import org.apache.poi.xwpf.usermodel.XWPFParagraph;
-import org.apache.poi.xwpf.usermodel.XWPFRun;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
@@ -25,35 +23,29 @@ public class StatsSummaryRenderer implements ReportSectionRenderer {
 
     @Override
     public void renderWord(ReportContext ctx, XWPFDocument doc, String sectionTitle, int sectionNo) {
-        addHeading(doc, ReportSectionRenderer.chineseNumber(sectionNo) + "、" + sectionTitle, 14);
+        ReportWordStyles.addHeading(doc, ReportSectionRenderer.chineseNumber(sectionNo) + "、" + sectionTitle, 14);
         Map<String, Object> stats = ctx.stats;
-        addParagraph(doc, "需求总数：" + toStatString(stats.get("totalRequirements")));
-        addParagraph(doc, "需求覆盖率：" + toStatString(stats.get("coverageRate")) + "%");
-        addParagraph(doc, "缺陷总数：" + toStatString(stats.get("totalDefects"))
+        ReportWordStyles.addLabelValue(doc, "需求总数：", toStatString(stats.get("totalRequirements")), null);
+        ReportWordStyles.addLabelValue(doc, "需求覆盖率：", toStatString(stats.get("coverageRate")) + "%",
+                ReportWordStyles.COLOR_HEADING);
+        ReportWordStyles.addLabelValue(doc, "缺陷总数：", toStatString(stats.get("totalDefects"))
                 + "（严重：" + toStatString(stats.get("seriousDefects"))
-                + "，一般：" + toStatString(stats.get("generalDefects")) + "）");
-        addParagraph(doc, "代码基础缺陷数：" + toStatString(stats.get("codeDefects")));
+                + "，一般：" + toStatString(stats.get("generalDefects")) + "）", null);
+        ReportWordStyles.addLabelValue(doc, "代码基础缺陷数：", toStatString(stats.get("codeDefects")), null);
+        ReportWordStyles.addSpacer(doc);
     }
 
     @Override
     public void renderPdf(ReportContext ctx, PdfCursorAdapter cursor, String sectionTitle, int sectionNo) throws Exception {
         Map<String, Object> stats = ctx.stats;
-        cursor.line(14, true, ReportSectionRenderer.chineseNumber(sectionNo) + "、" + sectionTitle);
-        cursor.line(12, false, "需求总数：" + toStatString(stats.get("totalRequirements")));
-        cursor.line(12, false, "需求覆盖率：" + toStatString(stats.get("coverageRate")) + "%");
-        cursor.line(12, false, "缺陷总数：" + toStatString(stats.get("totalDefects"))
+        cursor.sectionTitle(ReportSectionRenderer.chineseNumber(sectionNo) + "、" + sectionTitle);
+        cursor.labelValue("需求总数：", toStatString(stats.get("totalRequirements")));
+        cursor.labelValue("需求覆盖率：", toStatString(stats.get("coverageRate")) + "%");
+        cursor.labelValue("缺陷总数：", toStatString(stats.get("totalDefects"))
                 + "（严重：" + toStatString(stats.get("seriousDefects"))
                 + "，一般：" + toStatString(stats.get("generalDefects")) + "）");
-        cursor.line(12, false, "代码基础缺陷数：" + toStatString(stats.get("codeDefects")));
-        cursor.gap();
-    }
-
-    private void addHeading(XWPFDocument doc, String text, int fontSize) {
-        ReportWordStyles.addHeading(doc, text, fontSize);
-    }
-
-    private void addParagraph(XWPFDocument doc, String text) {
-        ReportWordStyles.addParagraph(doc, text);
+        cursor.labelValue("代码基础缺陷数：", toStatString(stats.get("codeDefects")));
+        cursor.spacer();
     }
 
     private String toStatString(Object v) {

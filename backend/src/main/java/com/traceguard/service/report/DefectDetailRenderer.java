@@ -33,42 +33,48 @@ public class DefectDetailRenderer implements ReportSectionRenderer {
         addHeading(doc, ReportSectionRenderer.chineseNumber(sectionNo) + "、" + sectionTitle, 14);
         int idx = 1;
         for (Defect d : ctx.defects) {
-            addParagraph(doc, (idx++) + ". [" + ("serious".equals(d.getDefectLevel()) ? "严重" : "一般") + "] "
+            ReportWordStyles.addListItem(doc, (idx++) + ". [" + ("serious".equals(d.getDefectLevel()) ? "严重" : "一般") + "] "
                     + formatDefectType(d) + "（" + nullToEmpty(d.getDefectId()) + "）");
             if (d.getRequirementText() != null) {
-                addParagraph(doc, "需求原文：" + truncate(d.getRequirementText(), MAX_TEXT_LEN));
+                ReportWordStyles.addItemDetail(doc, "需求原文：" + truncate(d.getRequirementText(), MAX_TEXT_LEN));
             }
             if (d.getCodeSnippet() != null && !d.getCodeSnippet().isEmpty()) {
-                addParagraph(doc, "代码片段：");
+                ReportWordStyles.addItemDetail(doc, "代码片段：");
                 addCodeBlock(doc, d.getCodeSnippet());
+                ReportWordStyles.addCodeSpacer(doc);
             }
-            addParagraph(doc, "缺陷原因：" + truncate(nullToEmpty(d.getDefectReason()), MAX_SNIPPET_LEN));
-            addParagraph(doc, "修复建议：" + truncate(nullToEmpty(d.getRepairSuggestion()), MAX_SNIPPET_LEN));
+            ReportWordStyles.addItemDetail(doc, "缺陷原因：" + truncate(nullToEmpty(d.getDefectReason()), MAX_SNIPPET_LEN));
+            ReportWordStyles.addItemDetail(doc, "修复建议：" + truncate(nullToEmpty(d.getRepairSuggestion()), MAX_SNIPPET_LEN));
         }
         if (ctx.defects.isEmpty()) {
-            addParagraph(doc, "未检测到需求-代码不一致缺陷。");
+            ReportWordStyles.addParagraph(doc, "未检测到需求-代码不一致缺陷。");
         }
+        ReportWordStyles.addSpacer(doc);
     }
 
     @Override
     public void renderPdf(ReportContext ctx, PdfCursorAdapter cursor, String sectionTitle, int sectionNo) throws Exception {
-        cursor.line(14, true, ReportSectionRenderer.chineseNumber(sectionNo) + "、" + sectionTitle);
+        cursor.sectionTitle(ReportSectionRenderer.chineseNumber(sectionNo) + "、" + sectionTitle);
         int idx = 1;
         for (Defect d : ctx.defects) {
-            cursor.line(12, true, (idx++) + ". ["
+            cursor.line(11, true, (idx++) + ". ["
                     + ("serious".equals(d.getDefectLevel()) ? "严重" : "一般") + "] "
                     + formatDefectType(d));
-            cursor.indent(11, "原因：" + truncate(nullToEmpty(d.getDefectReason()), 90));
-            if (d.getCodeSnippet() != null && !d.getCodeSnippet().isEmpty()) {
-                cursor.indent(11, "代码片段：");
-                renderCodeBlock(cursor, d.getCodeSnippet());
+            if (d.getRequirementText() != null) {
+                cursor.itemDetail("需求原文：" + truncate(d.getRequirementText(), MAX_TEXT_LEN));
             }
-            cursor.indent(11, "建议：" + truncate(nullToEmpty(d.getRepairSuggestion()), 90));
+            if (d.getCodeSnippet() != null && !d.getCodeSnippet().isEmpty()) {
+                cursor.itemDetail("代码片段：");
+                renderCodeBlock(cursor, d.getCodeSnippet());
+                cursor.spacer();
+            }
+            cursor.itemDetail("缺陷原因：" + truncate(nullToEmpty(d.getDefectReason()), 120));
+            cursor.itemDetail("修复建议：" + truncate(nullToEmpty(d.getRepairSuggestion()), 120));
         }
         if (ctx.defects.isEmpty()) {
-            cursor.line(12, false, "未检测到需求-代码不一致缺陷。");
+            cursor.line(11, false, "未检测到需求-代码不一致缺陷。");
         }
-        cursor.gap();
+        cursor.spacer();
     }
 
     /** Word 代码块：保留原始换行逐行输出，等宽字体 */
@@ -91,10 +97,10 @@ public class DefectDetailRenderer implements ReportSectionRenderer {
         int shown = 0;
         for (String line : lines) {
             if (shown >= MAX_SNIPPET_LINES) {
-                cursor.subIndent(9, "...（代码片段过长已截断）");
+                cursor.codeLine("...（代码片段过长已截断）");
                 break;
             }
-            cursor.subIndent(9, line);
+            cursor.codeLine(line);
             shown++;
         }
     }

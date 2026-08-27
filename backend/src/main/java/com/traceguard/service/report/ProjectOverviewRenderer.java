@@ -1,10 +1,6 @@
 package com.traceguard.service.report;
 
-import com.traceguard.entity.Project;
-import org.apache.poi.xwpf.usermodel.ParagraphAlignment;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
-import org.apache.poi.xwpf.usermodel.XWPFParagraph;
-import org.apache.poi.xwpf.usermodel.XWPFRun;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
@@ -30,29 +26,22 @@ public class ProjectOverviewRenderer implements ReportSectionRenderer {
 
     @Override
     public void renderWord(ReportContext ctx, XWPFDocument doc, String sectionTitle, int sectionNo) {
-        addHeading(doc, ReportSectionRenderer.chineseNumber(sectionNo) + "、" + sectionTitle, 14);
-        addParagraph(doc, "项目名称：" + nullToEmpty(ctx.project.getProjectName()));
-        addParagraph(doc, "行业类型：" + nullToEmpty(ctx.project.getIndustryType()));
-        addParagraph(doc, "技术栈：" + nullToEmpty(ctx.project.getTechStack()));
-        addParagraph(doc, "报告生成时间：" + DTF.format(LocalDateTime.now()));
+        ReportWordStyles.addHeading(doc, ReportSectionRenderer.chineseNumber(sectionNo) + "、" + sectionTitle, 14);
+        ReportWordStyles.addLabelValue(doc, "项目名称：", nullToEmpty(ctx.project.getProjectName()), null);
+        ReportWordStyles.addLabelValue(doc, "行业类型：", nullToEmpty(ctx.project.getIndustryType()), null);
+        ReportWordStyles.addLabelValue(doc, "技术栈：", nullToEmpty(ctx.project.getTechStack()), null);
+        ReportWordStyles.addLabelValue(doc, "报告生成时间：", DTF.format(LocalDateTime.now()), null);
+        ReportWordStyles.addSpacer(doc);
     }
 
     @Override
     public void renderPdf(ReportContext ctx, PdfCursorAdapter cursor, String sectionTitle, int sectionNo) throws Exception {
-        cursor.line(14, true, ReportSectionRenderer.chineseNumber(sectionNo) + "、" + sectionTitle);
-        cursor.line(12, false, "项目名称：" + nullToEmpty(ctx.project.getProjectName()));
-        cursor.line(12, false, "行业类型：" + nullToEmpty(ctx.project.getIndustryType()));
-        cursor.line(12, false, "技术栈：" + nullToEmpty(ctx.project.getTechStack()));
-        cursor.line(12, false, "报告生成时间：" + DTF.format(LocalDateTime.now()));
-        cursor.gap();
-    }
-
-    private void addHeading(XWPFDocument doc, String text, int fontSize) {
-        ReportWordStyles.addHeading(doc, text, fontSize);
-    }
-
-    private void addParagraph(XWPFDocument doc, String text) {
-        ReportWordStyles.addParagraph(doc, text);
+        cursor.sectionTitle(ReportSectionRenderer.chineseNumber(sectionNo) + "、" + sectionTitle);
+        cursor.labelValue("项目名称：", nullToEmpty(ctx.project.getProjectName()));
+        cursor.labelValue("行业类型：", nullToEmpty(ctx.project.getIndustryType()));
+        cursor.labelValue("技术栈：", nullToEmpty(ctx.project.getTechStack()));
+        cursor.labelValue("报告生成时间：", DTF.format(LocalDateTime.now()));
+        cursor.spacer();
     }
 
     private String nullToEmpty(String s) {

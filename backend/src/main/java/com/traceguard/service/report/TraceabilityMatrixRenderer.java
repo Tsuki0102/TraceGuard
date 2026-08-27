@@ -1,8 +1,6 @@
 package com.traceguard.service.report;
 
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
-import org.apache.poi.xwpf.usermodel.XWPFParagraph;
-import org.apache.poi.xwpf.usermodel.XWPFRun;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -48,20 +46,21 @@ public class TraceabilityMatrixRenderer implements ReportSectionRenderer {
             } else {
                 sb.append(" 代码位置：未关联代码");
             }
-            addParagraph(doc, sb.toString());
+            ReportWordStyles.addItemDetail(doc, sb.toString());
         }
         if (matrix.isEmpty()) {
-            addParagraph(doc, "暂无追溯矩阵数据。");
+            ReportWordStyles.addParagraph(doc, "暂无追溯矩阵数据。");
         } else if (matrix.size() > MAX_MATRIX_ROWS_IN_REPORT) {
-            addParagraph(doc, "共" + matrix.size() + "条追溯关系，此处展示前" + MAX_MATRIX_ROWS_IN_REPORT
+            ReportWordStyles.addParagraph(doc, "共" + matrix.size() + "条追溯关系，此处展示前" + MAX_MATRIX_ROWS_IN_REPORT
                     + "条，完整矩阵请通过「追溯矩阵」页面导出Excel查看。");
         }
+        ReportWordStyles.addSpacer(doc);
     }
 
     @Override
     public void renderPdf(ReportContext ctx, PdfCursorAdapter cursor, String sectionTitle, int sectionNo) throws Exception {
         List<Map<String, Object>> matrix = ctx.traceabilityMatrix;
-        cursor.line(14, true, ReportSectionRenderer.chineseNumber(sectionNo) + "、" + sectionTitle);
+        cursor.sectionTitle(ReportSectionRenderer.chineseNumber(sectionNo) + "、" + sectionTitle);
         int limit = Math.min(matrix.size(), MAX_MATRIX_ROWS_IN_REPORT);
         for (int i = 0; i < limit; i++) {
             Map<String, Object> row = matrix.get(i);
@@ -76,14 +75,15 @@ public class TraceabilityMatrixRenderer implements ReportSectionRenderer {
             if (startLine != null) {
                 sb.append(" ").append(row.getOrDefault("filePath", "-")).append(":L").append(startLine);
             }
-            cursor.line(11, false, truncate(sb.toString(), 80));
+            cursor.itemDetail(sb.toString());
         }
         if (matrix.isEmpty()) {
-            cursor.line(12, false, "暂无追溯矩阵数据。");
+            cursor.line(11, false, "暂无追溯矩阵数据。");
         } else if (matrix.size() > MAX_MATRIX_ROWS_IN_REPORT) {
-            cursor.line(12, false, "共" + matrix.size() + "条，展示前" + MAX_MATRIX_ROWS_IN_REPORT
+            cursor.line(11, false, "共" + matrix.size() + "条，展示前" + MAX_MATRIX_ROWS_IN_REPORT
                     + "条，完整矩阵请导出Excel查看。");
         }
+        cursor.spacer();
     }
 
     private String mapStatusText(Map<String, Object> row) {
