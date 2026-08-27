@@ -12,6 +12,7 @@ on:
 
 jobs:
   # SEC-01 防复发：gitleaks 密钥扫描（任何提交一旦携带密钥/令牌即阻断 CI）
+  # 注：直接用 gitleaks CLI，避免 gitleaks-action 在首次 push/单分支仓库上的 baseline 解析错误
   secret-scan:
     name: Secret Scan (gitleaks)
     runs-on: ubuntu-latest
@@ -20,10 +21,14 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Install gitleaks
+        run: |
+          GITLEAKS_VERSION=8.21.2
+          curl -sL -o /tmp/gitleaks.tar.gz "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          tar -xzf /tmp/gitleaks.tar.gz -C /tmp
+          sudo install -Dm755 /tmp/gitleaks /usr/local/bin/gitleaks
       - name: Run gitleaks
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gitleaks detect --source . --verbose --redact
 
   # OPS-03：依赖漏洞扫描（OWASP dependency-check；continue-on-error 避免 NVD 数据慢/限流阻塞主流程）
   dependency-check:
@@ -43,7 +48,15 @@ jobs:
           java-version: '21'
           cache: maven
       - name: Run OWASP dependency-check
-        run: mvn -B org.owasp:dependency-check-maven:check -DfailBuildOnCVSS=9 -Dformat=HTML
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+        run: |
+          if [ -n "$NVD_API_KEY" ]; then
+            mvn -B org.owasp:dependency-check-maven:check -DfailBuildOnCVSS=9 -Dformat=HTML -DnvdApiKey="$NVD_API_KEY"
+          else
+            # 无 NVD API key 时跳过 NVD 更新，避免被限流/失败
+            mvn -B org.owasp:dependency-check-maven:check -DfailBuildOnCVSS=9 -Dformat=HTML -Dnoupdate=true
+          fi
 
   backend:
     name: Backend (mvn test)
