@@ -15,6 +15,8 @@ public class DefectDetailRenderer implements ReportSectionRenderer {
 
     private static final int MAX_TEXT_LEN = 200;
     private static final int MAX_SNIPPET_LEN = 300;
+    /** 代码片段最多展示行数，超出截断提示，避免报告被大段代码淹没 */
+    private static final int MAX_SNIPPET_LINES = 40;
 
     @Override
     public String key() {
@@ -34,13 +36,14 @@ public class DefectDetailRenderer implements ReportSectionRenderer {
             addParagraph(doc, (idx++) + ". [" + ("serious".equals(d.getDefectLevel()) ? "严重" : "一般") + "] "
                     + formatDefectType(d) + "（" + nullToEmpty(d.getDefectId()) + "）");
             if (d.getRequirementText() != null) {
-                addParagraph(doc, "   需求原文：" + truncate(d.getRequirementText(), MAX_TEXT_LEN));
+                addParagraph(doc, "需求原文：" + truncate(d.getRequirementText(), MAX_TEXT_LEN));
             }
             if (d.getCodeSnippet() != null && !d.getCodeSnippet().isEmpty()) {
-                addParagraph(doc, "   代码片段：" + truncate(d.getCodeSnippet(), MAX_SNIPPET_LEN));
+                addParagraph(doc, "代码片段：");
+                addCodeBlock(doc, d.getCodeSnippet());
             }
-            addParagraph(doc, "   缺陷原因：" + truncate(nullToEmpty(d.getDefectReason()), MAX_SNIPPET_LEN));
-            addParagraph(doc, "   修复建议：" + truncate(nullToEmpty(d.getRepairSuggestion()), MAX_SNIPPET_LEN));
+            addParagraph(doc, "缺陷原因：" + truncate(nullToEmpty(d.getDefectReason()), MAX_SNIPPET_LEN));
+            addParagraph(doc, "修复建议：" + truncate(nullToEmpty(d.getRepairSuggestion()), MAX_SNIPPET_LEN));
         }
         if (ctx.defects.isEmpty()) {
             addParagraph(doc, "未检测到需求-代码不一致缺陷。");
@@ -57,7 +60,8 @@ public class DefectDetailRenderer implements ReportSectionRenderer {
                     + formatDefectType(d));
             cursor.indent(11, "原因：" + truncate(nullToEmpty(d.getDefectReason()), 90));
             if (d.getCodeSnippet() != null && !d.getCodeSnippet().isEmpty()) {
-                cursor.indent(11, "代码片段：" + truncate(d.getCodeSnippet(), 80));
+                cursor.indent(11, "代码片段：");
+                renderCodeBlock(cursor, d.getCodeSnippet());
             }
             cursor.indent(11, "建议：" + truncate(nullToEmpty(d.getRepairSuggestion()), 90));
         }
@@ -65,6 +69,34 @@ public class DefectDetailRenderer implements ReportSectionRenderer {
             cursor.line(12, false, "未检测到需求-代码不一致缺陷。");
         }
         cursor.gap();
+    }
+
+    /** Word 代码块：保留原始换行逐行输出，等宽字体 */
+    private void addCodeBlock(XWPFDocument doc, String code) {
+        String[] lines = code.replaceAll("\r\n", "\n").split("\n", -1);
+        int shown = 0;
+        for (String line : lines) {
+            if (shown >= MAX_SNIPPET_LINES) {
+                ReportWordStyles.addCodeLine(doc, "...（代码片段过长已截断）");
+                break;
+            }
+            ReportWordStyles.addCodeLine(doc, line);
+            shown++;
+        }
+    }
+
+    /** PDF 代码块：保留原始换行逐行输出（自动换行由游标适配器处理） */
+    private void renderCodeBlock(PdfCursorAdapter cursor, String code) throws Exception {
+        String[] lines = code.replaceAll("\r\n", "\n").split("\n", -1);
+        int shown = 0;
+        for (String line : lines) {
+            if (shown >= MAX_SNIPPET_LINES) {
+                cursor.subIndent(9, "...（代码片段过长已截断）");
+                break;
+            }
+            cursor.subIndent(9, line);
+            shown++;
+        }
     }
 
     /** GAP-020：缺陷类型展示格式 = 主类型（子类型括注）；GAP-011：加状态前缀 */
@@ -97,7 +129,8 @@ public class DefectDetailRenderer implements ReportSectionRenderer {
 
     private String truncate(String s, int maxLen) {
         if (s == null) return "";
-        String cleaned = s.replaceAll("[\\t\\r\\n]+", " ").trim();
+        // 保留换行（\n），仅把制表符转空格，避免多行文本被压成一行
+        String cleaned = s.replaceAll("[\\t]+", " ").replaceAll("[\\r\\n]+", "\n").trim();
         return cleaned.length() > maxLen ? cleaned.substring(0, maxLen) + "..." : cleaned;
     }
 }

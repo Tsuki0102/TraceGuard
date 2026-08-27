@@ -51,6 +51,24 @@ public final class ReportWordStyles {
         return p;
     }
 
+    /** 代码行：等宽字体（Consolas + 中文宋体兜底）、深灰、左侧缩进、单倍行距 */
+    public static XWPFParagraph addCodeLine(XWPFDocument doc, String line) {
+        XWPFParagraph p = doc.createParagraph();
+        p.setSpacingBetween(1.0, LineSpacingRule.AUTO);
+        p.setSpacingBefore(0);
+        p.setSpacingAfter(0);
+        p.setIndentationLeft(420);
+        p.setIndentationFirstLine(0);
+        XWPFRun run = p.createRun();
+        run.setText(line == null ? "" : line);
+        run.setFontSize(9);
+        run.setFontFamily("Consolas");
+        // 中文注释/字符串兜底用宋体，避免乱码
+        run.setFontFamily("SimSun", XWPFRun.FontCharRange.eastAsia);
+        run.setColor("595959");
+        return p;
+    }
+
     /** 居中段落（用于封面副标题、关键标识） */
     public static XWPFParagraph addCenteredParagraph(XWPFDocument doc, String text, int fontSize, boolean bold, String color) {
         XWPFParagraph p = doc.createParagraph();
