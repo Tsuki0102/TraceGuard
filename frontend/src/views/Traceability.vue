@@ -161,14 +161,16 @@
           <div v-else-if="!selectedRadar.available" class="radar-empty">当前记录三维分项得分缺失（GAP-005 未落地或已降级），暂无可展示分项得分，请选择其他记录</div>
         </div>
         <div v-if="radarHasData && selectedRadar.available" class="radar-legend">
-          <span><span class="legend-line solid"></span>当前选中（{{ selectedRadar.reqLabel }} × {{ selectedRadar.unitLabel }}）</span>
+          <span><span class="legend-line solid"></span>当前选中（{{ direction === 'reverse' ? selectedRadar.unitLabel + ' → ' + selectedRadar.reqLabel : selectedRadar.reqLabel + ' → ' + selectedRadar.unitLabel }}）</span>
           <span><span class="legend-line dashed-green"></span>T1 完全一致阈值（{{ thresholdT1 }}%）</span>
           <span><span class="legend-line dashed-red"></span>T2 严重不一致阈值（{{ thresholdT2 }}%）</span>
         </div>
         <el-table :data="radarPageRecords" stripe border size="small" highlight-current-row style="margin-top: 12px" :row-class-name="radarRowClassName" @row-click="onRadarRowClick">
           <el-table-column type="index" label="序号" width="60" :index="radarGlobalIndex" />
-          <el-table-column prop="reqLabel" label="需求ID" width="110" />
-          <el-table-column prop="unitLabel" label="代码单元" min-width="200" show-overflow-tooltip />
+          <el-table-column v-if="direction === 'reverse'" prop="unitLabel" label="代码单元" min-width="200" show-overflow-tooltip />
+          <el-table-column v-if="direction !== 'reverse'" prop="reqLabel" label="需求ID" width="110" />
+          <el-table-column v-if="direction !== 'reverse'" prop="unitLabel" label="代码单元" min-width="200" show-overflow-tooltip />
+          <el-table-column v-if="direction === 'reverse'" prop="reqLabel" label="需求ID" width="110" />
           <el-table-column label="语义相似度(α)" width="120">
             <template #default="{ row }">{{ formatScore(row.semanticSimilarity) }}</template>
           </el-table-column>
@@ -238,6 +240,10 @@ const heatmapSampled = ref(false)
 let heatmapChart = null
 // 热力图原始数据缓存 {reqAxis, unitAxis, data}
 let heatmapDataset = null
+// GAP-037：方向切换时重建热力图/雷达图所需原始数据缓存
+let rawReqs = []
+let rawUnits = []
+let rawConsistency = []
 
 // GAP-034：三维分项得分雷达图状态
 const radarRecords = ref([])          // 明细表全量记录 {reqLabel, unitLabel, semanticSimilarity, constraintMatchDegree, invariantSatisfaction, totalSimilarity, consistencyStatus}
@@ -281,7 +287,8 @@ const loadMatrix = async () => {
     }
     // Element Plus IPage 格式: {records, total, current, size, pages}
     matrix.value = (res.records || res.list || res) || []
-    totalRecords.value = res.total || 0
+    // total 强转 Number，避免 ElPagination "Expected Number, got String" 告警
+    totalRecords.value = Number(res.total || 0)
   } catch (e) {
     console.error('加载追溯矩阵失败:', e)
     ElMessage.error('加载追溯矩阵失败')
@@ -316,14 +323,17 @@ const loadData = async () => {
     resultApi.getCodeUnits(projectId),
     resultApi.getConsistency(projectId, null)
   ])
-  heatmapDataset = buildHeatmapData(reqs, units, consistency)
+  rawReqs = reqs || []
+  rawUnits = units || []
+  rawConsistency = consistency || []
+  heatmapDataset = buildHeatmapData(rawReqs, rawUnits, rawConsistency, direction.value)
   hasHeatmapData.value = heatmapDataset.data.length > 0
   heatmapSampled.value = !!heatmapDataset.sampled
   // 当前已处于热力图视图则直接渲染
   if (viewMode.value === 'heatmap') renderHeatmap(heatmapDataset)
 
   // GAP-034：构建雷达图明细数据并加载分级阈值
-  buildRadarRecords(reqs, units, consistency)
+  buildRadarRecords(rawReqs, rawUnits, rawConsistency, direction.value)
   await loadRadarThresholds()
   if (viewMode.value === 'radar') renderRadar()
 }
@@ -331,7 +341,7 @@ const loadData = async () => {
 watch(viewMode, async (mode) => {
   if (mode === 'heatmap' && heatmapDataset) {
     await nextTick()
-    if (!heatmapChart) renderHeatmap(heatmapDataset)
+    renderHeatmap(heatmapDataset)
   }
   // GAP-034：切到雷达视图时渲染
   if (mode === 'radar') {
@@ -340,17 +350,29 @@ watch(viewMode, async (mode) => {
   }
 })
 
-// GAP-026：方向切换时重置分页
-watch(direction, () => {
+// GAP-026：方向切换时重置分页；GAP-037：热力图/雷达图按方向重建（正向=需求x代码，反向=代码x需求转置）
+watch(direction, async (dir) => {
   if (viewMode.value === 'table') {
     currentPage.value = 1
     totalRecords.value = 0
     loadMatrix()
+  } else if (viewMode.value === 'heatmap') {
+    heatmapDataset = buildHeatmapData(rawReqs, rawUnits, rawConsistency, dir)
+    hasHeatmapData.value = heatmapDataset.data.length > 0
+    heatmapSampled.value = !!heatmapDataset.sampled
+    await nextTick()
+    renderHeatmap(heatmapDataset)
+  } else if (viewMode.value === 'radar') {
+    buildRadarRecords(rawReqs, rawUnits, rawConsistency, dir)
+    radarPage.value = 1
+    await nextTick()
+    renderRadar()
   }
 })
 
-/** GAP-026：构建热力图数据集，支持大数据量采样（数据由 loadData 统一拉取） */
-const buildHeatmapData = (reqs, units, consistency) => {
+/** GAP-026：构建热力图数据集，支持大数据量采样（数据由 loadData 统一拉取）
+ * GAP-037：支持方向参数，reverse 时转置矩阵（y=代码单元，x=需求），数据点坐标同步互换 */
+const buildHeatmapData = (reqs, units, consistency, dir = 'forward') => {
   const reqNameMap = {}
   ;(reqs || []).forEach(r => { reqNameMap[r.id] = r.requirementId })
   const unitNameMap = {}
@@ -374,6 +396,7 @@ const buildHeatmapData = (reqs, units, consistency) => {
       unitIndex[unitLabel] = unitAxis.length
       unitAxis.push(unitLabel)
     }
+    // 原始点：x=unit 索引，y=req 索引
     rawData.push([unitIndex[unitLabel], reqIndex[reqLabel], Number((c.totalSimilarity * 100).toFixed(1))])
   })
   
@@ -386,7 +409,16 @@ const buildHeatmapData = (reqs, units, consistency) => {
     data = rawData.filter((_, i) => i % step === 0)
     console.warn(`GAP-026: 热力图数据量 ${rawData.length} 超阈值，已采样至 ${data.length} 个点`)
   }
-  
+
+  // GAP-037：反向=矩阵转置（y=代码单元，x=需求），数据点坐标 (unit, req) -> (req, unit)
+  if (dir === 'reverse') {
+    return {
+      reqAxis: unitAxis,
+      unitAxis: reqAxis,
+      data: data.map(([ui, ri, v]) => [ri, ui, v]),
+      sampled: data.length < rawData.length
+    }
+  }
   return { reqAxis, unitAxis, data, sampled: data.length < rawData.length }
 }
 
@@ -394,6 +426,11 @@ const buildHeatmapData = (reqs, units, consistency) => {
 const renderHeatmap = ({ reqAxis, unitAxis, data, sampled }) => {
   const el = document.getElementById('traceHeatmap')
   if (!el) return
+  // 视图切换经 v-if 重建容器 DOM，旧实例绑定在已移除节点上，必须先销毁再初始化
+  if (heatmapChart) {
+    heatmapChart.dispose()
+    heatmapChart = null
+  }
   heatmapChart = echarts.init(el)
   heatmapChart.setOption({
     tooltip: {
@@ -443,8 +480,10 @@ const renderHeatmap = ({ reqAxis, unitAxis, data, sampled }) => {
 
 // ==================== GAP-034：三维分项得分雷达图 ====================
 
-/** 构建雷达图明细记录（α/β/γ 三维得分 + 综合相似度 + 一致性状态） */
-const buildRadarRecords = (reqs, units, consistency) => {
+/** 构建雷达图明细记录（α/β/γ 三维得分 + 综合相似度 + 一致性状态）
+ * GAP-037：方向参数 reverse 时按代码单元聚合排序（同一方法覆盖的所有需求相邻），
+ * 明细表默认选中随之变化，雷达图展示对应的记录得分。 */
+const buildRadarRecords = (reqs, units, consistency, dir = 'forward') => {
   const reqNameMap = {}
   ;(reqs || []).forEach(r => { reqNameMap[r.id] = r.requirementId })
   const unitNameMap = {}
@@ -461,6 +500,13 @@ const buildRadarRecords = (reqs, units, consistency) => {
       consistencyStatus: c.consistencyStatus
     })
   })
+  if (dir === 'reverse') {
+    // 反向视角：以代码单元为主键聚合（unitLabel 优先排序，其次 reqLabel）
+    records.sort((a, b) => {
+      const d = a.unitLabel.localeCompare(b.unitLabel)
+      return d !== 0 ? d : a.reqLabel.localeCompare(b.reqLabel)
+    })
+  }
   radarRecords.value = records
   radarTotal.value = records.length
   radarHasData.value = records.length > 0
@@ -558,7 +604,9 @@ const buildRadarOption = () => {
       formatter: (params) => {
         if (!params || !params.name) return ''
         if (params.name === '当前选中') {
-          return `${s.reqLabel} × ${s.unitLabel}<br/>`
+          return (direction.value === 'reverse'
+            ? `${s.unitLabel} → ${s.reqLabel}`
+            : `${s.reqLabel} → ${s.unitLabel}`) + `<br/>`
             + `语义相似度(α): ${s.alpha}%<br/>`
             + `约束匹配度(β): ${s.beta}%<br/>`
             + `不变量满足度(γ): ${s.gamma}%`
@@ -610,6 +658,11 @@ const renderRadar = () => {
       radarChart = null
     }
     return
+  }
+  // 视图切换经 v-if 重建容器 DOM，旧实例绑定在已移除节点上时先销毁再初始化
+  if (radarChart && radarChart.getDom() !== el) {
+    radarChart.dispose()
+    radarChart = null
   }
   if (!radarChart) radarChart = echarts.init(el)
   radarChart.setOption(buildRadarOption(), true)
