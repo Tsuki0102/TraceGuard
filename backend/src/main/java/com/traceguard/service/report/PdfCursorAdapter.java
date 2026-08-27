@@ -135,15 +135,16 @@ public class PdfCursorAdapter {
 
     private void writeOneLine(float x, float fontSize, boolean bold, String text) throws Exception {
         ensureSpace();
-        cs.beginText();
-        cs.setFont(font, fontSize);
+        // PDFBox 规定：RenderingMode 与 LineWidth 是 page-level graphics state，
+        // 必须在 beginText() 前设置，否则会生成非法 PDF 结构导致阅读器解析失败
         if (bold) {
-            // 粗体模拟：先填充再描边，线宽按字号缩放保持比例
             cs.setRenderingMode(RenderingMode.FILL_STROKE);
             cs.setLineWidth(BOLD_STROKE_WIDTH * (fontSize / 12f));
         } else {
             cs.setRenderingMode(RenderingMode.FILL);
         }
+        cs.beginText();
+        cs.setFont(font, fontSize);
         cs.newLineAtOffset(x, y);
         cs.showText(text);
         cs.endText();
