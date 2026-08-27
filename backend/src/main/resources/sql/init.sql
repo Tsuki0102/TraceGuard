@@ -341,6 +341,15 @@ SET @s = (SELECT IF(
     'SELECT 1'));
 PREPARE stmt FROM @s; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
+-- GAP-010 修复：tg_report_template_config.code 缺唯一索引导致 INSERT IGNORE 失效、每次跑 init.sql 都新增一条同 code 模板
+-- 下游会拿到几十条同 code 模板，前端模板下拉显示成百条同名项无法选择
+-- 幂等：仅在索引不存在时创建
+SET @s = (SELECT IF(
+    (SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tg_report_template_config' AND INDEX_NAME = 'uk_code') = 0,
+    'ALTER TABLE tg_report_template_config ADD UNIQUE KEY uk_code (code)',
+    'SELECT 1'));
+PREPARE stmt FROM @s; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
 -- 初始数据：三条系统模板（幂等插入）
 INSERT IGNORE INTO tg_report_template_config (code, template_name, sections, title, sort, is_default, is_system) VALUES
 ('FULL', '完整报告',
