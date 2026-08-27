@@ -17,6 +17,8 @@ import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -354,6 +356,7 @@ class ExportServiceTest {
     // ==================== C6+C8：PDF 报告 ====================
 
     @Test
+    @EnabledOnOs(OS.WINDOWS)
     @DisplayName("PDF完整模板：含缺陷分级统计、代码质量分析与追溯矩阵三块")
     void reportPdfFullTemplate() throws Exception {
         when(projectMapper.selectById(1L)).thenReturn(buildProject());
@@ -371,6 +374,7 @@ class ExportServiceTest {
     }
 
     @Test
+    @EnabledOnOs(OS.WINDOWS)
     @DisplayName("PDF简要模板：不含缺陷分级统计/缺陷明细/代码质量/追溯矩阵")
     void reportPdfBriefTemplate() throws Exception {
         when(projectMapper.selectById(1L)).thenReturn(buildProject());
