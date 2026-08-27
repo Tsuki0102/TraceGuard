@@ -413,8 +413,8 @@ public class ExportService {
             }
             // 封面信息区：留白 + 项目名称 + 报告生成时间
             cursor.spacer();
-            cursor.line(11, false, "项目名称：" + nullToEmpty(ctx.project.getProjectName()));
-            cursor.line(11, false, "报告生成时间：" + DTF.format(LocalDateTime.now()));
+            cursor.line(12, false, "项目名称：" + nullToEmpty(ctx.project.getProjectName()));
+            cursor.line(12, false, "报告生成时间：" + DTF.format(LocalDateTime.now()));
             cursor.spacer();
             cursor.spacer();
 

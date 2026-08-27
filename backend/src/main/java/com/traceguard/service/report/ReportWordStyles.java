@@ -215,7 +215,7 @@ public final class ReportWordStyles {
         return p;
     }
 
-    /** 封面信息行（项目名称等）：居中、灰、带段前间距 */
+    /** 封面信息行（项目名称/报告生成时间等）：居中、深灰、加粗、带段前间距 */
     public static XWPFParagraph addCoverInfo(XWPFDocument doc, String text) {
         XWPFParagraph p = doc.createParagraph();
         p.setAlignment(ParagraphAlignment.CENTER);
@@ -223,7 +223,7 @@ public final class ReportWordStyles {
         p.setSpacingBetween(1.5, LineSpacingRule.AUTO);
         XWPFRun run = p.createRun();
         run.setText(text);
-        setExplicitBold(run, false);
+        setExplicitBold(run, true);
         run.setFontSize(12);
         run.setFontFamily(FONT_BODY);
         run.setColor(COLOR_GRAY);
