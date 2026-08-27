@@ -36,15 +36,15 @@ public class DefectDetailRenderer implements ReportSectionRenderer {
             ReportWordStyles.addListItem(doc, (idx++) + ". [" + ("serious".equals(d.getDefectLevel()) ? "严重" : "一般") + "] "
                     + formatDefectType(d) + "（" + nullToEmpty(d.getDefectId()) + "）");
             if (d.getRequirementText() != null) {
-                ReportWordStyles.addItemDetail(doc, "需求原文：" + truncate(d.getRequirementText(), MAX_TEXT_LEN));
+                ReportWordStyles.addItemLabelValue(doc, "需求原文：", truncate(d.getRequirementText(), MAX_TEXT_LEN));
             }
             if (d.getCodeSnippet() != null && !d.getCodeSnippet().isEmpty()) {
-                ReportWordStyles.addItemDetail(doc, "代码片段：");
+                ReportWordStyles.addItemLabel(doc, "代码片段：");
                 addCodeBlock(doc, d.getCodeSnippet());
                 ReportWordStyles.addCodeSpacer(doc);
             }
-            ReportWordStyles.addItemDetail(doc, "缺陷原因：" + truncate(nullToEmpty(d.getDefectReason()), MAX_SNIPPET_LEN));
-            ReportWordStyles.addItemDetail(doc, "修复建议：" + truncate(nullToEmpty(d.getRepairSuggestion()), MAX_SNIPPET_LEN));
+            ReportWordStyles.addItemLabelValue(doc, "缺陷原因：", truncate(nullToEmpty(d.getDefectReason()), MAX_SNIPPET_LEN));
+            ReportWordStyles.addItemLabelValue(doc, "修复建议：", truncate(nullToEmpty(d.getRepairSuggestion()), MAX_SNIPPET_LEN));
         }
         if (ctx.defects.isEmpty()) {
             ReportWordStyles.addParagraph(doc, "未检测到需求-代码不一致缺陷。");

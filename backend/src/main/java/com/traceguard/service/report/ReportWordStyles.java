@@ -40,7 +40,7 @@ public final class ReportWordStyles {
         p.setAlignment(ParagraphAlignment.LEFT);
         XWPFRun run = p.createRun();
         run.setText(text);
-        run.setBold(true);
+        setExplicitBold(run, true);
         run.setFontSize(fontSize);
         run.setFontFamily(FONT_HEADING);
         run.setColor(COLOR_HEADING);
@@ -61,7 +61,7 @@ public final class ReportWordStyles {
         XWPFRun run = p.createRun();
         run.setText(text);
         run.setFontSize(fontSize);
-        if (bold) run.setBold(true);
+        setExplicitBold(run, bold);
         run.setFontFamily(FONT_BODY);
         return p;
     }
@@ -75,12 +75,12 @@ public final class ReportWordStyles {
         XWPFRun labelRun = p.createRun();
         labelRun.setText(label);
         labelRun.setFontSize(11);
-        labelRun.setBold(true);
+        setExplicitBold(labelRun, true);
         labelRun.setFontFamily(FONT_BODY);
         XWPFRun valueRun = p.createRun();
         valueRun.setText(value);
         valueRun.setFontSize(11);
-        valueRun.setBold(true);
+        setExplicitBold(valueRun, true);
         valueRun.setFontFamily(FONT_BODY);
         if (valueColor != null) valueRun.setColor(valueColor);
         return p;
@@ -94,16 +94,55 @@ public final class ReportWordStyles {
         p.setSpacingBetween(1.3, LineSpacingRule.AUTO);
         XWPFRun run = p.createRun();
         run.setText(text);
-        run.setBold(true);
+        setExplicitBold(run, true);
         run.setFontSize(11);
         run.setFontFamily(FONT_HEADING);
         run.setColor(COLOR_ITEM);
-        // 显式关闭下划线（POI 默认 NONE，但 Word 部分主题对蓝色文本会自动加下划线，显式重置最稳）
+        // 显式关闭下划线
         run.setUnderline(org.apache.poi.xwpf.usermodel.UnderlinePatterns.NONE);
         return p;
     }
 
-    /** 条目下说明行（需求原文/缺陷原因等）：11pt 宋体、段后小间距、无首行缩进 */
+    /** 条目下标签行：12pt 加粗（比正文大一号）、深灰、左侧缩进 */
+    public static XWPFParagraph addItemLabel(XWPFDocument doc, String text) {
+        XWPFParagraph p = doc.createParagraph();
+        p.setSpacingBetween(1.4, LineSpacingRule.AUTO);
+        p.setSpacingAfter(60);
+        p.setIndentationLeft(420);
+        p.setIndentationFirstLine(0);
+        XWPFRun run = p.createRun();
+        run.setText(text);
+        setExplicitBold(run, true);
+        run.setFontSize(12);
+        run.setFontFamily(FONT_BODY);
+        run.setColor(COLOR_GRAY);
+        return p;
+    }
+
+    /** 条目下标签-值同行：标签 12pt 加粗 + 值 10.5pt 普通 */
+    public static XWPFParagraph addItemLabelValue(XWPFDocument doc, String label, String value) {
+        XWPFParagraph p = doc.createParagraph();
+        p.setSpacingBetween(1.4, LineSpacingRule.AUTO);
+        p.setSpacingAfter(80);
+        p.setIndentationLeft(420);
+        p.setIndentationFirstLine(0);
+        XWPFRun lr = p.createRun();
+        lr.setText(label);
+        setExplicitBold(lr, true);
+        lr.setFontSize(12);
+        lr.setFontFamily(FONT_BODY);
+        lr.setColor(COLOR_GRAY);
+        if (value != null && !value.isEmpty()) {
+            XWPFRun vr = p.createRun();
+            vr.setText(value);
+            setExplicitBold(vr, false);
+            vr.setFontSize(10.5);
+            vr.setFontFamily(FONT_BODY);
+        }
+        return p;
+    }
+
+    /** 条目下说明行（向后兼容）：10.5pt 宋体（非粗体）、段后小间距、无首行缩进 */
     public static XWPFParagraph addItemDetail(XWPFDocument doc, String text) {
         XWPFParagraph p = doc.createParagraph();
         p.setSpacingBetween(1.4, LineSpacingRule.AUTO);
@@ -112,9 +151,20 @@ public final class ReportWordStyles {
         p.setIndentationFirstLine(0);
         XWPFRun run = p.createRun();
         run.setText(text);
+        setExplicitBold(run, false);
         run.setFontSize(10.5);
         run.setFontFamily(FONT_BODY);
         return p;
+    }
+
+    /**
+     * 显式设置粗体：先关再开确保覆盖 POI 继承的默认样式。
+     * 某些 Word 主题对 XWPFRun 默认加粗，单次 setBold(true) 可能被样式继承覆盖，
+     * 连续 setBold(false)+setBold(true) 保证实际写入 w:b 元素。
+     */
+    private static void setExplicitBold(XWPFRun run, boolean bold) {
+        run.setBold(!bold);  // 先反向
+        run.setBold(bold);   // 再正向，最终生效
     }
 
     /** 代码行：等宽字体（Consolas + 中文宋体兜底）、深灰、左侧缩进、单倍行距 */
@@ -127,9 +177,9 @@ public final class ReportWordStyles {
         p.setIndentationFirstLine(0);
         XWPFRun run = p.createRun();
         run.setText(line == null ? "" : line);
+        setExplicitBold(run, false);
         run.setFontSize(9);
         run.setFontFamily(FONT_CODE);
-        // 中文注释/字符串兜底用宋体，避免乱码
         run.setFontFamily(FONT_BODY, XWPFRun.FontCharRange.eastAsia);
         run.setColor(COLOR_GRAY);
         return p;
@@ -159,7 +209,7 @@ public final class ReportWordStyles {
         XWPFRun run = p.createRun();
         run.setText(text);
         run.setFontSize(fontSize);
-        if (bold) run.setBold(true);
+        setExplicitBold(run, bold);
         if (color != null) run.setColor(color);
         run.setFontFamily(FONT_HEADING);
         return p;
@@ -173,6 +223,7 @@ public final class ReportWordStyles {
         p.setSpacingBetween(1.5, LineSpacingRule.AUTO);
         XWPFRun run = p.createRun();
         run.setText(text);
+        setExplicitBold(run, false);
         run.setFontSize(12);
         run.setFontFamily(FONT_BODY);
         run.setColor(COLOR_GRAY);
