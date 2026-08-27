@@ -104,7 +104,11 @@ public class SecureZipUtil {
         try (ZipInputStream zis = new ZipInputStream(new BufferedInputStream(new FileInputStream(zipFile)))) {
             ZipEntry entry;
             while ((entry = zis.getNextEntry()) != null) {
-                String entryName = entry.getName();
+                String rawName = entry.getName();
+                // Windows 资源管理器生成的 ZIP 常用反斜杠，且目录条目可能不以 / 结尾。
+                // 按 ZIP 规范统一标准化为正斜杠，并据此识别目录，避免后续目录/文件误判。
+                String entryName = rawName.replace('\\', '/').replaceAll("^/+", "");
+                boolean isDirectory = entry.isDirectory() || entryName.endsWith("/");
 
                 // 3. 路径穿越防护
                 validateEntryPath(entryName, destDirPath);
@@ -126,7 +130,7 @@ public class SecureZipUtil {
                 if (compressedSize > 0 && entrySize > 0) {
                     long ratio = entrySize / compressedSize;
                     if (ratio > MAX_EXPANSION_RATIO) {
-                        throw new IOException("检测到压缩炸弹攻击: 文件 " + entryName +
+                        throw new IOException("检测到压缩炸弹攻击: 文件 " + rawName +
                                 " 压缩比异常 (" + ratio + " 倍)，拒绝解压");
                     }
                 }
@@ -144,18 +148,18 @@ public class SecureZipUtil {
                 String outFilePath = outFile.getCanonicalPath();
                 if (!outFilePath.startsWith(destDirPath + File.separator) &&
                         !outFilePath.equals(destDirPath)) {
-                    throw new IOException("检测到路径穿越尝试: " + entryName);
+                    throw new IOException("检测到路径穿越尝试: " + rawName);
                 }
 
-                if (entry.isDirectory()) {
+                if (isDirectory) {
                     if (!outFile.exists() && !outFile.mkdirs()) {
-                        throw new IOException("无法创建目录: " + entryName);
+                        throw new IOException("无法创建目录: " + rawName);
                     }
                 } else {
                     // 确保父目录存在
                     File parent = outFile.getParentFile();
-                    if (!parent.exists() && !parent.mkdirs()) {
-                        throw new IOException("无法创建父目录: " + parent.getPath());
+                    if (parent != null && !parent.exists() && !parent.mkdirs()) {
+                        throw new IOException("无法创建父目录: " + parent.getPath() + " (原始条目: " + rawName + ")");
                     }
 
                     // 解压文件
