@@ -57,19 +57,11 @@ public class CodeQualityRenderer implements ReportSectionRenderer {
     }
 
     private void addHeading(XWPFDocument doc, String text, int fontSize) {
-        XWPFParagraph p = doc.createParagraph();
-        p.setSpacingBefore(200);
-        XWPFRun run = p.createRun();
-        run.setText(text);
-        run.setBold(true);
-        run.setFontSize(fontSize);
+        ReportWordStyles.addHeading(doc, text, fontSize);
     }
 
     private void addParagraph(XWPFDocument doc, String text) {
-        XWPFParagraph p = doc.createParagraph();
-        XWPFRun run = p.createRun();
-        run.setText(text);
-        run.setFontSize(11);
+        ReportWordStyles.addParagraph(doc, text);
     }
 
     private String nullToEmpty(String s) {
