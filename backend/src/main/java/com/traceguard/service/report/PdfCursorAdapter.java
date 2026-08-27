@@ -133,16 +133,11 @@ public class PdfCursorAdapter {
         }
     }
 
+    /** 单行输出（含分页判断）
+     * 注：PDF 端不做粗体模拟（FILL_STROKE 在严格 PDF 阅读器下偶发结构兼容性，
+     *     且中文字体无内置 bold 变体），标题/正文/代码靠字号（14/11/9）+ 行距区分层级。 */
     private void writeOneLine(float x, float fontSize, boolean bold, String text) throws Exception {
         ensureSpace();
-        // PDFBox 规定：RenderingMode 与 LineWidth 是 page-level graphics state，
-        // 必须在 beginText() 前设置，否则会生成非法 PDF 结构导致阅读器解析失败
-        if (bold) {
-            cs.setRenderingMode(RenderingMode.FILL_STROKE);
-            cs.setLineWidth(BOLD_STROKE_WIDTH * (fontSize / 12f));
-        } else {
-            cs.setRenderingMode(RenderingMode.FILL);
-        }
         cs.beginText();
         cs.setFont(font, fontSize);
         cs.newLineAtOffset(x, y);

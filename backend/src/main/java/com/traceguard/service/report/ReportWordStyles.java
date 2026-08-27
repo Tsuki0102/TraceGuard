@@ -98,6 +98,8 @@ public final class ReportWordStyles {
         run.setFontSize(11);
         run.setFontFamily(FONT_HEADING);
         run.setColor(COLOR_ITEM);
+        // 显式关闭下划线（POI 默认 NONE，但 Word 部分主题对蓝色文本会自动加下划线，显式重置最稳）
+        run.setUnderline(org.apache.poi.xwpf.usermodel.UnderlinePatterns.NONE);
         return p;
     }
 

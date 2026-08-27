@@ -27,7 +27,7 @@ public class DefectTypeDistributionRenderer implements ReportSectionRenderer {
         if (typeDist instanceof Map && !((Map<?, ?>) typeDist).isEmpty()) {
             addHeading(doc, ReportSectionRenderer.chineseNumber(sectionNo) + "、" + sectionTitle, 14);
             for (Map.Entry<?, ?> entry : ((Map<?, ?>) typeDist).entrySet()) {
-                ReportWordStyles.addListItem(doc, "• " + entry.getKey() + "：" + entry.getValue() + "个");
+                ReportWordStyles.addParagraph(doc, "• " + entry.getKey() + "：" + entry.getValue() + "个");
             }
             ReportWordStyles.addSpacer(doc);
         }
