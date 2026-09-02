@@ -423,6 +423,17 @@ class DefectDetectionEvalTest {
         assertTrue(tp + tn + fp + fn == pairScores.size(), "四格计数之和应等于对齐标注样本总数");
         assertTrue(accuracy >= 0 && accuracy <= 1 && miss >= 0 && miss <= 1 && fpr >= 0 && fpr <= 1,
                 "各指标应为合法概率值");
+        // LLM 主口径基线门禁（基线文件化，2026-09-02）：离线 llm-verdicts.json 可用（engine=llm）时，
+        // 按 SRS FR-CODE-004 验收目标断言四指标达标，防规则层/判定链路改动导致主口径回归。
+        // engine=rule（无 verdict 环境，如 CI 未携带离线判定）时仅做合法性断言，不误红。
+        if ("llm".equals(engine)) {
+            assertTrue(accuracy >= 0.80,
+                    "LLM 主口径准确率门禁未通过：acc=" + EvalReportWriter.pct(accuracy) + " < 80%（基线 96.4%，2026-09-02）");
+            assertTrue(miss <= 0.15,
+                    "LLM 主口径漏检率门禁未通过：miss=" + EvalReportWriter.pct(miss) + " > 15%（基线 3.8%，2026-09-02）");
+            assertTrue(fpr <= 0.10,
+                    "LLM 主口径误报率门禁未通过：fpr=" + EvalReportWriter.pct(fpr) + " > 10%（基线 3.4%，2026-09-02）");
+        }
     }
 
     // ==================== 数据加载（与 ThresholdCalibrationEvalTest 同构） ====================
