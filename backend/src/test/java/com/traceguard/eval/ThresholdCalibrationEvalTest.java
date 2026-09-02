@@ -6,6 +6,7 @@ import com.traceguard.config.LlmProperties;
 import com.traceguard.core.ConsistencyChecker;
 import com.traceguard.entity.CodeUnit;
 import com.traceguard.entity.ConsistencyResult;
+import com.traceguard.entity.Defect;
 import com.traceguard.entity.Requirement;
 import com.traceguard.service.impl.LocalBgeEmbeddingClient;
 import com.traceguard.util.CodeDefectPatternDetector;
@@ -24,10 +25,12 @@ import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -628,6 +631,87 @@ class ThresholdCalibrationEvalTest {
             printBest("w=" + w, scoreOnlineAll(new ConsistencyChecker(), bge));
         }
         ConsistencyChecker.setDefectRiskWeight(0.55); // 复位生产默认
+    }
+
+    /**
+     * 缺陷清单评测基线（-Ddefect.list.eval=true）。
+     * 将 generateDefects 产出的缺陷清单与 consistency-labels 的 in-scope 标注对（defective/consistent）对齐：
+     *   defectiveRecall = 被检出的缺陷标注对 / 全部缺陷标注对（与阈值标定的 TP 口径互补，这里走真实 generateDefects）
+     *   fpOnConsistent  = 系统对"标注一致对"误报缺陷的数量
+     * 该评测为 P1-2（匈牙利匹配）/ P1-5（全集过滤）等 generateDefects 层改动提供"对错标尺"。
+     */
+    @Test
+    @EnabledIfSystemProperty(named = "defect.list.eval", matches = "true")
+    @DisplayName("缺陷清单评测基线（generateDefects vs labels）")
+    void defectListEval() throws Exception {
+        System.setProperty("gap046.debug", "false");
+        LocalBgeEmbeddingClient bge = buildLocalBgeClient();
+        Path datasetDir = resolveDatasetDir();
+        JsonNode labelRoot = OM.readTree(Files.readString(datasetDir.resolve("consistency-labels.json")));
+        long totalDef = 0, hitDef = 0, fpOnConsistent = 0, totalConsistent = 0;
+        long idSeq = 1;
+        for (String source : SOURCES) {
+            Path sourceDir = datasetDir.getParent().resolve(source);
+            List<Requirement> reqs = parseRequirements(sourceDir.resolve("requirements.txt"), idSeq);
+            idSeq += reqs.size();
+            List<CodeUnit> codes = parseCode(sourceDir, idSeq);
+            idSeq += codes.size();
+            if (bge != null && bge.available()) {
+                applyBgeSemanticVectors(bge, reqs, codes);
+            }
+            Map<Long, Requirement> reqById = new HashMap<>();
+            reqs.forEach(r -> reqById.put(r.getId(), r));
+            Map<Long, CodeUnit> codeById = new HashMap<>();
+            codes.forEach(c -> codeById.put(c.getId(), c));
+            Map<String, Long> reqCodeId = new HashMap<>();
+            reqs.forEach(r -> reqCodeId.put(r.getRequirementId(), r.getId()));
+            Map<String, Long> methodCodeId = new HashMap<>();
+            codes.forEach(c -> methodCodeId.put(c.getClassName() + "." + c.getMethodName(), c.getId()));
+
+            // 真值对（in-scope）：requirementCode + 方法 -> label
+            List<long[]> defTruth = new ArrayList<>();   // {reqId, codeId}
+            List<long[]> consistentTruth = new ArrayList<>();
+            for (JsonNode p : labelRoot.path("pairs")) {
+                if (!source.equals(p.path("source").asText())) continue;
+                if ("exclude".equals(p.path("scope").asText(""))) continue;
+                String reqCode = p.path("requirementCode").asText("");
+                if (reqCode.isEmpty()) continue;
+                String cls = p.path("codeFile").asText("").replaceFirst("\\.java$", "");
+                Long rid = reqCodeId.get(reqCode);
+                Long cid = methodCodeId.get(cls + "." + p.path("method").asText());
+                if (rid == null || cid == null) continue;
+                long[] pair = {rid, cid};
+                if ("defective".equals(p.path("label").asText())) defTruth.add(pair);
+                else consistentTruth.add(pair);
+            }
+
+            Map<String, List<String>> classEvidence = com.traceguard.util.ClassEvidenceScanner
+                    .scanConstants(sourceDir.resolve("code").toString());
+            ConsistencyChecker checker = new ConsistencyChecker();
+            List<ConsistencyResult> results = checker.checkConsistency(
+                    0L, 0L, reqs, codes, null, classEvidence, ALPHA, BETA, GAMMA, 0.8, 0.5);
+            List<Defect> defects = checker.generateDefects(0L, 0L, results, reqs, codes);
+            Set<String> defectKeys = new HashSet<>();
+            for (Defect d : defects) {
+                if (d.getRequirementId() != null && d.getCodeUnitId() != null) {
+                    defectKeys.add(d.getRequirementId() + "#" + d.getCodeUnitId());
+                }
+            }
+            for (long[] p : defTruth) {
+                totalDef++;
+                if (defectKeys.contains(p[0] + "#" + p[1])) hitDef++;
+            }
+            for (long[] p : consistentTruth) {
+                totalConsistent++;
+                if (defectKeys.contains(p[0] + "#" + p[1])) fpOnConsistent++;
+            }
+        }
+        double recall = totalDef == 0 ? 0 : 100.0 * hitDef / totalDef;
+        System.out.println(String.format(
+                "\n[DEFECT-LIST] 缺陷清单评测（M：defective=%d / consistent=%d）\n[DEFECT-LIST] generateDefects 命中缺陷标注对=%d/%d (%.1f%%)，对一致标注对误报=%d/%d (%.1f%%)",
+                totalDef, totalConsistent, hitDef, totalDef, recall, fpOnConsistent, totalConsistent,
+                totalConsistent == 0 ? 0 : 100.0 * fpOnConsistent / totalConsistent));
+        assertTrue(totalDef > 0 && totalConsistent > 0, "评测集对齐失败");
     }
 
     private static double sigmoidVal(double x, double center, double width) {
