@@ -210,6 +210,35 @@ public class ProjectService {
      * 数据隔离校验（需求5.2.3）：普通用户仅可访问自己创建的项目，管理员不受限制。
      * 历史数据（创建人为空）不限制访问，保证升级兼容。
      */
+    /**
+     * 项目批量操作（个性化增强 BATCH-4）
+     * action ∈ delete（进回收站）/ archive（归档）/ restore（恢复归档）
+     * 逐条走与单条操作一致的归属校验；失败项不影响其余项。
+     */
+    public java.util.Map<String, Object> batchAction(String action, List<Long> ids) {
+        int success = 0;
+        java.util.List<Long> failed = new java.util.ArrayList<>();
+        for (Long id : ids) {
+            try {
+                checkOwnership(id);
+                switch (action) {
+                    case "delete": delete(id); break;
+                    case "archive": archive(id); break;
+                    case "restore": restore(id); break;
+                    default: throw new BusinessException("未知操作: " + action);
+                }
+                success++;
+            } catch (Exception e) {
+                LOGGER.warn("批量操作失败 id={} action={}: {}", id, action, e.getMessage());
+                failed.add(id);
+            }
+        }
+        java.util.Map<String, Object> r = new java.util.HashMap<>();
+        r.put("success", success);
+        r.put("failed", failed);
+        return r;
+    }
+
     public void checkOwnership(Long projectId) {
         if (projectId == null) {
             throw new BusinessException(400, "项目ID不能为空");

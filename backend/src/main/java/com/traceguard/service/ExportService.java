@@ -403,6 +403,19 @@ public class ExportService {
             PDType0Font font = loadChineseFont(doc);
             PdfCursorAdapter cursor = new PdfCursorAdapter(doc, font);
 
+            // 个性化增强 BATCH-4：封面品牌 Logo（类路径资源，缺失/失败时静默跳过不阻断导出）
+            try (java.io.InputStream logoIs = getClass().getClassLoader().getResourceAsStream("logo/logo-gold.png")) {
+                if (logoIs != null) {
+                    java.awt.image.BufferedImage logoImg = javax.imageio.ImageIO.read(logoIs);
+                    if (logoImg != null) {
+                        cursor.drawImageCentered(
+                                org.apache.pdfbox.pdmodel.graphics.image.LosslessFactory.createFromImage(doc, logoImg), 64f);
+                    }
+                }
+            } catch (Exception logoEx) {
+                LOGGER.warn("封面 Logo 绘制失败（忽略继续）: {}", logoEx.getMessage());
+            }
+
             // 报告主标题（封面）
             String reportTitle = (template.getTitle() != null && !template.getTitle().isEmpty())
                     ? template.getTitle() : "软件需求-代码一致性校验与缺陷检测报告";

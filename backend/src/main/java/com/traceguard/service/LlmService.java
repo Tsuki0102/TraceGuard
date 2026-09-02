@@ -1,9 +1,11 @@
 package com.traceguard.service;
 
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.traceguard.config.LlmProperties;
 import com.traceguard.config.LlmProperties.ProviderConfig;
+import com.traceguard.entity.LlmCallLog;
 import com.traceguard.entity.LlmConfig;
 import com.traceguard.llm.LlmChain;
 import com.traceguard.llm.LlmCallExecutor;
@@ -13,6 +15,7 @@ import com.traceguard.llm.LlmResponse;
 import com.traceguard.llm.LangChainAdapter;
 import com.traceguard.llm.ModelRouter;
 import com.traceguard.llm.Stage;
+import com.traceguard.mapper.LlmCallLogMapper;
 import com.traceguard.mapper.LlmConfigMapper;
 import com.traceguard.util.LlmConfigCryptoUtil;
 import com.traceguard.util.UserContext;
@@ -58,6 +61,9 @@ public class LlmService {
 
     @Autowired
     private LlmOrchestrator orchestrator;
+
+    @Autowired
+    private LlmCallLogMapper llmCallLogMapper;
 
     /** 是否已启用（总开关 + 至少一个可用 provider）
      * 可用判定：云端 provider 需配置 api-key；本地模型（Ollama/vLLM，base-url 指向本机且无需密钥）api-key 为空也视为可用（GAP-043）。 */
@@ -264,6 +270,33 @@ public class LlmService {
 
     // ==================== 既有公共 API（保留） ====================
 
+    /** W2-08：AI 助手问答（单轮无状态，含系统提示词；仅管理员入口，防配额滥用） */
+    public String chat(String message) {
+        if (!isEnabled() || message == null || message.trim().isEmpty()) {
+            return null;
+        }
+        try {
+            ModelRouter.RoutedTarget target = router.route(Stage.CODE_EXPLAIN);
+            com.traceguard.llm.LlmRequest q = new com.traceguard.llm.LlmRequest();
+            q.setModel(target.getModel());
+            q.setMessages(List.of(
+                    LlmMessage.system(CHAT_SYSTEM_PROMPT),
+                    LlmMessage.user(message.trim())
+            ));
+            q.setTemperature(0.3);
+            LlmResponse resp = target.getClient().chat(q);
+            return resp.isSuccess() ? resp.getContent() : null;
+        } catch (Exception e) {
+            LOGGER.warn("AI 助手对话失败: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    private static final String CHAT_SYSTEM_PROMPT =
+            "你是 TraceGuard（软件需求-代码一致性验证与缺陷自动检测系统）的 AI 助手。"
+            + "你可以解答关于需求解析、代码解析、缺陷检测、一致性验证、追溯矩阵、报告导出"
+            + "以及软件开发与质量保证方面的问题。回答请简洁、准确、使用中文。";
+
     /** 连通性测试：返回模型简单回复 */
     public String testConnection() {
         if (!isEnabled()) {
@@ -453,6 +486,61 @@ public class LlmService {
     }
 
     /** 应用 DB 配置覆盖 yml（启动时调用，api_key 解密后注入 client 工厂） */
+    /** W5：LLM 用量统计（大模型配置页用量区块）：总量/成功率/均耗时 + 按天 + 按场景 */
+    public Map<String, Object> usage(int days) {
+        int n = Math.min(Math.max(days, 1), 90);
+        LocalDateTime since = LocalDateTime.now().minusDays(n);
+        Map<String, Object> out = new LinkedHashMap<>();
+        long total = 0;
+        long success = 0;
+        long latencySum = 0;
+        Map<String, long[]> byDay = new LinkedHashMap<>();
+        Map<String, long[]> byScene = new LinkedHashMap<>();
+        try {
+            List<LlmCallLog> logs = llmCallLogMapper.selectList(
+                    new QueryWrapper<LlmCallLog>().ge("create_time", since).orderByAsc("create_time").last("LIMIT 20000"));
+            for (LlmCallLog g : logs) {
+                total++;
+                boolean ok = g.getSuccess() != null && g.getSuccess() == 1;
+                if (ok) success++;
+                if (g.getLatencyMs() != null) latencySum += g.getLatencyMs();
+                String day = g.getCreateTime() == null ? "-" : g.getCreateTime().toLocalDate().toString();
+                byDay.computeIfAbsent(day, k -> new long[2])[0]++;
+                if (ok) byDay.get(day)[1]++;
+                String scene = g.getScene() == null ? "unknown" : g.getScene();
+                byScene.computeIfAbsent(scene, k -> new long[2])[0]++;
+                if (!ok) byScene.get(scene)[1]++;
+            }
+        } catch (Exception e) {
+            LOGGER.warn("LLM 用量统计失败（返回零值）: {}", e.getMessage());
+        }
+        out.put("days", n);
+        out.put("total", total);
+        out.put("success", success);
+        out.put("failed", total - success);
+        out.put("successRate", total == 0 ? 0 : Math.round(success * 1000.0 / total) / 10.0);
+        out.put("avgLatencyMs", total == 0 ? 0 : latencySum / total);
+        List<Map<String, Object>> dayRows = new java.util.ArrayList<>();
+        for (Map.Entry<String, long[]> en : byDay.entrySet()) {
+            Map<String, Object> r = new LinkedHashMap<>();
+            r.put("day", en.getKey());
+            r.put("total", en.getValue()[0]);
+            r.put("success", en.getValue()[1]);
+            dayRows.add(r);
+        }
+        out.put("byDay", dayRows);
+        List<Map<String, Object>> sceneRows = new java.util.ArrayList<>();
+        for (Map.Entry<String, long[]> en : byScene.entrySet()) {
+            Map<String, Object> r = new LinkedHashMap<>();
+            r.put("scene", en.getKey());
+            r.put("total", en.getValue()[0]);
+            r.put("failed", en.getValue()[1]);
+            sceneRows.add(r);
+        }
+        out.put("byScene", sceneRows);
+        return out;
+    }
+
     public void applyDbConfigIfPresent() {
         try {
             LlmConfig cfg = llmConfigMapper.selectById(1L);

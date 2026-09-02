@@ -34,6 +34,15 @@ public class AuditController {
     }
 
     /** 校验审计日志哈希链完整性（AUD-08 防篡改）：返回 total/valid/firstBrokenIndex 等 */
+    /** 我的操作足迹（个性化增强 BATCH-5）：登录用户查自己的最近操作，无需管理员权限 */
+    @ApiOperation(value = "我的操作足迹", notes = "个性化增强 BATCH-5：当前登录用户最近操作（默认 20 条，上限 50），仅本人可见")
+    @GetMapping("/mine")
+    public Result<Map<String, Object>> mine(@RequestParam(defaultValue = "20") int limit) {
+        return Result.success(java.util.Collections.singletonMap(
+                "records", auditService.listMine(UserContext.getUserId(), limit)));
+    }
+
+    /** 校验审计日志哈希链完整性（AUD-08 防篡改）：返回 total/valid/firstBrokenIndex 等 */
     @ApiOperation(value = "校验审计日志哈希链完整性", notes = "AUD-08，仅管理员可用；逐条重算 SHA-256 并与存储值比对，定位首条异常记录")
     @GetMapping("/verify")
     public Result<Map<String, Object>> verify() {

@@ -14,6 +14,7 @@ import com.traceguard.util.SemanticVectorUtil;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
@@ -23,6 +24,7 @@ import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -291,6 +293,280 @@ class ThresholdCalibrationEvalTest {
 
         assertTrue(bestAcc >= 0 && bestAcc <= 1, "准确率应为合法概率值");
         assertTrue(bestT1 > 0 && bestT1 < 1, "推荐 t1 应位于 (0,1)");
+        // P1-4 规则链路基线门禁（防回归）：历史最优 61.8%（2026-08-27）→ P1-4 去噪后 63.6%（2026-09-02）。
+        // 若某改动使最优 t1 准确率跌破 60% 或误报率突破 35%，说明规则链路发生明显退化，须排查后再提交。
+        assertTrue(bestAcc >= 0.60,
+                "规则链路准确率回归门禁未通过：bestAcc=" + EvalReportWriter.pct(bestAcc) + " < 60%（基线 63.6%，2026-09-02）");
+        assertTrue(bestFpr <= 0.35,
+                "规则链路误报率回归门禁未通过：bestFpr=" + EvalReportWriter.pct(bestFpr) + " > 35%（基线 24.1%，2026-09-02）");
+    }
+
+    /**
+     * P0-5 语义校准消融（离线仿真，-Dsem.ablation=true 启用）。
+     * 原理：adjustedSim = totalSim*(1 - risk*0.55)，totalSim = α·sem + β·con + γ·inv。
+     * 若仅替换语义映射 sem→f(sem)，则
+     *   adjusted' = adjusted + α·(f(sem)-sem)·(1 - risk·0.55)（其余维度不变）。
+     * 因 pairScores 已含 adjusted/risk/sem，可在不改链路的前提下精确仿真不同语义映射的标定结果。
+     * 基线（f=identity）应复现 61.8% 以验证仿真口径。
+     */
+    @Test
+    @EnabledIfSystemProperty(named = "sem.ablation", matches = "true")
+    @DisplayName("P0-5 语义映射消融（sigmoid 温度缩放 / min-max）")
+    void semanticAblation() {
+        final double ALPHA = 0.2;
+        final double RISK_WEIGHT = 0.55;
+        // 语义变体（对 pairScores.semanticSimilarity 的映射）
+        Map<String, java.util.function.DoubleUnaryOperator> variants = new LinkedHashMap<>();
+        variants.put("linear(基线)", x -> x);
+        variants.put("sigmoid(c=0.85,w=0.02)", x -> sigmoidVal(x, 0.85, 0.02));
+        variants.put("sigmoid(c=0.85,w=0.05)", x -> sigmoidVal(x, 0.85, 0.05));
+        variants.put("sigmoid(c=0.87,w=0.02)", x -> sigmoidVal(x, 0.87, 0.02));
+        variants.put("sigmoid(c=0.80,w=0.05)", x -> sigmoidVal(x, 0.80, 0.05));
+        variants.put("sigmoid(c=0.90,w=0.03)", x -> sigmoidVal(x, 0.90, 0.03));
+        variants.put("minmax-batch(线性归一)", x -> Double.NaN); // 需批内数组，离线不可精确仿真，占位标记
+
+        System.out.println("\n[P0-5-ABLATION] 语义映射消融（M=" + pairScores.size() + "，扫描 t1∈[0.40,0.90]）");
+        System.out.println("[P0-5-ABLATION] variant | bestT1 | accuracy | miss | fpr | TP/FP/FN/TN");
+        for (Map.Entry<String, java.util.function.DoubleUnaryOperator> e : variants.entrySet()) {
+            double bestT1 = 0.8, bestAcc = -1, bestMiss = 1, bestFpr = 1;
+            long btp = 0, bfp = 0, bfn = 0, btn = 0;
+            for (int ti = 40; ti <= 90; ti += 2) {
+                double t1 = ti / 100.0;
+                long tp = 0, fp = 0, fn = 0, tn = 0;
+                for (PairScore ps : pairScores) {
+                    double sem = ps.semanticSimilarity;
+                    double newSem = e.getValue().applyAsDouble(sem);
+                    double adj;
+                    if (Double.isNaN(newSem)) {
+                        adj = ps.totalSimilarity; // 不可仿真变体按基线
+                    } else {
+                        adj = ps.totalSimilarity + ALPHA * (newSem - sem) * (1.0 - ps.defectRisk * RISK_WEIGHT);
+                    }
+                    boolean detected = adj < t1;
+                    if (ps.groundTruthDefective) {
+                        if (detected) tp++; else fn++;
+                    } else {
+                        if (detected) fp++; else tn++;
+                    }
+                }
+                double acc = EvalMetrics.defectAccuracy(tp, tn, fp, fn);
+                double miss = EvalMetrics.missRate(tp, fn);
+                double fpr = EvalMetrics.falsePositiveRate(fp, tn);
+                if (acc > bestAcc || (acc == bestAcc && (miss + fpr) < (bestMiss + bestFpr))) {
+                    bestAcc = acc; bestMiss = miss; bestFpr = fpr; bestT1 = t1;
+                    btp = tp; bfp = fp; bfn = fn; btn = tn;
+                }
+            }
+            System.out.println(String.format("[P0-5-ABLATION] %-28s | %.2f | %s | %s | %s | %d/%d/%d/%d",
+                    e.getKey(), bestT1, EvalReportWriter.pct(bestAcc), EvalReportWriter.pct(bestMiss),
+                    EvalReportWriter.pct(bestFpr), btp, bfp, bfn, btn));
+        }
+    }
+
+    /**
+     * P0-5 在线验证：min-max 批内校准需要完整批内数组，无法离线仿真，必须切换 checker 语义校准模式后重跑全链路。
+     * 启用：-Dsem.ablation.online=true
+     */
+    @Test
+    @EnabledIfSystemProperty(named = "sem.ablation.online", matches = "true")
+    @DisplayName("P0-5 在线消融：MINMAX 批内校准")
+    void semanticMinMaxOnline() throws Exception {
+        System.setProperty("gap046.debug", "false");
+        LocalBgeEmbeddingClient bge = buildLocalBgeClient();
+        System.out.println("\n[P0-5-ONLINE] MINMAX 批内校准在线验证（重跑生产链路）");
+        printBest("linear(在线基线)", scoreOnlineAll(new ConsistencyChecker(), bge));
+        ConsistencyChecker minmax = new ConsistencyChecker();
+        minmax.setSemanticCalibration(ConsistencyChecker.SemanticCalibration.minmax());
+        printBest("minmax(在线)", scoreOnlineAll(minmax, bge));
+    }
+
+    private static void printBest(String label, List<PairScore> scores) {
+        double bestT1 = 0.8, bestAcc = -1, bestMiss = 1, bestFpr = 1;
+        long btp = 0, bfp = 0, bfn = 0, btn = 0;
+        for (int ti = 40; ti <= 90; ti += 2) {
+            double t1 = ti / 100.0;
+            long tp = 0, fp = 0, fn = 0, tn = 0;
+            for (PairScore ps : scores) {
+                boolean detected = ps.totalSimilarity < t1;
+                if (ps.groundTruthDefective) { if (detected) tp++; else fn++; }
+                else { if (detected) fp++; else tn++; }
+            }
+            double acc = EvalMetrics.defectAccuracy(tp, tn, fp, fn);
+            double miss = EvalMetrics.missRate(tp, fn);
+            double fpr = EvalMetrics.falsePositiveRate(fp, tn);
+            if (acc > bestAcc || (acc == bestAcc && (miss + fpr) < (bestMiss + bestFpr))) {
+                bestAcc = acc; bestMiss = miss; bestFpr = fpr; bestT1 = t1;
+                btp = tp; bfp = fp; bfn = fn; btn = tn;
+            }
+        }
+        System.out.println(String.format("[P0-5-ONLINE] %-20s | %.2f | %s | %s | %s | %d/%d/%d/%d",
+                label, bestT1, EvalReportWriter.pct(bestAcc), EvalReportWriter.pct(bestMiss),
+                EvalReportWriter.pct(bestFpr), btp, bfp, bfn, btn));
+    }
+
+    /** 用指定 checker 全链路打分（三工程 + BGE），返回对齐标注对得分；与 @BeforeAll runScoring 同口径 */
+    private static List<PairScore> scoreOnlineAll(ConsistencyChecker checker, LocalBgeEmbeddingClient bge) throws Exception {
+        List<PairScore> out = new ArrayList<>();
+        Path datasetDir = resolveDatasetDir();
+        JsonNode labelRoot = OM.readTree(Files.readString(datasetDir.resolve("consistency-labels.json")));
+        Map<String, JsonNode> labelById = new HashMap<>();
+        labelRoot.path("pairs").forEach(p -> labelById.put(p.path("id").asText(), p));
+
+        long idSeq = 1;
+        for (String source : SOURCES) {
+            Path sourceDir = datasetDir.getParent().resolve(source);
+            List<Requirement> requirements = parseRequirements(sourceDir.resolve("requirements.txt"), idSeq);
+            idSeq += requirements.size();
+            List<CodeUnit> codeUnits = parseCode(sourceDir, idSeq);
+            idSeq += codeUnits.size();
+            if (bge != null && bge.available()) {
+                applyBgeSemanticVectors(bge, requirements, codeUnits);
+            }
+            Map<String, List<String>> classEvidence =
+                    com.traceguard.util.ClassEvidenceScanner.scanConstants(sourceDir.resolve("code").toString());
+            List<ConsistencyResult> results = checker.checkConsistency(
+                    0L, 0L, requirements, codeUnits, null, classEvidence, ALPHA, BETA, GAMMA, 0.8, 0.5);
+
+            Map<Long, Requirement> reqById = new HashMap<>();
+            requirements.forEach(r -> reqById.put(r.getId(), r));
+            Map<Long, CodeUnit> codeById = new HashMap<>();
+            codeUnits.forEach(c -> codeById.put(c.getId(), c));
+            Map<String, ConsistencyResult> index = new HashMap<>();
+            for (ConsistencyResult r : results) {
+                Requirement req = reqById.get(r.getRequirementId());
+                CodeUnit code = codeById.get(r.getCodeUnitId());
+                if (req == null || code == null) continue;
+                index.put(req.getRequirementId() + "#" + code.getClassName() + "." + code.getMethodName(), r);
+            }
+            for (Map.Entry<String, JsonNode> e : labelById.entrySet()) {
+                JsonNode p = e.getValue();
+                if (!source.equals(p.path("source").asText())) continue;
+                if ("exclude".equals(p.path("scope").asText(""))) continue;
+                String reqCode = p.path("requirementCode").asText("");
+                if (reqCode.isEmpty()) continue;
+                String cls = p.path("codeFile").asText("").replaceFirst("\\.java$", "");
+                String key = reqCode + "#" + cls + "." + p.path("method").asText();
+                ConsistencyResult r = index.get(key);
+                if (r == null) continue;
+                PairScore ps = new PairScore();
+                ps.id = e.getKey();
+                ps.source = source;
+                ps.className = cls;
+                ps.defectType = p.path("defectType").asText("");
+                ps.groundTruthDefective = "defective".equals(p.path("label").asText());
+                ps.totalSimilarity = r.getTotalSimilarity();
+                ps.semanticSimilarity = r.getSemanticSimilarity();
+                ps.constraintMatch = r.getConstraintMatchDegree();
+                ps.invariantSatisfaction = r.getInvariantSatisfaction();
+                ps.detectedMainType = r.getDefectType() == null ? "" : r.getDefectType();
+                Requirement reqObj = reqById.get(r.getRequirementId());
+                CodeUnit codeObj = codeById.get(r.getCodeUnitId());
+                ps.reqText = reqObj.getOriginalText();
+                ps.codeText = codeObj.getCodeContent();
+                ps.defectRisk = CodeDefectPatternDetector.detectDefectRisk(ps.reqText, ps.codeText);
+                out.add(ps);
+            }
+        }
+        return out;
+    }
+
+    /**
+     * P1-4 前置分析：detectDefectRisk 各子信号在缺陷对 vs 一致对上的判别力。
+     * 启用：-Drisk.analyze=true。输出每信号两组均值/命中率，用于决定权重化合成方向
+     * （判别力 = 缺陷对命中率高且一致对命中率低的信号应获高权重）。
+     */
+    @Test
+    @EnabledIfSystemProperty(named = "risk.analyze", matches = "true")
+    @DisplayName("P1-4 前置：defectRisk 信号判别力分析")
+    void riskSignalAnalysis() throws Exception {
+        Path datasetDir = resolveDatasetDir();
+        Map<String, Map<String, List<String>>> classEvBySource = new HashMap<>();
+        for (String source : SOURCES) {
+            classEvBySource.put(source, com.traceguard.util.ClassEvidenceScanner.scanConstants(
+                    datasetDir.getParent().resolve(source).resolve("code").toString()));
+        }
+        // 信号名 -> [defect 累计, consistent 累计]（同一时刻只跑一组，分开统计）
+        java.util.Map<String, double[]> accDef = new LinkedHashMap<>();
+        java.util.Map<String, double[]> accOk = new LinkedHashMap<>();
+        java.util.Map<String, int[]> hitDef = new LinkedHashMap<>();
+        java.util.Map<String, int[]> hitOk = new LinkedHashMap<>();
+        long nDef = 0, nOk = 0;
+        for (PairScore ps : pairScores) {
+            String simple = ps.className;
+            int dot = simple == null ? -1 : simple.lastIndexOf('.');
+            if (simple != null && dot >= 0) simple = simple.substring(dot + 1);
+            List<String> evidence = classEvBySource.getOrDefault(ps.source, java.util.Collections.emptyMap())
+                    .getOrDefault(simple, java.util.Collections.emptyList());
+            java.util.Map<String, Double> sig = CodeDefectPatternDetector.explainSignals(ps.reqText, ps.codeText, evidence);
+            boolean def = ps.groundTruthDefective;
+            if (def) nDef++; else nOk++;
+            java.util.Map<String, double[]> acc = def ? accDef : accOk;
+            java.util.Map<String, int[]> hit = def ? hitDef : hitOk;
+            for (java.util.Map.Entry<String, Double> e : sig.entrySet()) {
+                acc.computeIfAbsent(e.getKey(), k -> new double[1])[0] += e.getValue();
+                if (e.getValue() > 0) hit.computeIfAbsent(e.getKey(), k -> new int[1])[0]++;
+            }
+        }
+        System.out.println("\n[P1-4-RISK] 子信号判别力（缺陷对 n=" + nDef + " / 一致对 n=" + nOk + "）");
+        System.out.println("[P1-4-RISK] signal | mean(def) | mean(ok) | hit%(def) | hit%(ok) | 判别方向");
+        for (String key : sigOrder()) {
+            double md = accDef.containsKey(key) ? accDef.get(key)[0] / Math.max(1, nDef) : 0;
+            double mo = accOk.containsKey(key) ? accOk.get(key)[0] / Math.max(1, nOk) : 0;
+            double hd = hitDef.containsKey(key) ? 100.0 * hitDef.get(key)[0] / Math.max(1, nDef) : 0;
+            double ho = hitOk.containsKey(key) ? 100.0 * hitOk.get(key)[0] / Math.max(1, nOk) : 0;
+            String dir = (md - mo) > 0.01 ? "缺陷侧↑" : ((mo - md) > 0.01 ? "一致侧↑(噪声)" : "≈ 无判别力");
+            System.out.println(String.format("[P1-4-RISK] %-26s | %.3f | %.3f | %5.1f%% | %5.1f%% | %s",
+                    key, md, mo, hd, ho, dir));
+        }
+    }
+
+    private static List<String> sigOrder() {
+        return java.util.Arrays.asList(
+                "stateMismatch", "numericMismatch", "paramValidationMissing", "logicInversion",
+                "commonCodeBug", "impliedBusinessRuleMissing", "nullDereference", "stateFlowViolation",
+                "refundFactor", "quantitativeBoundMismatch");
+    }
+
+    /**
+     * P1-4 权重网格验证：按信号判别力分析结果配置权重，在线重跑生产链路比较四指标。
+     * 启用：-Drisk.grid=true
+     */
+    @Test
+    @EnabledIfSystemProperty(named = "risk.grid", matches = "true")
+    @DisplayName("P1-4 权重网格（去噪声 / 放大强信号）")
+    void riskWeightGrid() throws Exception {
+        System.setProperty("gap046.debug", "false");
+        LocalBgeEmbeddingClient bge = buildLocalBgeClient();
+        System.out.println("\n[P1-4-GRID] defectRisk 权重网格（在线全链路）");
+
+        CodeDefectPatternDetector.configureRiskWeights(null);
+        printBest("base(全1=历史)", scoreOnlineAll(new ConsistencyChecker(), bge));
+
+        Map<String, Double> wNoise = new LinkedHashMap<>();
+        wNoise.put("stateMismatch", 0.0);               // 一致对命中 6.9% > 缺陷对 0% → 噪声剔除
+        wNoise.put("impliedBusinessRuleMissing", 0.0);  // 一致对命中 6.9% > 缺陷对 3.8% → 噪声剔除
+        CodeDefectPatternDetector.configureRiskWeights(wNoise);
+        printBest("w-noise(剔两噪声)", scoreOnlineAll(new ConsistencyChecker(), bge));
+
+        Map<String, Double> wStrong = new LinkedHashMap<>(wNoise);
+        wStrong.put("numericMismatch", 1.5);            // 缺陷 0.084 / 一致 0.000 → 强判别
+        wStrong.put("paramValidationMissing", 1.5);     // 0.108 / 0.041
+        wStrong.put("logicInversion", 1.5);             // 0.081 / 0.017
+        wStrong.put("nullDereference", 1.2);
+        wStrong.put("stateFlowViolation", 1.2);
+        wStrong.put("quantitativeBoundMismatch", 1.2);
+        CodeDefectPatternDetector.configureRiskWeights(wStrong);
+        printBest("w-strong(剔噪+强信号1.5)", scoreOnlineAll(new ConsistencyChecker(), bge));
+
+        CodeDefectPatternDetector.configureRiskWeights(null); // 复位，避免影响同 JVM 内其它测试
+    }
+
+    private static double sigmoidVal(double x, double center, double width) {
+        double w = width <= 0 ? 0.05 : width;
+        double z = (x - center) / w;
+        if (z > 30) return 1.0;
+        if (z < -30) return 0.0;
+        return 1.0 / (1.0 + Math.exp(-z));
     }
 
     /** 生成阈值标定报告（GAP-023 留档） */
@@ -346,6 +622,7 @@ class ThresholdCalibrationEvalTest {
 
         sb.append("## 五、分项得分分布（缺陷对 vs 一致对）\n\n");
         appendScoreDistribution(sb);
+        appendCollinearityDiagnosis(sb);
         sb.append("\n## 六、结论与建议\n\n");
         sb.append("- 将 `traceguard.analysis.default-threshold-t1` 设为推荐值 ")
           .append(String.format("%.2f", bestT1)).append("，可在本数据集上取得最优缺陷检测准确率。\n");
@@ -393,6 +670,74 @@ class ThresholdCalibrationEvalTest {
                   .append(" | ").append(String.format("%.3f", max[li])).append(" |\n");
             }
         }
+    }
+
+    /**
+     * P0-4 诊断：三维得分共线性（Pearson 相关 + VIF）+ 中性底分占比。
+     * 输出用于判断「Con/Inv 是否由同一覆盖率信号驱动」及「语义维度区分度」，支撑解耦方案决策。
+     */
+    private void appendCollinearityDiagnosis(StringBuilder sb) {
+        // 分组：0=缺陷对 1=一致对 2=全体
+        String[] groupNames = {"缺陷对", "一致对", "全体"};
+        double overallConInv = Double.NaN;
+        sb.append("### 5.1 三维共线性诊断（P0-4，2026-09 新增）\n\n");
+        sb.append("| 分组 | N | corr(sem,con) | corr(sem,inv) | **corr(con,inv)** | VIF(con~inv) | con=0.5 中性 | inv=0.5 中性 |\n|---|---|---|---|---|---|---|---|\n");
+        for (int g = 0; g < 3; g++) {
+            List<Double> sem = new ArrayList<>(), con = new ArrayList<>(), inv = new ArrayList<>();
+            int neutralCon = 0, neutralInv = 0;
+            for (PairScore ps : pairScores) {
+                boolean def = ps.groundTruthDefective;
+                boolean include = g == 2 || (g == 0 && def) || (g == 1 && !def);
+                if (!include) continue;
+                sem.add(ps.semanticSimilarity);
+                con.add(ps.constraintMatch);
+                inv.add(ps.invariantSatisfaction);
+                if (Math.abs(ps.constraintMatch - 0.5) < 1e-9) neutralCon++;
+                if (Math.abs(ps.invariantSatisfaction - 0.5) < 1e-9) neutralInv++;
+            }
+            int n = sem.size();
+            double sc = pearson(sem, con);
+            double si = pearson(sem, inv);
+            double ci = pearson(con, inv);
+            if (g == 2) {
+                overallConInv = ci;
+            }
+            String vif = (!Double.isNaN(ci) && Math.abs(ci) < 1.0)
+                    ? String.format("%.1f", 1.0 / (1.0 - ci * ci)) : "∞";
+            sb.append("| ").append(groupNames[g]).append(" | ").append(n)
+              .append(" | ").append(fmtCorr(sc))
+              .append(" | ").append(fmtCorr(si))
+              .append(" | **").append(fmtCorr(ci)).append("**")
+              .append(" | ").append(vif)
+              .append(" | ").append(neutralCon).append(" | ").append(neutralInv).append(" |\n");
+        }
+        sb.append("\n> 解读：corr(con,inv)≈1 表明无规约路径下 Con/Inv 由同一覆盖率信号驱动（简化 Inv=0.5+0.5·coverage 与 Con 共线，P0-4 解耦目标）；"
+                + "con/inv=0.5 为无约束点需求的中性底分（FUN-08②），占比过高时该组判定实质退化为单维语义。\n\n");
+        // P0-4 共线性门禁：全体 corr(con,inv) 若升破 0.95（近乎完全同源，基线 0.807），说明无规约路径的
+        // 简化 Inv 与 Con 又退化为同一覆盖率信号，Con/Inv 解耦努力被回退，触发失败提醒。
+        assertTrue(Double.isNaN(overallConInv) || overallConInv < 0.95,
+                "Con/Inv 共线性门禁未通过：全体 corr(con,inv)=" + fmtCorr(overallConInv) + " >= 0.95（基线 0.807，2026-09-02）");
+    }
+
+    private static String fmtCorr(double v) {
+        if (Double.isNaN(v)) return "—";
+        return String.format("%.3f", v);
+    }
+
+    /** Pearson 相关系数；样本数<2 或某序列方差为 0 时返回 NaN */
+    private static double pearson(List<Double> a, List<Double> b) {
+        int n = Math.min(a.size(), b.size());
+        if (n < 2) return Double.NaN;
+        double ma = 0, mb = 0;
+        for (int i = 0; i < n; i++) { ma += a.get(i); mb += b.get(i); }
+        ma /= n; mb /= n;
+        double cov = 0, va = 0, vb = 0;
+        for (int i = 0; i < n; i++) {
+            double da = a.get(i) - ma, db = b.get(i) - mb;
+            cov += da * db; va += da * da; vb += db * db;
+        }
+        if (va <= 0 || vb <= 0) return Double.NaN;
+        return cov / Math.sqrt(va * vb);
     }
 
     // ==================== 数据加载 ====================

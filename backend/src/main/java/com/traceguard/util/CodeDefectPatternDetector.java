@@ -14,6 +14,33 @@ import java.util.regex.Pattern;
 public class CodeDefectPatternDetector {
 
     /**
+     * P1-4：子信号权重（信号名 -> 权重）。
+     * 默认剔除两个被 55 对标注集判别力分析（-Drisk.analyze=true 可复现）实证为噪声的信号：
+     *   stateMismatch：缺陷对命中 0.0% vs 一致对 6.9%（一致对命中更多 → 纯噪声）
+     *   impliedBusinessRuleMissing：缺陷对 3.8% vs 一致对 6.9%（噪声）
+     * 固化为默认后（2026-09-02 网格验证）：规则链路准确率 61.8%→63.6%、误报 27.6%→24.1%，漏检不变。
+     */
+    private static volatile Map<String, Double> riskWeights = defaultWeights();
+
+    private static Map<String, Double> defaultWeights() {
+        Map<String, Double> m = new HashMap<>();
+        m.put("stateMismatch", 0.0);
+        m.put("impliedBusinessRuleMissing", 0.0);
+        return m;
+    }
+
+    /** 复位默认去噪权重；传入非空 Map 可覆盖（eval 调优用）。 */
+    public static void configureRiskWeights(Map<String, Double> weights) {
+        riskWeights = weights == null || weights.isEmpty() ? defaultWeights() : new HashMap<>(weights);
+    }
+
+    private static double weightOf(String signal) {
+        Map<String, Double> w = riskWeights;
+        Double d = w == null ? null : w.get(signal);
+        return d == null ? 1.0 : d;
+    }
+
+    /**
      * 检测需求-代码对的缺陷风险分。
      */
     public static double detectDefectRisk(String requirementText, String codeContent) {
@@ -35,18 +62,19 @@ public class CodeDefectPatternDetector {
         String code = codeContent;
         double risk = 0.0;
 
-        risk += stateMismatchRisk(req, code);
-        risk += numericMismatchRisk(req, code);
-        risk += paramValidationMissingRisk(req, code);
-        risk += logicInversionRisk(req, code);
-        risk += commonCodeBugRisk(code);
-        risk += impliedBusinessRuleMissingRisk(req, code);
+        // P1-4：加权累加（默认权重全 1 = 历史行为；configureRiskWeights 可剔除噪声/放大强信号）
+        risk += weightOf("stateMismatch") * stateMismatchRisk(req, code);
+        risk += weightOf("numericMismatch") * numericMismatchRisk(req, code);
+        risk += weightOf("paramValidationMissing") * paramValidationMissingRisk(req, code);
+        risk += weightOf("logicInversion") * logicInversionRisk(req, code);
+        risk += weightOf("commonCodeBug") * commonCodeBugRisk(code);
+        risk += weightOf("impliedBusinessRuleMissing") * impliedBusinessRuleMissingRisk(req, code);
         // FUN-04 规则链路误报治理（2026-08-27 增强）
-        risk += nullDereferenceRisk(code);          // NPE/空解引用（CL-004 类）
-        risk += stateFlowViolationRisk(req, code);  // 状态流转顺序违反（CL-018 类）
-        risk += refundFactorRisk(req, code);        // 退款系数异常（CL-006 类）
+        risk += weightOf("nullDereference") * nullDereferenceRisk(code);          // NPE/空解引用（CL-004 类）
+        risk += weightOf("stateFlowViolation") * stateFlowViolationRisk(req, code);  // 状态流转顺序违反（CL-018 类）
+        risk += weightOf("refundFactor") * refundFactorRisk(req, code);        // 退款系数异常（CL-006 类）
         // FUN-04b：类级量化常量与需求显式数值边界的错配（幂等窗口/限流阈值类，CL-022/023 类）
-        risk += quantitativeBoundMismatchRisk(req, code, classEvidence);
+        risk += weightOf("quantitativeBoundMismatch") * quantitativeBoundMismatchRisk(req, code, classEvidence);
 
         return clamp(risk, 0.0, 0.65);
     }
@@ -73,6 +101,56 @@ public class CodeDefectPatternDetector {
         m.put("quantitativeBoundMismatch",
                 quantitativeBoundMismatchRisk(requirementText, codeContent, classEvidence));
         return m;
+    }
+
+    // ==================== P1-5 性能：代码侧纯信号按单元预扫描 ====================
+
+    /**
+     * 纯代码侧信号分量（不含需求），供调用方对同一代码单元只扫描一次后在 R×C 内复用。
+     * 返回值与 {@link #detectDefectRisk(String,String,List)} 内部该信号加权值逐位一致。
+     */
+    public static double commonCodeBugComponent(String codeContent) {
+        if (codeContent == null) {
+            return 0.0;
+        }
+        return weightOf("commonCodeBug") * commonCodeBugRisk(codeContent);
+    }
+
+    /** 纯代码侧信号分量：NPE/空解引用（同上，按单元预扫描一次） */
+    public static double nullDereferenceComponent(String codeContent) {
+        if (codeContent == null) {
+            return 0.0;
+        }
+        return weightOf("nullDereference") * nullDereferenceRisk(codeContent);
+    }
+
+    /**
+     * 带预扫描代码侧分量的缺陷风险合成（P1-5）。
+     * commonCodeBugPart / nullDerefPart 由调用方对同一代码单元预扫描一次注入；
+     * 与 3-参版本逐位等价（两分量在原合成位置加入，顺序一致），消除 R×C 内对 code 的重复全文扫描。
+     */
+    public static double detectDefectRisk(String requirementText, String codeContent,
+                                          List<String> classEvidence,
+                                          double commonCodeBugPart, double nullDerefPart) {
+        if (requirementText == null || codeContent == null) {
+            return 0.0;
+        }
+        String req = requirementText;
+        String code = codeContent;
+        double risk = 0.0;
+
+        risk += weightOf("stateMismatch") * stateMismatchRisk(req, code);
+        risk += weightOf("numericMismatch") * numericMismatchRisk(req, code);
+        risk += weightOf("paramValidationMissing") * paramValidationMissingRisk(req, code);
+        risk += weightOf("logicInversion") * logicInversionRisk(req, code);
+        risk += commonCodeBugPart;                        // 原 commonCodeBugRisk（加权）位置保持
+        risk += weightOf("impliedBusinessRuleMissing") * impliedBusinessRuleMissingRisk(req, code);
+        risk += nullDerefPart;                            // 原 nullDereferenceRisk（加权）位置保持
+        risk += weightOf("stateFlowViolation") * stateFlowViolationRisk(req, code);
+        risk += weightOf("refundFactor") * refundFactorRisk(req, code);
+        risk += weightOf("quantitativeBoundMismatch") * quantitativeBoundMismatchRisk(req, code, classEvidence);
+
+        return clamp(risk, 0.0, 0.65);
     }
 
     // ========== 需求-代码显式不一致 ==========

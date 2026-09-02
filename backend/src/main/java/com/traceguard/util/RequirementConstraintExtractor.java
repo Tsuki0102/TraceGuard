@@ -107,6 +107,121 @@ public class RequirementConstraintExtractor {
                 "必须", "应该", "应当"));
     }
 
+    // ========== P0-1：预编译 + 代码侧一次性预扫描（CodeProfile） ==========
+
+    /** 约束关键词预编译（原实现每调一次 extract 就 Pattern.compile 全部约 60 个模式，改为类加载期编译一次） */
+    private static final Map<Kind, List<Pattern>> KIND_COMPILED = new EnumMap<>(Kind.class);
+    static {
+        for (Map.Entry<Kind, List<String>> e : KIND_PATTERNS.entrySet()) {
+            List<Pattern> ps = new ArrayList<>(e.getValue().size());
+            for (String pat : e.getValue()) {
+                ps.add(Pattern.compile(pat.toLowerCase(Locale.ROOT)));
+            }
+            KIND_COMPILED.put(e.getKey(), ps);
+        }
+    }
+
+    /** 数值提取正则（原实现每次 extractNumbers 均重新编译） */
+    private static final Pattern NUM_PATTERN = Pattern.compile("\\b(\\d{1,4})\\b");
+
+    /** 参数词汇表：与 extractCandidateParamNames 的映射键一致（预扫描用，避免逐参数逐次编译正则） */
+    private static final List<String> PARAM_VOCAB = Arrays.asList(
+            "userId", "channel", "content", "duration", "passingScore",
+            "title", "amount", "quantity", "orderId", "studentId");
+
+    /** 状态候选表：与 extractStateValues 输出的 EN 状态值一致 */
+    private static final List<String> STATE_CANDIDATES = Arrays.asList(
+            "PENDING", "PAID", "UNPUBLISHED", "PUBLISHED",
+            "ACTIVE", "INACTIVE", "SUCCESS", "FAILED", "COMPLETED");
+
+    /** 库存/幂等关键词（computeMismatchPenalty 内联清单外提为常量） */
+    private static final List<String> STOCK_MISSING_KEYWORDS =
+            Arrays.asList("reserved", "freeze", "frozen", "占用", "冻结", "预留");
+    private static final List<String> IDEMPOTENT_MISSING_KEYWORDS =
+            Arrays.asList("duration", "seconds", "window", "timestamp", "interval");
+
+    /** hasParamValidation 参数校验模式（原实现每参数每次调用编译 8 个模式；此处按固定参数词汇表预编译一次） */
+    private static final Map<String, List<Pattern>> PARAM_VALIDATION_BY_NAME;
+    static {
+        String[] templates = {
+                "%s\\s*==\\s*null", "%s\\s*!=\\s*null", "null\\s*==\\s*%s", "null\\s*!=\\s*%s",
+                "\\b%s\\.isempty\\(\\)", "\\b%s\\.isblank\\(\\)", "\\b%s\\.length\\(\\)\\s*[<>]=?\\s*0",
+                "strings\\.isempty\\(\\s*%s\\s*\\)"
+        };
+        Map<String, List<Pattern>> m = new HashMap<>();
+        for (String p : PARAM_VOCAB) {
+            List<Pattern> l = new ArrayList<>(templates.length);
+            for (String t : templates) {
+                l.add(Pattern.compile(String.format(t, p), Pattern.CASE_INSENSITIVE));
+            }
+            m.put(p, l);
+        }
+        PARAM_VALIDATION_BY_NAME = m;
+    }
+
+    /**
+     * 代码侧约束证据预扫描结果（P0-1）。
+     * 对同一段代码只做一次全文正则/数值/分词扫描，之后每条需求仅做需求侧轻量判定，
+     * 消除 R×C 配对内对代码全文的重复扫描。与原实现逐位等价（字段均为原函数对 code 的确定性投影）。
+     */
+    public static final class CodeProfile {
+        private final Map<Kind, Boolean> implementedByKind = new EnumMap<>(Kind.class);
+        private final Set<String> validatedParams = new HashSet<>();
+        private final Set<String> statesPresent = new HashSet<>();
+        private final List<Integer> codeNumbers = new ArrayList<>();
+        private final boolean stockKwPresent;
+        private final boolean idemKwPresent;
+
+        private CodeProfile(Map<Kind, Boolean> implementedByKind,
+                            Set<String> validatedParams, Set<String> statesPresent,
+                            List<Integer> codeNumbers,
+                            boolean stockKwPresent, boolean idemKwPresent) {
+            this.implementedByKind.putAll(implementedByKind);
+            this.validatedParams.addAll(validatedParams);
+            this.statesPresent.addAll(statesPresent);
+            this.codeNumbers.addAll(codeNumbers);
+            this.stockKwPresent = stockKwPresent;
+            this.idemKwPresent = idemKwPresent;
+        }
+
+        public static CodeProfile of(String codeContent) {
+            String code = codeContent == null ? "" : codeContent;
+            String lower = code.toLowerCase(Locale.ROOT);
+            Map<Kind, Boolean> impl = new EnumMap<>(Kind.class);
+            for (Kind k : Kind.values()) {
+                impl.put(k, RequirementConstraintExtractor.implemented(k, code));
+            }
+            Set<String> validated = new HashSet<>();
+            for (String p : PARAM_VOCAB) {
+                if (hasParamValidation(code, p)) {
+                    validated.add(p);
+                }
+            }
+            Set<String> states = new HashSet<>();
+            for (String s : STATE_CANDIDATES) {
+                if (lower.contains(s.toLowerCase(Locale.ROOT))) {
+                    states.add(s);
+                }
+            }
+            return new CodeProfile(impl, validated, states, extractNumbers(code),
+                    anyKeywordPresent(lower, STOCK_MISSING_KEYWORDS),
+                    anyKeywordPresent(lower, IDEMPOTENT_MISSING_KEYWORDS));
+        }
+
+        private static boolean anyKeywordPresent(String lower, List<String> keywords) {
+            for (String k : keywords) {
+                if (lower.contains(k.toLowerCase(Locale.ROOT))) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        public boolean implemented(Kind kind) {
+            return Boolean.TRUE.equals(implementedByKind.get(kind));
+        }
+    }
+
     // ========== 公共 API ==========
 
     public static List<ConstraintPoint> extract(String requirementText) {
@@ -115,9 +230,8 @@ public class RequirementConstraintExtractor {
             return points;
         }
         String lower = requirementText.toLowerCase(Locale.ROOT);
-        for (Map.Entry<Kind, List<String>> entry : KIND_PATTERNS.entrySet()) {
-            for (String pat : entry.getValue()) {
-                Pattern p = Pattern.compile(pat.toLowerCase(Locale.ROOT));
+        for (Map.Entry<Kind, List<Pattern>> entry : KIND_COMPILED.entrySet()) {
+            for (Pattern p : entry.getValue()) {
                 Matcher m = p.matcher(lower);
                 while (m.find()) {
                     int start = Math.max(0, m.start() - 20);
@@ -133,21 +247,38 @@ public class RequirementConstraintExtractor {
     }
 
     /**
+     * 计算约束匹配度 [0,1]（P0-1 预扫描路径）。
+     * 代码侧证据由调用方预扫描一次（CodeProfile），本方法仅做需求侧轻量判定。
+     * 独立命名避免与 constraintMatch(String,String) 在 null 实参下的重载歧义。
+     */
+    public static double constraintMatchProfiled(String requirementText, CodeProfile profile) {
+        if (requirementText == null || profile == null) {
+            return 0.0;
+        }
+        return constraintMatchCached(requirementText, profile);
+    }
+
+    /**
      * 计算约束匹配度 [0,1]。
      * 基础分采用启发式关键词匹配，再叠加精确约束不匹配的惩罚项。
+     * 兼容入口：对单次调用场景内部构建 CodeProfile，行为与预扫描路径完全一致。
      */
     public static double constraintMatch(String requirementText, String codeContent) {
         if (requirementText == null || codeContent == null) {
             return 0.0;
         }
+        return constraintMatchCached(requirementText, CodeProfile.of(codeContent));
+    }
+
+    private static double constraintMatchCached(String requirementText, CodeProfile profile) {
         List<ConstraintPoint> points = extract(requirementText);
-        double base = legacyConstraintMatch(points, codeContent);
+        double base = legacyConstraintMatch(points, profile);
         if (points.isEmpty()) {
             // FUN-13：无约束点需求（多为英文/无明确约束语义）无法评估约束匹配，返回 -1 由调用方回退中性值；
             // 原逻辑用 keywordCoverage 会把英文需求对所有代码高估为全覆盖（con=1.0），导致跨语言匹配排序错乱
             return -1;
         }
-        double penalty = computeMismatchPenalty(requirementText, codeContent, points);
+        double penalty = computeMismatchPenalty(requirementText, profile, points);
         // 临时诊断
         if (System.getProperty("gap046.debug") != null) {
             System.out.println("[GAP046-RC] req=" + requirementText.substring(0, Math.min(30, requirementText.length()))
@@ -242,49 +373,46 @@ public class RequirementConstraintExtractor {
 
     // ========== 内部实现 ==========
 
-    private static double legacyConstraintMatch(List<ConstraintPoint> points, String code) {
+    private static double legacyConstraintMatch(List<ConstraintPoint> points, CodeProfile profile) {
         if (points.isEmpty()) return 0.5;
         double total = 0;
         for (ConstraintPoint p : points) {
-            total += implemented(p.getKind(), code) ? 1.0 : 0.0;
+            total += profile.implemented(p.getKind()) ? 1.0 : 0.0;
         }
         return clamp(total / points.size(), 0.0, 1.0);
     }
 
     /**
-     * 计算精确约束不匹配惩罚 [0, ~1.2]。
+     * 计算精确约束不匹配惩罚 [0, ~1.2]（P0-1：代码侧数据全部取自 CodeProfile 预扫描，不再全文扫描代码）。
      */
-    private static double computeMismatchPenalty(String req, String code, List<ConstraintPoint> points) {
+    private static double computeMismatchPenalty(String req, CodeProfile profile, List<ConstraintPoint> points) {
         double penalty = 0.0;
         Set<Kind> kinds = points.stream().map(ConstraintPoint::getKind).collect(Collectors.toSet());
 
         if (kinds.contains(Kind.NUMERIC_THRESHOLD)) {
-            double np = numericMismatchPenalty(req, code);
+            double np = numericMismatchPenalty(req, profile.codeNumbers);
             if (np > 0) penalty += np;
         }
         if (kinds.contains(Kind.NON_NULL) || kinds.contains(Kind.PARAM_VALID)) {
-            double pp = paramValidationMismatchPenalty(req, code);
+            double pp = paramValidationMismatchPenalty(req, profile.validatedParams);
             if (pp > 0) penalty += pp;
         }
         if (kinds.contains(Kind.STATE_GUARD)) {
-            double sp = stateValueMismatchPenalty(req, code);
+            double sp = stateValueMismatchPenalty(req, profile.statesPresent);
             if (sp > 0) penalty += sp;
         }
-        if (kinds.contains(Kind.STOCK_CHECK)) {
-            double kp = keywordMissingPenalty(code, Arrays.asList("reserved", "freeze", "frozen", "占用", "冻结", "预留"));
-            if (kp > 0) penalty += kp;
+        if (kinds.contains(Kind.STOCK_CHECK) && !profile.stockKwPresent) {
+            penalty += 0.35;
         }
-        if (kinds.contains(Kind.IDEMPOTENT)) {
-            double ip = keywordMissingPenalty(code, Arrays.asList("duration", "seconds", "window", "timestamp", "interval"));
-            if (ip > 0) penalty += ip;
+        if (kinds.contains(Kind.IDEMPOTENT) && !profile.idemKwPresent) {
+            penalty += 0.35;
         }
 
         return clamp(penalty, 0.0, 0.45);
     }
 
-    private static double numericMismatchPenalty(String req, String code) {
+    private static double numericMismatchPenalty(String req, List<Integer> codeNumbers) {
         List<Integer> reqNumbers = extractNumbers(req);
-        List<Integer> codeNumbers = extractNumbers(code);
         if (reqNumbers.isEmpty() || codeNumbers.isEmpty()) {
             return 0.0;
         }
@@ -299,12 +427,12 @@ public class RequirementConstraintExtractor {
         return 0.0;
     }
 
-    private static double paramValidationMismatchPenalty(String req, String code) {
+    private static double paramValidationMismatchPenalty(String req, Set<String> validatedParams) {
         List<String> params = extractCandidateParamNames(req);
         if (params.isEmpty()) return 0.0;
         int validated = 0;
         for (String param : params) {
-            if (hasParamValidation(code, param)) validated++;
+            if (validatedParams.contains(param)) validated++;
         }
         double coverage = (double) validated / params.size();
         // 只有覆盖率极低时才给惩罚，避免正常代码被误伤
@@ -313,24 +441,17 @@ public class RequirementConstraintExtractor {
         return 0.40;
     }
 
-    private static double stateValueMismatchPenalty(String req, String code) {
+    private static double stateValueMismatchPenalty(String req, Set<String> statesPresent) {
         List<String> states = extractStateValues(req);
         if (states.isEmpty()) return 0.0;
-        String codeLower = code.toLowerCase(Locale.ROOT);
         int matched = 0;
         for (String s : states) {
-            if (codeLower.contains(s.toLowerCase(Locale.ROOT))) matched++;
+            if (statesPresent.contains(s)) matched++;
         }
         double ratio = (double) matched / states.size();
         if (ratio >= 0.5) return 0.0;
         // 需求要求状态 A，代码中完全没出现 A，很可能是状态错误
         return 0.45;
-    }
-
-    private static double keywordMissingPenalty(String code, List<String> keywords) {
-        String codeLower = code.toLowerCase(Locale.ROOT);
-        boolean any = keywords.stream().anyMatch(k -> codeLower.contains(k.toLowerCase(Locale.ROOT)));
-        return any ? 0.0 : 0.35;
     }
 
     private static double keywordCoverage(String req, String code) {
@@ -388,7 +509,7 @@ public class RequirementConstraintExtractor {
     private static List<Integer> extractNumbers(String text) {
         List<Integer> nums = new ArrayList<>();
         if (text == null) return nums;
-        Matcher m = Pattern.compile("\\b(\\d{1,4})\\b").matcher(text);
+        Matcher m = NUM_PATTERN.matcher(text);
         while (m.find()) {
             int n = Integer.parseInt(m.group(1));
             if (n > 0 && n < 100000) {
@@ -426,20 +547,12 @@ public class RequirementConstraintExtractor {
     }
 
     private static boolean hasParamValidation(String code, String param) {
-        String lower = code.toLowerCase(Locale.ROOT);
-        String p = param.toLowerCase(Locale.ROOT);
-        String[] patterns = {
-                p + "\\s*==\\s*null",
-                p + "\\s*!=\\s*null",
-                "null\\s*==\\s*" + p,
-                "null\\s*!=\\s*" + p,
-                "\\b" + p + "\\.isempty\\(\\)",
-                "\\b" + p + "\\.isblank\\(\\)",
-                "\\b" + p + "\\.length\\(\\)\\s*[<>]=?\\s*0",
-                "strings\\.isempty\\(\\s*" + p + "\\s*\\)",
-        };
-        for (String pt : patterns) {
-            if (Pattern.compile(pt, Pattern.CASE_INSENSITIVE).matcher(code).find()) {
+        List<Pattern> patterns = PARAM_VALIDATION_BY_NAME.get(param.toLowerCase(Locale.ROOT));
+        if (patterns == null) {
+            return false;
+        }
+        for (Pattern pt : patterns) {
+            if (pt.matcher(code).find()) {
                 return true;
             }
         }

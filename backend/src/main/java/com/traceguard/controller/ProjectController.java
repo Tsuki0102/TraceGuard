@@ -3,10 +3,13 @@ package com.traceguard.controller;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.traceguard.common.Result;
+import com.traceguard.dto.BatchProjectDTO;
 import com.traceguard.entity.Project;
 import com.traceguard.service.DataChangeLogService;
 import com.traceguard.service.ProjectService;
 import com.traceguard.util.UserContext;
+import javax.validation.Valid;
+import java.util.Map;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -118,6 +121,12 @@ public class ProjectController {
         projectService.checkOwnership(id);
         projectService.archive(id);
         return Result.success();
+    }
+
+    @ApiOperation(value = "项目批量操作", notes = "个性化增强 BATCH-4：action ∈ delete/archive/restore，逐条归属校验，失败项不影响其余项")
+    @PostMapping("/batch")
+    public Result<Map<String, Object>> batch(@RequestBody @Valid BatchProjectDTO dto) {
+        return Result.success(projectService.batchAction(dto.getAction(), dto.getIds()));
     }
 
     @ApiOperation(value = "恢复归档项目", notes = "需通过项目归属权限校验；将已归档项目恢复正常状态")

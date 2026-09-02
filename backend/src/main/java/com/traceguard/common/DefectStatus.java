@@ -4,13 +4,15 @@ import java.util.*;
 
 /**
  * GAP-011：缺陷状态枚举与合法流转表
- * 四状态：pending（待处理）/ processing（处理中）/ resolved（已解决）/ ignored（已忽略）
+ * 五状态：pending（待处理）/ processing（处理中）/ resolved（已解决）/ ignored（已忽略）/ falsePositive（误报）
+ * falsePositive 为 W5 缺陷工单看板扩展：误报治理闭环（误报可重新打开复核）
  */
 public enum DefectStatus {
     PENDING("pending", "待处理"),
     PROCESSING("processing", "处理中"),
     RESOLVED("resolved", "已解决"),
-    IGNORED("ignored", "已忽略");
+    IGNORED("ignored", "已忽略"),
+    FALSE_POSITIVE("falsePositive", "误报");
 
     private final String code;
     private final String label;
@@ -26,10 +28,11 @@ public enum DefectStatus {
     /** 合法流转矩阵 */
     private static final Map<String, Set<String>> TRANSITIONS = new HashMap<>();
     static {
-        TRANSITIONS.put("pending", Set.of("processing", "ignored"));
-        TRANSITIONS.put("processing", Set.of("resolved", "ignored", "pending"));
+        TRANSITIONS.put("pending", Set.of("processing", "ignored", "falsePositive"));
+        TRANSITIONS.put("processing", Set.of("resolved", "ignored", "pending", "falsePositive"));
         TRANSITIONS.put("resolved", Set.of("processing"));
         TRANSITIONS.put("ignored", Set.of("processing"));
+        TRANSITIONS.put("falsePositive", Set.of("processing", "pending"));
     }
 
     public static boolean canTransition(String from, String to) {

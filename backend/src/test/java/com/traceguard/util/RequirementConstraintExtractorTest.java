@@ -98,4 +98,48 @@ class RequirementConstraintExtractorTest {
         assertThat(RequirementConstraintExtractor.implemented(Kind.STOCK_CHECK,
                 "System.out.println(\"ok\");")).isFalse();
     }
+
+    @Test
+    @DisplayName("P0-1：CodeProfile 预扫描路径与字符串入口结果逐位一致")
+    void profiledPathParityWithStringPath() {
+        // 覆盖：无约束点/数值阈值/参数校验/状态/库存/幂等/中文业务规则/英文需求/空代码 等形态
+        String[] reqs = {
+                "普通功能需求",
+                "金额必须大于0",
+                "相同用户15分钟内最多登录5次，超出抛异常",
+                "订单状态必须为PENDING或PAID才能退款，且退款金额不得超过原金额",
+                "userId不能为空，channel必须合法",
+                "下单前需校验库存，库存不足返回失败",
+                "接口需幂等，重复提交使用同一窗口时间戳去重",
+                "学生考试时长最多120分钟，及格分数60分",
+                "the notification content must not be null",
+                "system should notify user when refund failed",
+                null,
+                ""
+        };
+        String[] codes = {
+                "public void f(){}",
+                "if (amount <= 0) throw new Exception();",
+                "if (now - last.getTime() > 5 * 60 * 1000L) { count = 0; } if (++count > 5) throw new LimitException();",
+                "if (order.getStatus() == PENDING || order.getStatus() == PAID) { refund(amount); }",
+                "if (userId == null) throw new IllegalArgumentException();",
+                "if (stock < quantity) throw new IllegalStateException(\"库存不足\");",
+                "String key = requestId; long window = Duration.ofSeconds(30).toMillis(); cache.put(key, window);",
+                "public void submit(){ if (duration <= 0 || duration > 120) throw ...; }",
+                "if (content == null || content.isEmpty()) return;",
+                "public void onFail(){ notifyOwner(\"refund failed\"); }",
+                null,
+                "public void g(){ System.out.println(1); }"
+        };
+        for (int i = 0; i < reqs.length; i++) {
+            String r = reqs[i];
+            String c = codes[i];
+            double viaString = RequirementConstraintExtractor.constraintMatch(r, c);
+            double viaProfile = RequirementConstraintExtractor.constraintMatchProfiled(r,
+                    RequirementConstraintExtractor.CodeProfile.of(c));
+            assertThat(viaProfile)
+                    .withFailMessage("parity failed: req=%s code=%s viaString=%s viaProfile=%s", r, c, viaString, viaProfile)
+                    .isEqualTo(viaString);
+        }
+    }
 }

@@ -12,6 +12,9 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -43,6 +46,18 @@ public class ConsistencyJudge {
 
     /** FUN-04b：规则否决权阈值——量化边界确定性证据 >= 该值时，推翻"双判定一致=一致"的结论 */
     static final double QUANTIFY_VETO_THRESHOLD = 0.45;
+
+    /**
+     * P1-1：双判定并发线程池（daemon 常驻，2 线程并行执行变体 A/B）。
+     * LlmCallExecutor.execute 自带信号量限流/熔断（线程安全），并发仅加速排队，
+     * maxConcurrentCalls>=2 时单对判定耗时约 -50%；=1 时自动串行，无副作用。
+     */
+    private static final ExecutorService DUAL_JUDGE_POOL = Executors.newFixedThreadPool(2, r -> {
+        Thread t = new Thread(r);
+        t.setName("judge-dual");
+        t.setDaemon(true);
+        return t;
+    });
 
     /** FUN-04b：类级判定证据（分工清单 + 常量定义），由 ClassEvidenceScanner 扫描原始源码构造 */
     public static class JudgeContext {
@@ -291,10 +306,15 @@ public class ConsistencyJudge {
             return judge(requirementText, codeSnippet, semanticSimilarity, constraintMatch,
                     invariantSatisfaction, totalSimilarity, ruleDefectType);
         }
-        Judgement a = callOnce(buildMessagesV1(requirementText, codeSnippet, semanticSimilarity,
-                constraintMatch, invariantSatisfaction, totalSimilarity, ctx));
-        Judgement b = callOnce(buildMessagesSlim(requirementText, codeSnippet, semanticSimilarity,
-                constraintMatch, invariantSatisfaction, totalSimilarity, ctx));
+        // P1-1：变体 A/B 提示词相互独立，并发执行使单对判定耗时减半（内部由 LlmCallExecutor 信号量限流）
+        CompletableFuture<Judgement> fa = CompletableFuture.supplyAsync(() -> callOnce(
+                buildMessagesV1(requirementText, codeSnippet, semanticSimilarity,
+                        constraintMatch, invariantSatisfaction, totalSimilarity, ctx)), DUAL_JUDGE_POOL);
+        CompletableFuture<Judgement> fb = CompletableFuture.supplyAsync(() -> callOnce(
+                buildMessagesSlim(requirementText, codeSnippet, semanticSimilarity,
+                        constraintMatch, invariantSatisfaction, totalSimilarity, ctx)), DUAL_JUDGE_POOL);
+        Judgement a = fa.join();
+        Judgement b = fb.join();
         if (a == null && b == null) {
             return null;
         }

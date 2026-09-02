@@ -389,4 +389,25 @@ class ExportServiceTest {
         assertThat(text).doesNotContain("代码质量分析");
         assertThat(text).doesNotContain("追溯矩阵");
     }
+
+    @Test
+    @EnabledOnOs(OS.WINDOWS)
+    @DisplayName("调试：生成 PDF 落盘供外部阅读器验证")
+    void writePdfForDebug() throws Exception {
+        when(projectMapper.selectById(1L)).thenReturn(buildProject());
+        when(resultService.getProjectStatistics(1L)).thenReturn(buildStats());
+        when(resultService.getDefects(1L, null, null))
+                .thenReturn(Collections.singletonList(buildDefect()));
+        when(resultService.getCodeDefects(1L, null)).thenReturn(Collections.emptyList());
+        when(resultService.getTraceabilityMatrix(1L))
+                .thenReturn(Collections.singletonList(buildForwardMatrixRow()));
+
+        byte[] bytes = exportService.exportReportPdf(1L, ReportTemplate.FULL);
+        java.nio.file.Files.write(java.nio.file.Paths.get("d:/Develop/TraceGuard/backend/logs/debug.pdf"), bytes);
+        // round-trip：重新加载验证结构完整
+        try (PDDocument doc = PDDocument.load(new ByteArrayInputStream(bytes))) {
+            assertThat(doc.getNumberOfPages()).isGreaterThan(0);
+        }
+        System.out.println("DEBUG_PDF_BYTES=" + bytes.length);
+    }
 }

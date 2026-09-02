@@ -44,8 +44,8 @@ public class ProgressWebSocketHandler extends TextWebSocketHandler {
     @Autowired
     private ProjectMapper projectMapper;
 
-    /** 已鉴权的会话：sessionId -> session */
-    private final Map<String, WebSocketSession> sessions = new ConcurrentHashMap<>();
+    /** 已鉴权的会话：sessionId -> session；指向静态共享表，供 W2-07 系统状态统计在线数 */
+    private final Map<String, WebSocketSession> sessions = SessionsRef.SESSIONS;
 
     /** 任务归属缓存：taskId -> 项目创建者 userId（归属关系不可变，避免每次推送查库） */
     private final Map<Long, Long> taskOwnerCache = new ConcurrentHashMap<>();
@@ -80,6 +80,16 @@ public class ProgressWebSocketHandler extends TextWebSocketHandler {
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
         sessions.remove(session.getId());
         LOGGER.info("WebSocket会话已关闭: {} status={}", session.getId(), status);
+    }
+
+    /** W2-07：当前已鉴权在线会话数（系统运行状态卡） */
+    public static int onlineCount() {
+        return SessionsRef.SESSIONS.size();
+    }
+
+    /** 静态引用会话表，供 Dashboard 状态接口统计在线数 */
+    private static final class SessionsRef {
+        static final Map<String, WebSocketSession> SESSIONS = new ConcurrentHashMap<>();
     }
 
     @Override

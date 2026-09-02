@@ -11,7 +11,6 @@ import com.traceguard.util.JavaCodeParserUtil;
 import com.traceguard.util.SemanticVectorUtil;
 import com.traceguard.util.SemanticVectorUtil.SemanticVector;
 import com.traceguard.util.FormalSpecParserUtil;
-import com.traceguard.util.ConstraintDetectorUtil;
 import com.traceguard.util.BilingualDictLoader;
 import com.traceguard.util.RequirementConstraintExtractor;
 import com.traceguard.util.CodeDefectPatternDetector;
@@ -44,8 +43,48 @@ public class ConsistencyChecker {
     @Value("${traceguard.analysis.out-of-scope-sim-limit:0.5}")
     private double outOfScopeSimLimit = 0.5; // Java 默认值兜底：评测/测试直接 new 时 @Value 不注入，避免为 0 导致负例抑制误伤
 
+    /** P0-5：语义维度校准模式（默认 LINEAR=历史 (1+cos)/2 透传，评测消融经 setSemanticCalibration 切换） */
+    private SemanticCalibration semanticCalibration = SemanticCalibration.linear();
+
+    public void setSemanticCalibration(SemanticCalibration semanticCalibration) {
+        if (semanticCalibration != null) {
+            this.semanticCalibration = semanticCalibration;
+        }
+    }
+
     /** GAP-025：一致性计算分块大小（每块 N 条需求，块间串行、块内并行，保证结果顺序与内存可控） */
     private static final int CONSISTENCY_CHUNK_SIZE = 32;
+
+    /** P0-5：语义校准配置（线性透传 / sigmoid 温度缩放 / 批内 min-max） */
+    public static final class SemanticCalibration {
+        public enum Mode { LINEAR, SIGMOID, MINMAX }
+
+        private final Mode mode;
+        private final double center;
+        private final double width;
+
+        private SemanticCalibration(Mode mode, double center, double width) {
+            this.mode = mode;
+            this.center = center;
+            this.width = width;
+        }
+
+        public static SemanticCalibration linear() {
+            return new SemanticCalibration(Mode.LINEAR, 0, 0);
+        }
+
+        public static SemanticCalibration sigmoid(double center, double width) {
+            return new SemanticCalibration(Mode.SIGMOID, center, width);
+        }
+
+        public static SemanticCalibration minmax() {
+            return new SemanticCalibration(Mode.MINMAX, 0, 0);
+        }
+
+        public Mode getMode() { return mode; }
+        public double getCenter() { return center; }
+        public double getWidth() { return width; }
+    }
 
     /** 英文标识符（用于驼峰边界切分） */
     private static final Pattern ASCII_WORD = Pattern.compile("[A-Za-z][A-Za-z0-9_]*");
@@ -124,19 +163,36 @@ public class ConsistencyChecker {
         for (CodeUnit code : methodUnits) {
             codeVectors.put(code.getId(), tokenize(codeDoc(code)));
         }
-        // GAP-005 + GAP-025：任务级缓存预计算（SpecModel 按需求、EvidenceSet/CFG特征 按代码单元各解析一次），
+        // P0-2：稠密语义向量预解析（512 维 JSON 每对重复反序列化代价高，改为每单元一次，并行阶段仅读缓存）
+        Map<Long, SemanticVector> reqSemVectors = new HashMap<>();
+        for (Requirement req : requirements) {
+            reqSemVectors.put(req.getId(), SemanticVectorUtil.parse(req.getSemanticVector()));
+        }
+        Map<Long, SemanticVector> codeSemVectors = new HashMap<>();
+        for (CodeUnit code : methodUnits) {
+            codeSemVectors.put(code.getId(), SemanticVectorUtil.parse(code.getSemanticVector()));
+        }
+        // P0-1：约束匹配代码侧预扫描（CodeProfile 每代码单元一次，替代 R×C 配对内反复正则扫描代码全文）
+        Map<Long, RequirementConstraintExtractor.CodeProfile> codeProfileCache = new HashMap<>();
+        // GAP-005 + GAP-025：任务级缓存预计算（SpecModel 按需求、CFG特征 按代码单元各解析一次），
         // 并行阶段仅读缓存，避免并发写 HashMap
         Map<Long, FormalSpecParserUtil.SpecModel> specCache = new HashMap<>();
         for (Requirement req : requirements) {
             specCache.put(req.getId(), FormalSpecParserUtil.parse(
                     specAlloyByReqId == null ? null : specAlloyByReqId.get(req.getId())));
         }
-        Map<Long, ConstraintDetectorUtil.EvidenceSet> evidenceCache = new HashMap<>();
         // CQ-01：并发安全的 CFG 特征缓存——并行阶段 computeIfAbsent 可能触发并发写普通 HashMap（resize/死循环）；
         // 改 ConcurrentHashMap 且预填充"全量占位"（null 也放入），并行阶段 key 均已存在，仅 get/原子 computeIfAbsent
         Map<Long, CfgFeatures> cfgFeaturesCache = new ConcurrentHashMap<>();
+        // P1-5：detectDefectRisk 纯代码侧信号（commonCodeBug / nullDereference）每代码单元预扫描一次，
+        // 消除 R×C 配对内对同一 code 的重复全文正则扫描（与原合成逐位等价）
+        Map<Long, double[]> codeRiskPartsCache = new HashMap<>();
         for (CodeUnit code : methodUnits) {
-            evidenceCache.put(code.getId(), ConstraintDetectorUtil.detect(code.getCodeContent()));
+            String codeContent = code.getCodeContent() == null ? "" : code.getCodeContent();
+            codeProfileCache.put(code.getId(), RequirementConstraintExtractor.CodeProfile.of(codeContent));
+            codeRiskPartsCache.put(code.getId(), new double[]{
+                    CodeDefectPatternDetector.commonCodeBugComponent(code.getCodeContent()),
+                    CodeDefectPatternDetector.nullDereferenceComponent(code.getCodeContent())});
             CfgFeatures cf = extractCfgFeatures(code.getCfgData());
             cfgFeaturesCache.put(code.getId(), cf); // 全量占位（含 null）
         }
@@ -150,8 +206,9 @@ public class ConsistencyChecker {
                 for (int i = start; i < end; i++) {
                     final Requirement req = requirements.get(i);
                     futures.add(CompletableFuture.supplyAsync(() -> computeReqPairs(
-                            taskId, projectId, req, methodUnits, specCache, evidenceCache, cfgFeaturesCache,
-                            idfMap, reqVectors, codeVectors, classEvidenceByClass, alpha, beta, gamma, t1, t2), pool));
+                            taskId, projectId, req, methodUnits, specCache, codeProfileCache, cfgFeaturesCache,
+                            idfMap, reqVectors, codeVectors, reqSemVectors, codeSemVectors, codeRiskPartsCache,
+                            classEvidenceByClass, alpha, beta, gamma, t1, t2), pool));
                 }
                 for (CompletableFuture<List<ConsistencyResult>> f : futures) {
                     results.addAll(f.join());
@@ -189,32 +246,48 @@ public class ConsistencyChecker {
     private List<ConsistencyResult> computeReqPairs(Long taskId, Long projectId, Requirement req,
                                                     List<CodeUnit> codeUnits,
                                                     Map<Long, FormalSpecParserUtil.SpecModel> specCache,
-                                                    Map<Long, ConstraintDetectorUtil.EvidenceSet> evidenceCache,
+                                                    Map<Long, RequirementConstraintExtractor.CodeProfile> codeProfileCache,
                                                     Map<Long, CfgFeatures> cfgFeaturesCache,
                                                     Map<String, Double> idfMap,
                                                     Map<Long, Map<String, Double>> reqVectors,
                                                     Map<Long, Map<String, Double>> codeVectors,
+                                                    Map<Long, SemanticVector> reqSemVectors,
+                                                    Map<Long, SemanticVector> codeSemVectors,
+                                                    Map<Long, double[]> codeRiskPartsCache,
                                                     Map<String, List<String>> classEvidenceByClass,
                                                     double alpha, double beta, double gamma,
                                                     double t1, double t2) {
         List<ConsistencyResult> reqResults = new ArrayList<>(codeUnits.size());
         Map<String, Double> reqVec = reqVectors.getOrDefault(req.getId(), Collections.emptyMap());
+        // P0-2：需求侧稠密向量预解析一次，供全部 Cj 复用（JSON 反序列化不再每对执行）
+        SemanticVector reqSemVec = reqSemVectors.get(req.getId());
+        // P1-5：需求侧文档文本每 req 拼接一次（原每对在 detectDefectRisk 前重复拼接）
+        String reqDocText = reqDoc(req);
         FormalSpecParserUtil.SpecModel specModel = specCache.get(req.getId());
-        for (CodeUnit code : codeUnits) {
-            Map<String, Double> codeVec = codeVectors.getOrDefault(code.getId(), Collections.emptyMap());
-            double cosSim = calculateCosineSimilarity(reqVec, codeVec, idfMap,
-                    req.getSemanticVector(), code.getSemanticVector());
-            ConstraintDetectorUtil.EvidenceSet evidence = evidenceCache.get(code.getId());
-            double conMatch = calculateConstraintMatch(req, code, specModel, evidence);
+        // P0-5：先计算该需求与全部代码单元的语义分，再按校准模式（LINEAR/SIGMOID/MINMAX）做批内或参数化变换，
+        // 使语义维度具备批内相对区分度（默认 LINEAR 与历史行为完全一致）。
+        double[] semanticScores = calibrateSemantics(codeUnits, codeVectors, codeSemVectors,
+                idfMap, reqVec, reqSemVec);
+        for (int i = 0; i < codeUnits.size(); i++) {
+            CodeUnit code = codeUnits.get(i);
+            double cosSim = semanticScores[i];
+            // P0-1：代码侧约束证据已由 CodeProfile 预扫描（每代码单元一次），配对内零全文正则扫描
+            RequirementConstraintExtractor.CodeProfile codeProfile = codeProfileCache.get(code.getId());
+            double conMatch = calculateConstraintMatch(req, code, codeProfile);
             // GAP-025：使用预计算缓存的CFG特征（同一代码单元cfgData不变，避免R×C重复解析JSON）
-            double invSat = calculateInvariantSatisfactionWithCache(req, code, specModel, code.getCfgData(), cfgFeaturesCache);
+            double invSat = calculateInvariantSatisfactionWithCache(req, code, specModel, code.getCfgData(),
+                    cfgFeaturesCache, codeProfile);
             double totalSim = alpha * cosSim + beta * conMatch + gamma * invSat;
             // GAP-046：规则模式为主基线——缺陷风险由三部分合成（约束缺失 + 异常模式 + 语义错位），
             // 使行为级/隐含规则/需求缺失类缺陷可被可靠压到阈值以下；一致对约束覆盖好则几乎不扣分。
             String clsName = code.getClassName() == null ? "" : code.getClassName();
             java.util.List<String> classEvidence = classEvidenceByClass == null
                     ? null : classEvidenceByClass.get(clsName.substring(clsName.lastIndexOf('.') + 1));
-            double defectRisk = synthesizeDefectRisk(reqDoc(req), code.getCodeContent(), conMatch, cosSim, classEvidence);
+            // P1-5：代码侧分量已按单元预扫描（codeRiskPartsCache），此处仅计算需求相关信号
+            double[] riskParts = codeRiskPartsCache.get(code.getId());
+            double defectRisk = CodeDefectPatternDetector.detectDefectRisk(reqDocText, code.getCodeContent(),
+                    classEvidence, riskParts == null ? 0.0 : riskParts[0],
+                    riskParts == null ? 0.0 : riskParts[1]);
             double adjustedSim = totalSim * (1.0 - defectRisk * DEFECT_RISK_WEIGHT);
             ConsistencyResult result = new ConsistencyResult();
             result.setTaskId(taskId);
@@ -236,26 +309,66 @@ public class ConsistencyChecker {
     }
 
     /**
-     * GAP-046：规则模式缺陷风险（增强项）。
-     * Con 维度已由 RequirementConstraintExtractor.constraintMatch 承担「约束缺失」主判据（结构化比对），
-     * 此处仅叠加代码异常模式信号（空 catch / 数组越界 / 比较器反身性 / 除零等），
-     * 避免双重惩罚过强导致一致对误报。
+     * P0-5：语义校准——对该需求在全部代码单元上的语义分做批内/参数化变换。
+     * 说明：此处"原始语义分"即 calculateCosineSimilarity 的线性输出（BGE (1+cos)/2 或 TF-IDF 兜底），
+     * SIGMOID/MINMAX 均在其上二次变换；默认 LINEAR 直接透传，与历史行为逐位一致。
      */
-    private double synthesizeDefectRisk(String reqDoc, String codeContent, double conMatch, double cosSim) {
-        return synthesizeDefectRisk(reqDoc, codeContent, conMatch, cosSim, null);
+    private double[] calibrateSemantics(List<CodeUnit> codeUnits,
+                                        Map<Long, Map<String, Double>> codeVectors,
+                                        Map<Long, SemanticVector> codeSemVectors,
+                                        Map<String, Double> idfMap,
+                                        Map<String, Double> reqVec,
+                                        SemanticVector reqSemVec) {
+        int n = codeUnits.size();
+        double[] raw = new double[n];
+        for (int i = 0; i < n; i++) {
+            CodeUnit code = codeUnits.get(i);
+            raw[i] = calculateCosineSimilarity(reqVec,
+                    codeVectors.getOrDefault(code.getId(), Collections.emptyMap()), idfMap,
+                    reqSemVec, codeSemVectors.get(code.getId()));
+        }
+        SemanticCalibration cal = semanticCalibration;
+        if (cal == null || cal.getMode() == SemanticCalibration.Mode.LINEAR) {
+            return raw;
+        }
+        if (cal.getMode() == SemanticCalibration.Mode.SIGMOID) {
+            double[] out = new double[n];
+            for (int i = 0; i < n; i++) {
+                out[i] = sigmoidMap(raw[i], cal.getCenter(), cal.getWidth());
+            }
+            return out;
+        }
+        // MINMAX：批内最小-最大归一化，把需求自身的相对匹配度拉开到 [0,1]；
+        // 全批跨度过小（无区分信息）时回退原值，避免数值放大噪声。
+        double min = Double.POSITIVE_INFINITY, max = Double.NEGATIVE_INFINITY;
+        for (double v : raw) {
+            if (v < min) min = v;
+            if (v > max) max = v;
+        }
+        double span = max - min;
+        if (span < 1e-3) {
+            return raw;
+        }
+        double[] out = new double[n];
+        for (int i = 0; i < n; i++) {
+            out[i] = (raw[i] - min) / span;
+        }
+        return out;
     }
 
-    /** FUN-04b：带类级证据的缺陷风险合成（quantitativeBoundMismatch 信号需要类常量清单） */
-    private double synthesizeDefectRisk(String reqDoc, String codeContent, double conMatch, double cosSim,
-                                        java.util.List<String> classEvidence) {
-        if (StrUtil.isBlank(reqDoc) || StrUtil.isBlank(codeContent)) {
-            return 0.0;
-        }
-        return clamp01(CodeDefectPatternDetector.detectDefectRisk(reqDoc, codeContent, classEvidence));
+    /** sigmoid 温度缩放（center 为中心、width 为温度；防溢出） */
+    private static double sigmoidMap(double x, double center, double width) {
+        double w = width <= 0 ? 0.05 : width;
+        double z = (x - center) / w;
+        if (z > 30) return 1.0;
+        if (z < -30) return 0.0;
+        return 1.0 / (1.0 + Math.exp(-z));
     }
 
     private int consistencyThreadPoolSize() {
-        int cores = Math.min(Runtime.getRuntime().availableProcessors(), 4);
+        // P2-1：上限由 4 提至 8——一致性计算为纯 CPU 密集（无外部 IO），8 核以上机器此前闲置过半算力；
+        // 仍保留一致性计算与其它任务的隔离，避免与 Soot/文档解析等并发的整体过订阅
+        int cores = Math.min(Runtime.getRuntime().availableProcessors(), 8);
         return consistencyThreads > 0 ? consistencyThreads : cores;
     }
 
@@ -335,6 +448,8 @@ public class ConsistencyChecker {
                 Requirement req = reqMap.get(res.getRequirementId());
                 CodeUnit code = codeMap.get(res.getCodeUnitId());
                 if (req == null || code == null) continue;
+                // P0-3 防御：状态判不一致但类型为空（理论边界残留）时兜底为业务逻辑不一致，禁止产出空类型缺陷
+                String mainType = StrUtil.isBlank(res.getDefectType()) ? "业务逻辑不一致" : res.getDefectType();
                 Defect defect = new Defect();
                 defect.setTaskId(taskId);
                 defect.setProjectId(projectId);
@@ -343,8 +458,8 @@ public class ConsistencyChecker {
                 defect.setCodeUnitId(res.getCodeUnitId());
                 defect.setDefectId("DEF-" + UUID.randomUUID().toString().substring(0, 8));
                 defect.setDefectLevel("serious_inconsistent".equals(res.getConsistencyStatus()) ? "serious" : "general");
-                defect.setDefectType(res.getDefectType());
-                defect.setSubType(res.getDefectSubType() != null ? res.getDefectSubType() : res.getDefectType());
+                defect.setDefectType(mainType);
+                defect.setSubType(res.getDefectSubType() != null ? res.getDefectSubType() : mainType);
                 defect.setDefectReason(generateDefectReason(res, req, code));
                 defect.setRepairSuggestion(generateRepairSuggestion(res, req, code));
                 defect.setCodeSnippet(code.getCodeContent() != null ?
@@ -414,11 +529,11 @@ public class ConsistencyChecker {
      */
     private double calculateCosineSimilarity(Map<String, Double> reqTf, Map<String, Double> codeTf,
                                              Map<String, Double> idfMap,
-                                             String reqSemVecJson, String codeSemVecJson) {
+                                             SemanticVector reqVec, SemanticVector codeVec) {
+        // P0-2：向量由调用方预解析一次传入（并行阶段零 JSON 反序列化）
         // 向量路径：双端均有稠密向量且维度一致 -> (1+cos)/2 映射到 [0,1]
-        SemanticVector reqVec = SemanticVectorUtil.parse(reqSemVecJson);
-        SemanticVector codeVec = SemanticVectorUtil.parse(codeSemVecJson);
-        if (reqVec.hasVector() && codeVec.hasVector() && reqVec.getDim() == codeVec.getDim()) {
+        if (reqVec != null && codeVec != null
+                && reqVec.hasVector() && codeVec.hasVector() && reqVec.getDim() == codeVec.getDim()) {
             float[] rv = reqVec.getVector();
             float[] cv = codeVec.getVector();
             double dot = 0, rNorm = 0, cNorm = 0;
@@ -464,25 +579,24 @@ public class ConsistencyChecker {
      * （AUD-02）。仅在需求/代码为空等退化场景下回退中性底分。
      */
     private double calculateConstraintMatch(Requirement req, CodeUnit code,
-                                            FormalSpecParserUtil.SpecModel specModel,
-                                            ConstraintDetectorUtil.EvidenceSet evidence) {
+                                            RequirementConstraintExtractor.CodeProfile codeProfile) {
         try {
             String reqDoc = reqDoc(req);
             String codeContent = code.getCodeContent();
             if (StrUtil.isBlank(reqDoc) || StrUtil.isBlank(codeContent)) {
-                return calculateSimplifiedConstraintMatch(req, code);
+                return calculateSimplifiedConstraintMatch(req, code, codeProfile);
             }
-            // GAP-046：约束点 × 代码证据的结构化比对，具备缺陷判别力
-            double cm = RequirementConstraintExtractor.constraintMatch(reqDoc, codeContent);
+            // GAP-046：约束点 × 代码实现证据的结构化比对（P0-1：代码侧证据已预扫描至 CodeProfile，配对内零全文正则扫描）
+            double cm = RequirementConstraintExtractor.constraintMatchProfiled(reqDoc, codeProfile);
             if (cm < 0) {
                 // FUN-13：需求无可提取约束点（英文/无约束语义）→ 回退中性启发式，避免被高估/低估主导匹配
-                return calculateSimplifiedConstraintMatch(req, code);
+                return calculateSimplifiedConstraintMatch(req, code, codeProfile);
             }
             return clamp01(cm);
         } catch (Exception e) {
             log.error("计算约束匹配度失败: req={}, code={}", req.getRequirementId(),
                     code.getClassName() + "." + code.getMethodName(), e);
-            return calculateSimplifiedConstraintMatch(req, code);
+            return calculateSimplifiedConstraintMatch(req, code, codeProfile);
         }
     }
 
@@ -493,16 +607,17 @@ public class ConsistencyChecker {
     private double calculateInvariantSatisfactionWithCache(Requirement req, CodeUnit code,
                                                            FormalSpecParserUtil.SpecModel specModel,
                                                            String cfgData,
-                                                           Map<Long, CfgFeatures> cfgFeaturesCache) {
+                                                           Map<Long, CfgFeatures> cfgFeaturesCache,
+                                                           RequirementConstraintExtractor.CodeProfile codeProfile) {
         try {
             if (specModel == null || specModel.getInvariants().isEmpty() || StrUtil.isBlank(cfgData)) {
-                return calculateSimplifiedInvariantSatisfaction(req, code);
+                return calculateSimplifiedInvariantSatisfaction(req, code, codeProfile);
             }
             // GAP-025：从缓存获取 CFG 特征（避免重复解析 JSON）
             CfgFeatures cf = cfgFeaturesCache.computeIfAbsent(code.getId(),
                     cid -> extractCfgFeatures(cfgData));
             if (cf == null) {
-                return calculateSimplifiedInvariantSatisfaction(req, code);
+                return calculateSimplifiedInvariantSatisfaction(req, code, codeProfile);
             }
             // 规约侧结构要求：状态转移谓词/多状态 -> 需要分支结构；转移(all =>) -> 需要循环；异常约束 -> 需要异常路径
             boolean specRequiresBranch = specModel.getInvariants().stream()
@@ -520,17 +635,17 @@ public class ConsistencyChecker {
             if (specRequiresExc) { sum += cf.exceptionEdges > 0 ? 1.0 : 0.3; items++; }
             // GAP-045：Kripke 标签语义增强——需求状态标签 L(s) 中的原子命题(AP)被代码实现的比例，
             // 作为 Inv 维度额外信号，使"需求显式声明可判真伪命题"与代码实现对齐。
-            double apSat = calculateAtomicPropositionSatisfaction(req, code);
+            double apSat = calculateAtomicPropositionSatisfaction(req, code, codeProfile);
             if (items == 0) {
                 // 规格无结构项可判时，优先以 AP 满足度作为 Inv（AP 缺失则回退 simplified）
-                return apSat >= 0 ? clamp01(apSat) : calculateSimplifiedInvariantSatisfaction(req, code);
+                return apSat >= 0 ? clamp01(apSat) : calculateSimplifiedInvariantSatisfaction(req, code, codeProfile);
             }
             if (apSat >= 0) { sum += apSat; items++; }
             return clamp01(sum / items);
         } catch (Exception e) {
             log.error("计算不变量满足度失败: req={}, code={}", req.getRequirementId(),
                     code.getClassName() + "." + code.getMethodName(), e);
-            return calculateSimplifiedInvariantSatisfaction(req, code);
+            return calculateSimplifiedInvariantSatisfaction(req, code, codeProfile);
         }
     }
 
@@ -544,7 +659,9 @@ public class ConsistencyChecker {
     private double calculateInvariantSatisfaction(Requirement req, CodeUnit code,
                                                   FormalSpecParserUtil.SpecModel specModel,
                                                   String cfgData) {
-        return calculateInvariantSatisfactionWithCache(req, code, specModel, cfgData, new HashMap<>());
+        RequirementConstraintExtractor.CodeProfile profile = RequirementConstraintExtractor.CodeProfile.of(
+                code.getCodeContent() == null ? "" : code.getCodeContent());
+        return calculateInvariantSatisfactionWithCache(req, code, specModel, cfgData, new HashMap<>(), profile);
     }
 
     /**
@@ -552,7 +669,8 @@ public class ConsistencyChecker {
      * 与代码实现内容的约束匹配均值 [0,1]；无 AP 或解析失败返回 -1（跳过）。
      * 使 Kripke 模型中"需求显式命题"真正参与 Inv 维度判定。
      */
-    private double calculateAtomicPropositionSatisfaction(Requirement req, CodeUnit code) {
+    private double calculateAtomicPropositionSatisfaction(Requirement req, CodeUnit code,
+                                                          RequirementConstraintExtractor.CodeProfile codeProfile) {
         String apField = req.getAtomicPropositions();
         if (StrUtil.isBlank(apField) || "[]".equals(apField.trim())) {
             return -1;
@@ -561,7 +679,7 @@ public class ConsistencyChecker {
         if (codeText.isEmpty()) {
             return -1;
         }
-        // 原子命题以逗号分隔；每个命题作为约束点，与代码做约束匹配
+        // 原子命题以逗号分隔；每个命题作为约束点，与代码做约束匹配（P0-1：复用代码侧预扫描证据）
         String[] props = apField.split(",");
         double sum = 0;
         int n = 0;
@@ -569,7 +687,7 @@ public class ConsistencyChecker {
             String ap = p.trim();
             if (ap.isEmpty()) continue;
             // 含比较符(≥/≤/=)的命题：检查代码是否体现该约束主题
-            double m = RequirementConstraintExtractor.constraintMatch(ap, codeText);
+            double m = RequirementConstraintExtractor.constraintMatchProfiled(ap, codeProfile);
             if (m >= 0) {
                 sum += clamp01(m);
                 n++;
@@ -578,15 +696,31 @@ public class ConsistencyChecker {
         return n == 0 ? -1 : sum / n;
     }
 
-    /** CFG 结构特征（GAP-005 Inv 维度，从 CodeUnit.cfgData JSON 提取） */
-    private static class CfgFeatures {
+    /**
+     * CFG 结构特征（GAP-005 / P1-3 扩展，从 CodeUnit.cfgData JSON 提取）。
+     * JSON 同构格式：{"nodes":[{"id,type,label,line"}],"edges":[{"from,to,label"}]}
+     * （Soot 字节码级 SootCfgBuilderUtil 与 AST 级 CfgBuilderUtil 共用；节点 type 见两构建器注释）。
+     */
+    static class CfgFeatures {
+        // —— P1-3 新增的结构化统计 ——
+        int nodeCount;
+        int edgeCount;
+        /** 分支节点数（if/switch/goto/loop/loop_exit 均为多出口结构） */
+        int branchCount;
+        /** 循环节点数（AST 级 type=loop；字节码级由回边个数近似） */
+        int loopCount;
+        int returnCount;
+        int throwCount;
+        /** 环复杂度 McCabe：E - N + 2（至少 1），反映方法控制流复杂度 */
+        int cyclomaticComplexity;
+        // —— 既有布尔特征（保留，供 Inv 严格路径使用）——
         boolean branchPresent;
         boolean loopPresent;
         int exceptionEdges;
     }
 
     /** 从 cfgData JSON（Soot 字节码级或 AST 级同构格式）提取结构特征；解析失败返回 null（触发降级） */
-    private CfgFeatures extractCfgFeatures(String cfgData) {
+    static CfgFeatures extractCfgFeatures(String cfgData) {
         try {
             cn.hutool.json.JSONObject cfg = JSONUtil.parseObj(cfgData);
             cn.hutool.json.JSONArray nodes = cfg.getJSONArray("nodes");
@@ -594,6 +728,7 @@ public class ConsistencyChecker {
             CfgFeatures f = new CfgFeatures();
             java.util.Map<Integer, Integer> idIndex = new HashMap<>();
             if (nodes != null) {
+                f.nodeCount = nodes.size();
                 int i = 0;
                 for (Object o : nodes) {
                     cn.hutool.json.JSONObject n = (cn.hutool.json.JSONObject) o;
@@ -601,22 +736,37 @@ public class ConsistencyChecker {
                     String type = n.getStr("type", "");
                     if ("if".equals(type) || "switch".equals(type) || "goto".equals(type)) {
                         f.branchPresent = true;
+                        f.branchCount++;
+                    } else if ("loop".equals(type)) {
+                        f.loopCount++;
+                    } else if ("return".equals(type)) {
+                        f.returnCount++;
+                    } else if ("throw".equals(type)) {
+                        f.throwCount++;
                     }
                 }
             }
             if (edges != null) {
+                f.edgeCount = edges.size();
+                int backEdges = 0;
                 for (Object o : edges) {
                     cn.hutool.json.JSONObject e = (cn.hutool.json.JSONObject) o;
                     if ("catch".equals(e.getStr("label", ""))) {
                         f.exceptionEdges++;
+                        continue;
                     }
                     Integer fi = idIndex.get(e.getInt("from"));
                     Integer ti = idIndex.get(e.getInt("to"));
+                    // 回边（goto/循环结构）：目标 id <= 源 id（start=0 在前，向后跳转即回边）
                     if (fi != null && ti != null && ti <= fi) {
-                        f.loopPresent = true; // 回边（goto 循环结构）
+                        f.loopPresent = true;
+                        backEdges++;
                     }
                 }
+                // 字节码级（Soot）无 type=loop 节点，用回边数近似循环节点数；AST 级节点已计入则不重复加
+                f.loopCount = Math.max(f.loopCount, backEdges);
             }
+            f.cyclomaticComplexity = Math.max(1, f.edgeCount - f.nodeCount + 2);
             return f;
         } catch (Exception e) {
             return null;
@@ -632,11 +782,11 @@ public class ConsistencyChecker {
      * 替代近常量启发式，使「需求要求约束但代码未实现」的缺陷对 Con 显著下降。
      * 需求含可计分约束点时走证据集结构化比对；无约束点（extract 为空）或异常时回退中性 0.5（FUN-08②）。
      */
-    private double calculateSimplifiedConstraintMatch(Requirement req, CodeUnit code) {
+    private double calculateSimplifiedConstraintMatch(Requirement req, CodeUnit code,
+                                                       RequirementConstraintExtractor.CodeProfile codeProfile) {
         try {
             String reqText = req.getOriginalText();
-            String codeText = code.getCodeContent() != null ? code.getCodeContent() : "";
-            double coverage = RequirementConstraintExtractor.constraintMatch(reqText, codeText);
+            double coverage = RequirementConstraintExtractor.constraintMatchProfiled(reqText, codeProfile);
             if (coverage >= 0) {
                 // 覆盖度计分基础上保留少量中性底分，避免纯结构比对将合法实现压得过低
                 return clamp01(0.35 + 0.65 * coverage);
@@ -653,11 +803,11 @@ public class ConsistencyChecker {
      * GAP-046：简化的不变量满足度（回退逻辑）——由「需求约束点 × 代码实现证据」覆盖度驱动。
      * 需求含约束点时代码未实现对应证据则 Inv 下降；无约束点回退结构启发式。
      */
-    private double calculateSimplifiedInvariantSatisfaction(Requirement req, CodeUnit code) {
+    private double calculateSimplifiedInvariantSatisfaction(Requirement req, CodeUnit code,
+                                                             RequirementConstraintExtractor.CodeProfile codeProfile) {
         try {
             String reqText = req.getOriginalText();
-            String codeText = code.getCodeContent() != null ? code.getCodeContent() : "";
-            double coverage = RequirementConstraintExtractor.constraintMatch(reqText, codeText);
+            double coverage = RequirementConstraintExtractor.constraintMatchProfiled(reqText, codeProfile);
             if (coverage >= 0) {
                 // 不变量满足度与约束实现呈正相关：约束覆盖率低 -> 不变量满足度低
                 return clamp01(0.5 + 0.5 * coverage);
@@ -672,12 +822,20 @@ public class ConsistencyChecker {
     }
 
     /**
+     * 一致判定唯一口径：Sim > T1 判完全一致（严格大于，对齐 SRS FR-CHECK-002 业务规则1）。
+     * determineStatus 与 determineDefectType 必须共用本口径，避免边界（sim == t1）处
+     * 状态判"不一致"而缺陷类型返回空的自相矛盾（P0-3 修复）。
+     */
+    private static boolean isConsistent(double sim, double t1) {
+        return sim > t1;
+    }
+
+    /**
      * 一致性分级判定（对齐 SRS FR-CHECK-002 业务规则1）：
      * Sim > T1 → 完全一致；T2 ≤ Sim ≤ T1 → 一般不一致；Sim < T2 → 严重不一致。
-     * 注意：SRS 强一致边界为「> T1」（原实现误用 >=），此处按文档口径修正（4.1 优化项）。
      */
     private String determineStatus(double sim, double t1, double t2) {
-        if (sim > t1) return "consistent";
+        if (isConsistent(sim, t1)) return "consistent";
         if (sim >= t2) return "general_inconsistent";
         return "serious_inconsistent";
     }
@@ -687,7 +845,7 @@ public class ConsistencyChecker {
      * 主类型统一为 FR-CHECK-003 的 4 类口径，子类型保留原细分标签。
      */
     private String[] determineDefectType(double totalSim, double cosSim, double conMatch, double invSat, double t1, double t2) {
-        if (totalSim >= t1) return new String[]{"", ""};
+        if (isConsistent(totalSim, t1)) return new String[]{"", ""};
         String subType;
         // GAP-046：约束覆盖率（需求约束点×代码证据）是强判别信号，优先于语义相关性。
         // 需求要求约束而代码未实现 -> 约束条件不满足；语义弱相关（词面不重叠）但在约束满足前提下 -> 逻辑偏离。

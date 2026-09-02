@@ -545,3 +545,33 @@ SET @task_idx_sql := IF(@task_idx = 0,
 PREPARE task_idx_stmt FROM @task_idx_sql;
 EXECUTE task_idx_stmt;
 DEALLOCATE PREPARE task_idx_stmt;
+
+-- ==================== W5：LLM 调用用量日志（大模型配置页用量区块数据源） ====================
+-- 由 LlmCallExecutor 每次真实调用后写入；失败静默，不影响主流程
+CREATE TABLE IF NOT EXISTS tg_llm_call_log (
+    id            BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键',
+    scene         VARCHAR(50)  DEFAULT NULL COMMENT '调用场景（requirement/alloy/code/consistency/chat/explain）',
+    model         VARCHAR(100) DEFAULT NULL COMMENT '模型标识',
+    success       TINYINT      NOT NULL DEFAULT 0 COMMENT '是否成功 1/0',
+    latency_ms    INT          DEFAULT NULL COMMENT '耗时（毫秒）',
+    error_msg     VARCHAR(500) DEFAULT NULL COMMENT '失败原因',
+    create_time   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '调用时间',
+    PRIMARY KEY (id),
+    KEY idx_llmlog_day (create_time),
+    KEY idx_llmlog_scene (scene)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='LLM 调用用量日志（W5 用量看板）';
+
+-- =====================================================================
+-- 个性化增强 BATCH-4：用户界面偏好（主题/密度/工作台卡片布局）
+-- 每用户一行，pref_json 整包 JSON，前端本地优先、后端跨设备同步
+-- =====================================================================
+CREATE TABLE IF NOT EXISTS tg_user_preference (
+  id BIGINT NOT NULL COMMENT '主键（雪花ID）',
+  user_id BIGINT NOT NULL COMMENT '用户ID（唯一）',
+  pref_json TEXT COMMENT '偏好JSON：{theme,accent,density,dashCards}',
+  create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  deleted TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除（0正常 1删除）',
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_pref_user (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='用户界面偏好';

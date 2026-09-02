@@ -32,6 +32,15 @@ public class LlmController {
         return null;
     }
 
+    /** W5：LLM 用量统计（大模型配置页用量区块）；仅管理员 */
+    @ApiOperation(value = "LLM 用量统计", notes = "近 N 天调用总量/成功率/均耗时/按天/按场景；仅管理员")
+    @GetMapping("/usage")
+    public Result usage(@RequestParam(defaultValue = "30") int days) {
+        Result<Void> denied = checkAdmin();
+        if (denied != null) return Result.error(denied.getCode(), denied.getMessage());
+        return Result.success(llmService.usage(days));
+    }
+
     /** 查询大模型配置状态（脱敏：api_key 仅尾 4 位）；仅管理员（SEC-04） */
     @ApiOperation(value = "查询大模型配置状态", notes = "返回启用状态、provider 配置（脱敏）与路由表；仅管理员")
     @GetMapping("/status")
@@ -71,6 +80,19 @@ public class LlmController {
         Map<String, String> explanation = llmService.explainDefect(
         body.get("requirementText"), body.get("codeSnippet"), body.get("defectType"));
         return explanation != null ? Result.success(explanation) : Result.error("解释生成失败");
+    }
+
+    /** W2-08：AI 助手问答（单轮无状态）；仅管理员（SEC-04，防配额滥用） */
+    @ApiOperation(value = "AI 助手问答", notes = "请求体传 message；返回模型回答；仅管理员")
+    @PostMapping("/chat")
+    public Result chat(@RequestBody Map<String, String> body) {
+        Result<Void> denied = checkAdmin();
+        if (denied != null) return Result.error(denied.getCode(), denied.getMessage());
+        if (!llmService.isEnabled()) {
+            return Result.error("大模型未启用，可在「大模型配置」中启用");
+        }
+        String reply = llmService.chat(body.get("message"));
+        return reply != null ? Result.success(reply) : Result.error("回答生成失败，请稍后重试");
     }
 
     /** 查询运行时配置（GAP-021，admin；api_key 脱敏） */

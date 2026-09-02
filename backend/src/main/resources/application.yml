@@ -42,7 +42,8 @@ mybatis-plus:
 traceguard:
   # SEC-05：CORS 跨域来源白名单（逗号分隔），dev 默认本地前端；prod 通过 CORS_ALLOWED_ORIGINS 注入部署域名
   cors:
-    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://127.0.0.1:3000}
+    # SEC-05：CORS 跨域来源白名单（逗号分隔），dev 默认本地前端 + 局域网（支持手机/平板同 WiFi 访问）；prod 通过 CORS_ALLOWED_ORIGINS 注入部署域名
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://127.0.0.1:3000,http://192.168.101.36:3000}
   jwt:
     secret: ${JWT_SECRET:TraceGuard-JWT-Secret-Key-2026-For-Requirement-Code-Consistency-System-Must-Be-Long}
     expire-hours: 72
@@ -163,23 +164,29 @@ traceguard:
   # GAP-009：第三方项目管理工具集成
   integration:
     jira:
-      enabled: false
-      base-url: ${JIRA_BASE_URL:}
-      username: ${JIRA_USER:}
-      token: ${JIRA_TOKEN:}
-      project-key: ${JIRA_PROJECT_KEY:}
+      enabled: true
+      base-url: ${JIRA_BASE_URL:https://demo-jira.traceguard.local}
+      username: ${JIRA_USER:demo@traceguard.local}
+      token: ${JIRA_TOKEN:demo-jira-pat-2026}
+      project-key: ${JIRA_PROJECT_KEY:TG}
     zentao:
-      enabled: false
-      base-url: ${ZENTAO_BASE_URL:}
-      token: ${ZENTAO_TOKEN:}
-      product-id: ${ZENTAO_PRODUCT_ID:}
+      enabled: true
+      base-url: ${ZENTAO_BASE_URL:https://demo-zentao.traceguard.local}
+      token: ${ZENTAO_TOKEN:demo-zentao-token-2026}
+      product-id: ${ZENTAO_PRODUCT_ID:8}
+    wecom:
+      enabled: true
+      key: ${WECOM_KEY:demo-wecom-webhook-key-2026}
+    dingtalk:
+      enabled: true
+      access-token: ${DINGTALK_ACCESS_TOKEN:demo-dingtalk-access-token-2026}
     timeout-seconds: 10
     circuit-failure-threshold: 5
     circuit-open-seconds: 300
     # GAP-009 入站同步（远程->本地）：定时轮询已推送缺陷状态变化并回写本地
     # 无需公网地址；enabled=true 后每 cron 周期自动同步
     inbound-sync:
-      enabled: ${INBOUND_SYNC_ENABLED:false}
+      enabled: ${INBOUND_SYNC_ENABLED:true}
       # 默认每 5 分钟执行一次（演示可临时改为 "*/20 * * * * *" 每 20 秒）
       cron: ${INBOUND_SYNC_CRON:0 */5 * * * *}
       batch-size: 200

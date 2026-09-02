@@ -5,6 +5,7 @@ import org.apache.pdfbox.pdmodel.graphics.state.RenderingMode;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
+import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import org.apache.pdfbox.pdmodel.font.PDType0Font;
 
 /**
@@ -86,6 +87,19 @@ public class PdfCursorAdapter {
     /** 空行留白 */
     public void spacer() {
         y -= 12f;
+    }
+
+    /** 居中绘制图片（封面品牌 Logo），绘制后游标下移留白 */
+    public void drawImageCentered(PDImageXObject image, float displayWidth) throws Exception {
+        if (image == null || displayWidth <= 0) {
+            return;
+        }
+        ensureSpace();
+        float scale = displayWidth / image.getWidth();
+        float h = image.getHeight() * scale;
+        float x = (A4_WIDTH - displayWidth) / 2f;
+        cs.drawImage(image, x, y - h, displayWidth, h);
+        y -= (h + 16f);
     }
 
     /** 强制分页 */

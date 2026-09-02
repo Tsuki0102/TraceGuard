@@ -1,10 +1,14 @@
 package com.traceguard.llm;
 
 import com.traceguard.config.LlmProperties;
+import com.traceguard.entity.LlmCallLog;
 import com.traceguard.llm.ModelRouter.RoutedTarget;
+import com.traceguard.mapper.LlmCallLogMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -37,6 +41,10 @@ public class LlmCallExecutor {
     private final AtomicLong totalSuccess = new AtomicLong();
     private final AtomicLong totalFailed = new AtomicLong();
 
+    /** W5：调用用量落库（用量看板数据源）；不可用时静默跳过，不影响主流程 */
+    @Autowired(required = false)
+    private LlmCallLogMapper callLogMapper;
+
     /** 全局熔断器状态 */
     private final AtomicInteger consecutiveFailures = new AtomicInteger();
     private volatile long circuitOpenUntil = 0L;
@@ -49,6 +57,28 @@ public class LlmCallExecutor {
 
     public ModelRouter getRouter() {
         return router;
+    }
+
+    /** W5：单次调用落库（成功/失败均记），异常静默 */
+    private void logCall(Stage stage, String model, LlmResponse resp, int latencyMs) {
+        if (callLogMapper == null) return;
+        try {
+            LlmCallLog log = new LlmCallLog();
+            log.setScene(stage == null ? "unknown" : stage.name().toLowerCase());
+            log.setModel(model);
+            log.setSuccess(resp.isSuccess() ? 1 : 0);
+            log.setLatencyMs(latencyMs);
+            log.setErrorMsg(resp.isSuccess() ? null : truncate(resp.getErrorMessage()));
+            log.setCreateTime(LocalDateTime.now());
+            callLogMapper.insert(log);
+        } catch (Exception e) {
+            LOGGER.debug("LLM 调用日志写入失败（忽略）: {}", e.getMessage());
+        }
+    }
+
+    private static String truncate(String s) {
+        if (s == null) return null;
+        return s.length() > 480 ? s.substring(0, 480) : s;
     }
 
     /**
@@ -88,12 +118,14 @@ public class LlmCallExecutor {
             }
             LlmRequest request = buildRequest(target.getModel(), messages, stage);
             // 首次调用
+            long startMs = System.currentTimeMillis();
             LlmResponse resp = callOnce(target, request);
             // 失败后指数退避重试 1 次
             if (!resp.isSuccess()) {
                 sleepBackoff();
                 resp = callOnce(target, request);
             }
+            logCall(stage, target.getModel(), resp, (int) (System.currentTimeMillis() - startMs));
             if (resp.isSuccess()) {
                 totalSuccess.incrementAndGet();
                 consecutiveFailures.set(0);

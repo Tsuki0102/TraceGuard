@@ -26,6 +26,16 @@ public class AuditService {
     private AuditLogMapper auditLogMapper;
 
     /**
+     * 我的操作足迹（个性化增强 BATCH-5）：当前用户最近操作，按时间倒序
+     */
+    public java.util.List<AuditLog> listMine(Long userId, int limit) {
+        return auditLogMapper.selectList(new LambdaQueryWrapper<AuditLog>()
+                .eq(AuditLog::getUserId, userId)
+                .orderByDesc(AuditLog::getCreateTime)
+                .last("LIMIT " + Math.max(1, Math.min(limit, 50))));
+    }
+
+    /**
      * 异步记录操作日志（不阻塞主请求）
      */
     @Async
