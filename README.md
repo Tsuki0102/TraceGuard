@@ -6,7 +6,7 @@
 
 本系统面向中小软件企业敏捷开发场景与高校软件工程教学科研场景，聚焦软件开发全流程中「需求与代码不一致」的核心痛点，融合形式化需求规约的严谨性与大语言模型的语义理解能力，实现五大核心能力：
 
-1. **自然语言需求自动化形式化建模** - 支持Word/PDF/Markdown格式需求文档自动解析，基于Kripke语义模型进行结构化提取，自动生成Alloy形式化规约
+1. **自然语言需求自动化形式化建模** - 支持Word/PDF/Markdown/TXT格式需求文档自动解析，基于Kripke语义模型进行结构化提取，自动生成Alloy形式化规约
 2. **Java代码静态解析与语义提取** - 基于JavaParser构建AST，提取代码方法级语义单元，生成逻辑描述，检测SQL注入、资源泄露、死循环等基础缺陷
 3. **需求-代码多维度一致性校验** - 基于三维相似度公式（语义相似度+约束匹配度+不变量满足度）进行一致性判定
 4. **缺陷自动定位与双向追溯** - 自动识别需求缺失、代码超范围、逻辑不一致等缺陷类型，生成需求-代码双向追溯矩阵
@@ -24,18 +24,20 @@
 ### 后端
 - **核心框架**: Spring Boot 2.7.18
 - **JDK版本**: JDK 21（编译目标 java.version=21）
-- **ORM框架**: MyBatis-Plus 3.5.3
+- **ORM框架**: MyBatis-Plus 3.5.3.1
 - **代码分析**: JavaParser 3.25.5, Soot 4.7.0, Alloy 6.2.0
-- **文档解析**: Apache POI 5.4.1 (Word), PDFBox 2.0.32 (PDF), CommonMark 0.21 (Markdown)
-- **数据库**: MySQL 8.0
-- **工具库**: Hutool 5.8.23, Knife4j (API文档)
+- **文档解析**: Apache POI 5.4.1 (Word), PDFBox 2.0.32 (PDF), CommonMark 0.21.0 (Markdown)
+- **数据库**: MySQL 8.0（mysql-connector-j 8.4.0）
+- **LLM 能力**: 多引擎编排（deepseek/glm/qwen/codellama，默认关闭）；langchain4j 0.34.0（可选，LangChain 真集成）；ONNX Runtime 1.17.0（本地 BGE 离线向量化）
+- **工具库**: Hutool 5.8.23, Knife4j 4.1.0 (API文档), jieba-analysis 1.0.2（中文分词）, jjwt 0.11.5（JWT）, fastjson2 2.0.53
 
 ### 前端
 - **核心框架**: Vue 3 + Vite 4
-- **UI组件库**: Element Plus 2.3
+- **UI组件库**: Element Plus 2.3.14
 - **路由/状态**: Vue Router 4 + Pinia 2
-- **图表库**: ECharts 5.4
+- **图表库**: ECharts 5.4.3 + vue-echarts
 - **HTTP客户端**: Axios
+- **测试**: Vitest（单元测试）
 
 ## 项目结构
 
@@ -44,50 +46,54 @@ TraceGuard/
 ├── backend/                    # 后端SpringBoot项目
 │   ├── src/main/java/com/traceguard/
 │   │   ├── TraceGuardApplication.java    # 启动类
-│   │   ├── common/          # 通用响应类
-│   │   ├── config/          # 配置类（CORS、MyBatis-Plus、异步任务等）
-│   │   ├── controller/      # 控制器层
-│   │   │   ├── AuthController.java       # 认证接口
-│   │   │   ├── ProjectController.java    # 项目管理接口
-│   │   │   ├── AnalysisController.java   # 分析任务接口
-│   │   │   └── ResultController.java     # 结果查询接口
-│   │   ├── core/            # 核心算法
-│   │   │   └── ConsistencyChecker.java   # 一致性校验算法
-│   │   ├── entity/          # 数据库实体类
+│   │   ├── common/          # 通用响应类（Result 等）
+│   │   ├── config/          # 配置类（CORS、MyBatis-Plus、Knife4j、StartupDbCheck、阈值/规则 Holder 等）
+│   │   ├── controller/      # 控制器层（18 个，REST 接口）
+│   │   │   ├── AuthController / UserController / ProjectController / AnalysisController
+│   │   │   ├── ChunkUploadController（分片上传）/ ResultController / ExportController
+│   │   │   ├── DashboardController / InsightController / PreferenceController
+│   │   │   ├── LlmController / IntegrationController / SystemConfigController
+│   │   │   ├── BackupController / AuditController / DataChangeLogController
+│   │   │   └── SecurityController（密钥轮换）/ WsTicketController（WS 票据）
+│   │   ├── core/            # 核心算法：ConsistencyChecker（三维相似度校验）、DefectTypes
+│   │   ├── dto/             # 请求/响应 DTO
+│   │   ├── entity/          # 数据库实体类（User/Project/AnalysisTask/Requirement/CodeUnit/
+│   │   │                    #  ConsistencyResult/Defect/CodeDefect/FormalSpecification/LlmConfig 等 18 个）
+│   │   ├── integration/     # 第三方集成（Jira/禅道/企微/钉钉客户端 + 入站同步）
+│   │   ├── interceptor/     # LoginInterceptor（鉴权）、AuditInterceptor（审计）
+│   │   ├── llm/             # LLM 编排（LlmCallExecutor/OpenAiLlmClient/ModelRouter/LangChainAdapter 等）
 │   │   ├── mapper/          # MyBatis Mapper接口
-│   │   ├── service/         # 业务服务层
-│   │   └── util/            # 工具类
-│   │       ├── DocumentParserUtil.java   # 文档解析工具
-│   │       ├── JavaCodeParserUtil.java   # Java代码解析工具
-│   │       ├── RequirementAnalyzerUtil.java # 需求语义分析工具
-│   │       └── FileStorageUtil.java      # 文件存储工具
+│   │   ├── service/         # 业务服务层（AnalysisService/ConsistencyJudge/ExportService/BackupService 等 + report/ 报告渲染）
+│   │   ├── spi/             # 扩展点（CodeParser/SpecGenerator/SpecVerifier 接口 + Registry）
+│   │   ├── task/            # 定时/后台任务（密钥轮换、孤儿文件清理）
+│   │   ├── util/            # 工具类（文档解析/代码解析/形式化/缺陷检测/加密等 28 个）
+│   │   └── websocket/       # 分析进度推送（ProgressWebSocketHandler + 一次性票据）
 │   └── src/main/resources/
-│       ├── application.yml  # 主配置文件
-│       ├── application-dev.yml # 开发环境配置
-│       └── sql/init.sql     # 数据库初始化脚本
+│       ├── application.yml  # 主配置文件（dev 默认）
+│       ├── application-dev.yml / application-prod.yml
+│       └── sql/init.sql     # 数据库初始化脚本（幂等 DDL）
 ├── frontend/                   # 前端Vue3项目
 │   ├── src/
-│   │   ├── views/           # 页面组件
-│   │   │   ├── Login.vue            # 登录页
-│   │   │   ├── Layout.vue           # 主布局
-│   │   │   ├── Dashboard.vue        # 工作台仪表盘
-│   │   │   ├── Projects.vue         # 项目列表
-│   │   │   ├── ProjectDetail.vue    # 项目详情/分析页面
-│   │   │   ├── Results.vue          # 分析结果总览
-│   │   │   ├── Requirements.vue     # 需求分析详情
-│   │   │   ├── CodeView.vue         # 代码分析视图
-│   │   │   ├── Defects.vue          # 缺陷报告
-│   │   │   └── Traceability.vue     # 双向追溯矩阵
-│   │   ├── api/             # API请求封装
-│   │   ├── router/          # 路由配置
+│   │   ├── views/           # 页面组件（32 个）
+│   │   │   ├── 核心流程：Landing/Login/Register/Dashboard/Projects/ProjectDetail/Results
+│   │   │   │   ├── Requirements/CodeView/Defects/Traceability/ChangePassword/Profile
+│   │   │   ├── 质量洞察 W5：DefectTrends/PortfolioBrief/DefectTickets/DefectPatterns/ReportsHub
+│   │   │   ├── 二期实验室 W6：ThresholdLab/EvalCenter/AlloyLab
+│   │   │   └── 管理端：Users/Audit/Backup/LlmConfig/SystemConfig/IntegrationConfig/
+│   │   │       └── DataChangeLog/SystemStatus/MenuConfig/ResultPage
+│   │   ├── api/             # API请求封装（按模块分组）
+│   │   ├── router/          # 路由配置（含管理员守卫）
 │   │   └── utils/request.js # Axios请求封装
 │   └── package.json
 ├── docs/                       # 文档目录
-│   ├── 01-需求与申报/          # 基准：软件需求规格说明书-V1.0.md、创新训练计划项目申报表.md（基线文档，不可修改）
+│   ├── 01-需求与申报/          # 需求与申报：软件需求规格说明书-V1.1.md（随实现持续修订，版本变更见文末「文档修订记录」）、创新训练计划项目申报表.md（含表1核心技术选型与「当前实际进展」）
 │   ├── 02-设计与跟踪/          # 设计方案（整体设计方案.md）、技术白皮书、差距与改进编号台账
 │   ├── 03-报告/               # 评测/性能/阈值标定/测试报告（手写文档，附实测数据）
-│   └── 04-手册/               # 用户操作手册
-└── scripts/                    # 运维脚本（smoke72h 冒烟等）
+│   └── 04-手册/               # 用户操作手册、部署手册
+├── samples/                    # 评测样例工程（ecommerce-order/api-service/exam-system）+ dataset 标注集
+├── demo-cases/                 # 演示用例
+├── integration-mock/           # 集成对接 Mock 服务
+└── scripts/                    # 运维脚本（deploy-windows.ps1 一键部署、smoke72h 冒烟、pull-codellama.sh 等）
 ```
 
 ## 快速启动
@@ -182,7 +188,7 @@ Windows 10/11 原生环境（无需 Docker Desktop）可通过脚本一键部署
 
 **Sim(Ri,Cj) = α·Cos(EmbR,EmbC) + β·Con(Ri,Cj) + γ·Inv(Ri,Cj)**
 
-- **α (语义相似度)**: 默认权重0.4，基于分词后的Jaccard相似度+方法名匹配增强
+- **α (语义相似度)**: 默认权重0.4，Embedding 向量余弦（本地 BGE ONNX 离线可用）+ 分词后的 Jaccard 相似度 + 方法名匹配增强
 - **β (约束匹配度)**: 默认权重0.35，检测空值校验、参数验证、异常处理、日志记录等约束实现
 - **γ (不变量满足度)**: 默认权重0.25，检测返回值、语法正确性、访问修饰符等不变量
 
@@ -200,9 +206,16 @@ Windows 10/11 原生环境（无需 Docker Desktop）可通过脚本一键部署
 
 ### 支持的代码基础缺陷检测
 
+内置 `CodeDefectPatternDetector` 静态模式检测，覆盖（随版本持续扩充）：
+
 - SQL注入风险检测
-- 逻辑死循环检测 (while(true)无退出条件)
-- 资源未释放检测 (未使用try-with-resources/finally关闭流)
+- 逻辑死循环检测（`while(true)` 无退出条件）
+- 资源未释放检测（未使用 try-with-resources / finally 关闭流）
+- 空 catch 块吞异常、`Optional.get()` 未保护、`Map.get()` 链式未判空
+- 数组越界风险（循环 `i<=length` 差一、固定下标 `get(size())`、空集合 `get(0)`）
+- 比较器违反传递性约定等
+
+评测结果见《评测报告-综合》FUN-05 基础代码缺陷量化章节（小样本 TP=10/FP=0/FN=0）。
 
 ## 使用流程
 
@@ -249,7 +262,7 @@ Windows 10/11 原生环境（无需 Docker Desktop）可通过脚本一键部署
 - **默认状态**：`enabled=false`。未配置时所有与大模型相关的功能（语义增强解释、缺陷智能解释、修复建议）自动降级为规则实现，不影响需求-代码一致性校验主流程。
 - **如何开启**（管理员）：
   1. 进入「系统设置 → LLM 配置」；
-  2. 打开「启用大模型」，选择 provider（如 `deepseek` / `openai` / `qwen`），填写 `baseUrl` 与 `apiKey`；
+  2. 打开「启用大模型」，选择 provider（`deepseek` / `glm` / `qwen` / `codellama` 本地模型等，见 application.yml），填写 `baseUrl` 与 `apiKey`；
   3. 点击「保存」并「测试连通性」，状态变为 `enabled=true` 即生效。
 - **演示配置（.env.example）**：仓库提供 `.env.example` 作为配置模板，复制为 `.env` 后填入真实 `apiKey` 即可，该文件不含任何真实密钥，仅用于说明变量名与格式。
 - **配置项说明**：`LLM_ENABLED`（true/false）、`LLM_PROVIDER`、`LLM_BASE_URL`、`LLM_API_KEY`。后端读取 `llm.enabled` 等配置项，未配置时 `getStatus()` 返回 `enabled=false`。

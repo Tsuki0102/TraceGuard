@@ -42,6 +42,7 @@ hs_err_pid*
 .workbuddy/
 .codebuddy/
 .trae/
+.zcode/
 *.iml
 .settings/
 .project
