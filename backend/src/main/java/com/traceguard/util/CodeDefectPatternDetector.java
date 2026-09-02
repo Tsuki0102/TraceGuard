@@ -15,10 +15,13 @@ public class CodeDefectPatternDetector {
 
     /**
      * P1-4：子信号权重（信号名 -> 权重）。
-     * 默认剔除两个被 55 对标注集判别力分析（-Drisk.analyze=true 可复现）实证为噪声的信号：
-     *   stateMismatch：缺陷对命中 0.0% vs 一致对 6.9%（一致对命中更多 → 纯噪声）
-     *   impliedBusinessRuleMissing：缺陷对 3.8% vs 一致对 6.9%（噪声）
-     * 固化为默认后（2026-09-02 网格验证）：规则链路准确率 61.8%→63.6%、误报 27.6%→24.1%，漏检不变。
+     * 默认配置（2026-09-02 网格 -Drisk.grid=true 实证，M=55）：
+     *   1) 剔除两个噪声信号（一致对命中率反超缺陷对）：
+     *        stateMismatch 0.0%（缺陷）vs 6.9%（一致）；impliedBusinessRuleMissing 3.8% vs 6.9%
+     *   2) 放大一致对命中率为 0 的最安全强信号（只多抓缺陷、不漏抓一致对）：
+     *        numericMismatch ×2.0（缺陷 19.2% / 一致 0%）、quantitativeBoundMismatch ×1.5（7.7% / 0%）
+     * 网格对照：本配置规则链路准确率 63.6%→65.5%、漏检 50.0%→46.2%，误报保持 24.1%。
+     * 注：权重基于 55 对小样本实证标定，扩充评测集后应重跑 -Drisk.grid=true 复核。
      */
     private static volatile Map<String, Double> riskWeights = defaultWeights();
 
@@ -26,6 +29,8 @@ public class CodeDefectPatternDetector {
         Map<String, Double> m = new HashMap<>();
         m.put("stateMismatch", 0.0);
         m.put("impliedBusinessRuleMissing", 0.0);
+        m.put("numericMismatch", 2.0);
+        m.put("quantitativeBoundMismatch", 1.5);
         return m;
     }
 

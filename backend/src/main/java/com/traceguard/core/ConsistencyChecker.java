@@ -93,8 +93,13 @@ public class ConsistencyChecker {
     /** 语义扩展权重：中文词命中间词典后，其英文等价词按该权重并入向量 */
     private static final double EXPANSION_WEIGHT = 0.5;
 
-    /** CQ-06：规则缺陷风险对综合相似度的惩罚权重（GAP-046，避免魔法值） */
-    private static final double DEFECT_RISK_WEIGHT = 0.55;
+    /** CQ-06：规则缺陷风险对综合相似度的惩罚权重（GAP-046，避免魔法值）。
+     *  volatile + setter：供阈值标定网格评估（-Driskw.grid=true）寻优；生产默认 0.55。 */
+    private static volatile double DEFECT_RISK_WEIGHT = 0.55;
+
+    public static void setDefectRiskWeight(double weight) {
+        DEFECT_RISK_WEIGHT = Math.max(0.0, Math.min(2.0, weight));
+    }
 
     /**
      * GAP-024：中英语义词典（外部化加载，支持本地覆盖扩展）

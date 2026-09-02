@@ -520,6 +520,45 @@ class ThresholdCalibrationEvalTest {
         }
     }
 
+    /**
+     * 剩余 FN/FP 画像（-Dfn.analyze=true）：在默认权重 + 推荐 t1 下列出全部漏检/误报对的
+     * 三维得分、risk 及命中的子信号，用于判断下一步规则覆盖方向。
+     */
+    @Test
+    @EnabledIfSystemProperty(named = "fn.analyze", matches = "true")
+    @DisplayName("FN/FP 画像分析（默认权重 & t1=0.46）")
+    void fnFpDetail() {
+        final double T1 = 0.46;
+        List<PairScore> fn = new ArrayList<>(), fp = new ArrayList<>();
+        for (PairScore ps : pairScores) {
+            boolean detected = ps.totalSimilarity < T1;
+            if (ps.groundTruthDefective && !detected) fn.add(ps);
+            else if (!ps.groundTruthDefective && detected) fp.add(ps);
+        }
+        System.out.println("\n[FN-FP] 默认权重下 t1=" + T1 + "：FN=" + fn.size() + " / FP=" + fp.size());
+        System.out.println("[FN-FP] ===== 漏检 FN（缺陷被判一致）=====");
+        for (PairScore ps : fn) {
+            System.out.println(String.format("[FN-FP] FN %s | %s | total=%.3f sem=%.3f con=%.3f inv=%.3f risk=%.3f",
+                    ps.id, ps.defectType, ps.totalSimilarity, ps.semanticSimilarity,
+                    ps.constraintMatch, ps.invariantSatisfaction, ps.defectRisk));
+            System.out.println("        REQ=" + truncate(ps.reqText, 120));
+        }
+        System.out.println("[FN-FP] ===== 误报 FP（一致被判缺陷）=====");
+        for (PairScore ps : fp) {
+            System.out.println(String.format("[FN-FP] FP %s | total=%.3f sem=%.3f con=%.3f inv=%.3f risk=%.3f",
+                    ps.id, ps.totalSimilarity, ps.semanticSimilarity, ps.constraintMatch,
+                    ps.invariantSatisfaction, ps.defectRisk));
+            System.out.println("        REQ=" + truncate(ps.reqText, 120));
+            System.out.println("        CODE=" + truncate(ps.codeText, 140));
+        }
+    }
+
+    private static String truncate(String s, int max) {
+        if (s == null) return "";
+        String one = s.replaceAll("\\s+", " ");
+        return one.length() <= max ? one : one.substring(0, max) + "...";
+    }
+
     private static List<String> sigOrder() {
         return java.util.Arrays.asList(
                 "stateMismatch", "numericMismatch", "paramValidationMissing", "logicInversion",
@@ -533,32 +572,62 @@ class ThresholdCalibrationEvalTest {
      */
     @Test
     @EnabledIfSystemProperty(named = "risk.grid", matches = "true")
-    @DisplayName("P1-4 权重网格（去噪声 / 放大强信号）")
+    @DisplayName("P1-4 权重网格（去噪基线 + 温和升权组合）")
     void riskWeightGrid() throws Exception {
         System.setProperty("gap046.debug", "false");
         LocalBgeEmbeddingClient bge = buildLocalBgeClient();
-        System.out.println("\n[P1-4-GRID] defectRisk 权重网格（在线全链路）");
+        System.out.println("\n[P1-4-GRID] defectRisk 权重网格（在线全链路，configureRiskWeights(null)=去噪默认）");
 
-        CodeDefectPatternDetector.configureRiskWeights(null);
-        printBest("base(全1=历史)", scoreOnlineAll(new ConsistencyChecker(), bge));
+        CodeDefectPatternDetector.configureRiskWeights(null); // null → defaultWeights（去噪）
+        printBest("default(去噪=基线)", scoreOnlineAll(new ConsistencyChecker(), bge));
 
-        Map<String, Double> wNoise = new LinkedHashMap<>();
-        wNoise.put("stateMismatch", 0.0);               // 一致对命中 6.9% > 缺陷对 0% → 噪声剔除
-        wNoise.put("impliedBusinessRuleMissing", 0.0);  // 一致对命中 6.9% > 缺陷对 3.8% → 噪声剔除
-        CodeDefectPatternDetector.configureRiskWeights(wNoise);
-        printBest("w-noise(剔两噪声)", scoreOnlineAll(new ConsistencyChecker(), bge));
+        // 温和升权组合（全部以去噪 0 权重为底，仅放大判别力证据最强的少量信号，避免 w-strong 式整体放大引发误报）
+        Map<String, Double> wTame = new LinkedHashMap<>();
+        wTame.put("stateMismatch", 0.0);
+        wTame.put("impliedBusinessRuleMissing", 0.0);
+        wTame.put("numericMismatch", 2.0);          // 缺陷 0.084 / 一致 0.000（最强）
+        wTame.put("quantitativeBoundMismatch", 1.5); // 缺陷 0.035 / 一致 0.000
+        CodeDefectPatternDetector.configureRiskWeights(wTame);
+        printBest("w-tame(num2+qBound1.5)", scoreOnlineAll(new ConsistencyChecker(), bge));
 
-        Map<String, Double> wStrong = new LinkedHashMap<>(wNoise);
-        wStrong.put("numericMismatch", 1.5);            // 缺陷 0.084 / 一致 0.000 → 强判别
-        wStrong.put("paramValidationMissing", 1.5);     // 0.108 / 0.041
-        wStrong.put("logicInversion", 1.5);             // 0.081 / 0.017
+        Map<String, Double> wNumOnly = new LinkedHashMap<>(wTame);
+        wNumOnly.remove("quantitativeBoundMismatch");
+        wNumOnly.put("numericMismatch", 2.5);   // 极简组合：仅放大数值强信号
+        CodeDefectPatternDetector.configureRiskWeights(wNumOnly);
+        printBest("w-numOnly(num2.5)", scoreOnlineAll(new ConsistencyChecker(), bge));
+
+        Map<String, Double> wLogic = new LinkedHashMap<>(wTame);
+        wLogic.put("logicInversion", 1.5);           // 缺陷 0.081 / 一致 0.017
+        wLogic.put("paramValidationMissing", 1.3);   // 0.108 / 0.041
+        CodeDefectPatternDetector.configureRiskWeights(wLogic);
+        printBest("w-logic(num2+qB1.5+inv1.5+pv1.3)", scoreOnlineAll(new ConsistencyChecker(), bge));
+
+        Map<String, Double> wStrong = new LinkedHashMap<>(wLogic);
         wStrong.put("nullDereference", 1.2);
         wStrong.put("stateFlowViolation", 1.2);
-        wStrong.put("quantitativeBoundMismatch", 1.2);
         CodeDefectPatternDetector.configureRiskWeights(wStrong);
-        printBest("w-strong(剔噪+强信号1.5)", scoreOnlineAll(new ConsistencyChecker(), bge));
+        printBest("w-strong(全强信号1.2~2.0)", scoreOnlineAll(new ConsistencyChecker(), bge));
 
         CodeDefectPatternDetector.configureRiskWeights(null); // 复位，避免影响同 JVM 内其它测试
+    }
+
+    /**
+     * DEFECT_RISK_WEIGHT 网格（-Driskw.grid=true）：提高 risk 惩罚权重对 adjustedSim 的压缩作用。
+     * FP 画像全部 risk=0 → 提高惩罚不影响 FP；FN 中 risk 已命中（0.3~0.65）但因 0.55 权重不足而漏检。
+     */
+    @Test
+    @EnabledIfSystemProperty(named = "riskw.grid", matches = "true")
+    @DisplayName("DEFECT_RISK_WEIGHT 网格")
+    void defectRiskWeightGrid() throws Exception {
+        System.setProperty("gap046.debug", "false");
+        LocalBgeEmbeddingClient bge = buildLocalBgeClient();
+        System.out.println("\n[RISKW-GRID] DEFECT_RISK_WEIGHT 网格（默认风险权重，仅变惩罚系数）");
+        double[] candidates = {0.55, 0.7, 0.85, 1.0, 1.3};
+        for (double w : candidates) {
+            ConsistencyChecker.setDefectRiskWeight(w);
+            printBest("w=" + w, scoreOnlineAll(new ConsistencyChecker(), bge));
+        }
+        ConsistencyChecker.setDefectRiskWeight(0.55); // 复位生产默认
     }
 
     private static double sigmoidVal(double x, double center, double width) {
