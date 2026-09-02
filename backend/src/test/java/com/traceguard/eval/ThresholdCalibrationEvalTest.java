@@ -649,6 +649,7 @@ class ThresholdCalibrationEvalTest {
         Path datasetDir = resolveDatasetDir();
         JsonNode labelRoot = OM.readTree(Files.readString(datasetDir.resolve("consistency-labels.json")));
         long totalDef = 0, hitDef = 0, fpOnConsistent = 0, totalConsistent = 0;
+        long oracleUpper = 0;   // 归属-对级正解的上限：defective 真对且判定层可报（total∈[0.5,0.8)）
         long idSeq = 1;
         for (String source : SOURCES) {
             Path sourceDir = datasetDir.getParent().resolve(source);
@@ -701,6 +702,21 @@ class ThresholdCalibrationEvalTest {
                 totalDef++;
                 if (defectKeys.contains(p[0] + "#" + p[1])) hitDef++;
             }
+            // 归属能力上限（oracle）：labels 已给出"需求 r → 文件/方法 c"的正确答案（即归属 oracle）。
+            // 若归属到位，缺陷按对级判定即可报出——可报条件 = 该对在生成阈值内判不一致且 ≥ 候选下限。
+            for (ConsistencyResult rr : results) {
+                if (rr.getRequirementId() == null || rr.getCodeUnitId() == null) continue;
+                // 仅统计 defective 真对
+                for (long[] p : defTruth) {
+                    if (p[0] == rr.getRequirementId() && p[1] == rr.getCodeUnitId()) {
+                        double t = rr.getTotalSimilarity();
+                        if (t >= 0.5 && t < 0.8) { // 候选下限(0.5) ≤ total < 一致阈值(0.8)
+                            oracleUpper++;
+                        }
+                        break;
+                    }
+                }
+            }
             for (long[] p : consistentTruth) {
                 totalConsistent++;
                 if (defectKeys.contains(p[0] + "#" + p[1])) fpOnConsistent++;
@@ -711,6 +727,9 @@ class ThresholdCalibrationEvalTest {
                 "\n[DEFECT-LIST] 缺陷清单评测（M：defective=%d / consistent=%d）\n[DEFECT-LIST] generateDefects 命中缺陷标注对=%d/%d (%.1f%%)，对一致标注对误报=%d/%d (%.1f%%)",
                 totalDef, totalConsistent, hitDef, totalDef, recall, fpOnConsistent, totalConsistent,
                 totalConsistent == 0 ? 0 : 100.0 * fpOnConsistent / totalConsistent));
+        System.out.println(String.format(
+                "[DEFECT-LIST] 归属oracle上限：判定层可报(0.5<=total<0.8)的 defective 真对 = %d/%d (%.1f%%)  ← 归属能力理论上限",
+                oracleUpper, totalDef, totalDef == 0 ? 0 : 100.0 * oracleUpper / totalDef));
         assertTrue(totalDef > 0 && totalConsistent > 0, "评测集对齐失败");
     }
 
