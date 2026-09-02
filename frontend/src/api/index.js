@@ -30,6 +30,16 @@ export const wsApi = {
   }
 }
 
+// 个性化增强 BATCH-4：用户界面偏好（跨设备同步，本地优先）
+export const preferenceApi = {
+  get() {
+    return request({ url: '/preference', method: 'get' })
+  },
+  save(pref) {
+    return request({ url: '/preference', method: 'put', data: pref })
+  }
+}
+
 export const userApi = {
   page(params) {
     return request({ url: '/user/page', method: 'get', params })
@@ -69,6 +79,9 @@ export const projectApi = {
   },
   archive(id) {
     return request({ url: `/project/archive/${id}`, method: 'post' })
+  },
+  batch(action, ids) {
+    return request({ url: '/project/batch', method: 'post', data: { action, ids } })
   },
   restore(id) {
     return request({ url: `/project/restore/${id}`, method: 'post' })
@@ -281,6 +294,9 @@ export const auditApi = {
   /** 校验审计日志哈希链完整性（AUD-08 防篡改） */
   verify() {
     return request({ url: '/audit/verify', method: 'get' })
+  },
+  mine(limit = 20) {
+    return request({ url: '/audit/mine', method: 'get', params: { limit } })
   }
 }
 
@@ -543,5 +559,102 @@ export const llmApi = {
   /** 缺陷解释（LLM 分析缺陷原因与修复建议） */
   explainDefect(data) {
     return request({ url: '/llm/explain-defect', method: 'post', data })
+  },
+  /** W2-08：AI 助手问答（仅管理员） */
+  chat(message) {
+    return request({ url: '/llm/chat', method: 'post', data: { message } })
+  },
+  /** W5：LLM 用量统计（大模型配置页用量区块，仅管理员） */
+  usage(days = 30) {
+    return request({ url: '/llm/usage', method: 'get', params: { days } })
+  }
+}
+
+/** W5 波：质量洞察接口（缺陷趋势/工单看板/组合简报/模式库） */
+export const insightApi = {
+  /** 跨项目缺陷趋势：days=7..90，projectId 可选 */
+  trend(days = 30, projectId = null) {
+    return request({ url: '/insight/trend', method: 'get', params: { days, projectId: projectId || undefined } })
+  },
+  /** 跨项目缺陷工单看板：按状态汇总 + 分页明细 */
+  board(params = {}) {
+    return request({ url: '/insight/board', method: 'get', params })
+  },
+  /** 缺陷工单状态流转（含误报 falsePositive） */
+  updateTicketStatus(id, status) {
+    return request({ url: `/insight/defect/${id}/status`, method: 'put', data: { status } })
+  },
+  /** 项目组合质量简报 */
+  portfolio() {
+    return request({ url: '/insight/portfolio', method: 'get' })
+  },
+  /** 缺陷模式库（代码检测规则图鉴 + 命中统计） */
+  patterns() {
+    return request({ url: '/insight/patterns', method: 'get' })
+  },
+  // ===== W6 二期 =====
+  /** 阈值重放：新权重/阈值下重算判定桶与翻转明细 */
+  replay(params) {
+    return request({ url: '/insight/threshold/replay', method: 'get', params })
+  },
+  /** T1 阈值扫描曲线 */
+  sweep(projectId) {
+    return request({ url: '/insight/threshold/sweep', method: 'get', params: { projectId } })
+  },
+  /** Alloy 规约清单 */
+  alloySpecs(projectId, limit = 50) {
+    return request({ url: '/insight/alloy/specs', method: 'get', params: { projectId, limit } })
+  },
+  /** Alloy 在线试算校验 */
+  verifyAlloy(specId) {
+    return request({ url: `/insight/alloy/verify/${specId}`, method: 'post' })
+  },
+  /** 标注资产盘点 */
+  evalAssets() {
+    return request({ url: '/insight/eval/assets', method: 'get' })
+  },
+  /** 样例一键导入 */
+  importSample(key, projectName) {
+    return request({ url: '/insight/samples/import', method: 'post', data: { key, projectName } })
+  },
+  /** 保存 Alloy 规约（后端自动校验，失败抛业务异常） */
+  saveAlloySpec(specId, alloyCode) {
+    return request({ url: `/result/spec/update/${specId}`, method: 'post', data: { alloyCode } })
+  }
+}
+
+/** W2 波：工作台聚合接口（KPI 趋势/动态流/使用趋势/通知/搜索/系统状态/质量门槛） */
+export const dashboardApi = {
+  /** W2-01：KPI 概览与周同比 */
+  overview() {
+    return request({ url: '/dashboard/overview', method: 'get' })
+  },
+  /** W2-03：最近动态流 */
+  activities(limit = 14) {
+    return request({ url: '/dashboard/activities', method: 'get', params: { limit } })
+  },
+  /** W2-06：使用趋势（按天） */
+  trend(days = 7) {
+    return request({ url: '/dashboard/trend', method: 'get', params: { days } })
+  },
+  /** W2-04：通知（待办 + 最近任务） */
+  notifications() {
+    return request({ url: '/dashboard/notifications', method: 'get' })
+  },
+  /** W2-05：全局搜索 */
+  search(q) {
+    return request({ url: '/dashboard/search', method: 'get', params: { q } })
+  },
+  /** W2-07：系统运行状态 */
+  systemStatus() {
+    return request({ url: '/dashboard/system-status', method: 'get' })
+  },
+  /** W2-10：质量门槛配置 */
+  gate() {
+    return request({ url: '/dashboard/gate', method: 'get' })
+  },
+  /** W3-02：菜单配置（sys_config.menu_config） */
+  menuConfig() {
+    return request({ url: '/dashboard/menu-config', method: 'get' })
   }
 }

@@ -1,0 +1,3133 @@
+/**
+ * TraceGuard 全局设计令牌（Design Tokens）
+ * 风格：Apple 浅色 + Instagram 松弛感（Liquid Glass + Bento + Minimalism）
+ * 说明：全站颜色/圆角/阴影/字体/间距集中于此，禁止在页面中散落硬编码色值。
+ * 修改主题只需改本文件。
+ */
+
+:root {
+  /* ===== 品牌配色（蜂蜜琥珀暖色系：深金/蜜糖/奶油金，浅暖底） ===== */
+  --tg-bg-page: #FAF6EF;            /* 页面底色（暖米白） */
+  --tg-bg-card: #FFFFFF;            /* 卡片/弹窗 */
+  --tg-text-primary: #2B241C;       /* 主文字（暖墨色） */
+  --tg-text-secondary: #7A6F5F;     /* 次级文字/说明（暖灰） */
+  --tg-accent: #8F6B22;             /* 主按钮/选中/链接（蜂蜜深金） */
+  --tg-accent-hover: #78581B;       /* 主按钮悬停（加深） */
+  --tg-success: #6B8E4E;            /* 成功（橄榄绿，暖调协调） */
+  --tg-warning: #E89B3C;            /* 警示（暖琥珀） */
+  --tg-danger: #C25E4C;             /* 危险（陶土红） */
+  --tg-border: rgba(60, 45, 25, 0.09); /* 细分隔线/边框（暖） */
+
+  /* ===== 扩展暖色系（蜂蜜琥珀：蜜糖/橄榄/奶油点缀，层次丰富） ===== */
+  --tg-indigo: #C99B3F;             /* 蜜糖金（特性/强调二号色） */
+  --tg-teal: #9A9C6B;               /* 橄榄（进行中/趋势） */
+  --tg-mint: #A8B98A;               /* 浅草（健康指标/次要成功） */
+  --tg-pink: #B0653F;               /* 陶土红（惊喜色/标注） */
+  --tg-violet: #D9A966;             /* 蜜桃金（智能/大模型） */
+  --tg-sky: #E8C877;                /* 奶油金（浅层次） */
+  --tg-amber: #E89B3C;              /* 暖琥珀（Analytics 高亮/重点） */
+  --tg-gradient: linear-gradient(115deg, #8F6B22 0%, #C99B3F 55%, #E8C877 100%); /* 品牌渐变（用于渐变小字/强调） */
+
+  /* ===== 圆角 ===== */
+  --tg-radius-btn: 8px;
+  --tg-radius-input: 10px;
+  --tg-radius-card: 16px;
+  --tg-radius-modal: 20px;
+
+  /* ===== 阴影（更轻、更克制，Apple 微妙的层次感） ===== */
+  --tg-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.03), 0 4px 14px rgba(0, 0, 0, 0.05);
+  --tg-shadow-card-hover: 0 1px 2px rgba(0, 0, 0, 0.03), 0 8px 24px rgba(0, 0, 0, 0.08);
+  --tg-shadow-modal: 0 24px 70px rgba(0, 0, 0, 0.18);
+
+  /* ===== 间距（呼吸感：留白是松弛感的骨架） ===== */
+  --tg-space-page-x: 40px;   /* 页面左右留白 */
+  --tg-space-section: 28px;  /* 区块与区块之间 */
+  --tg-space-card: 24px;     /* 卡片内边距 */
+
+  /* ===== 字体层级（Apple：大标题 + 次级说明 + 正文） ===== */
+  --tg-font-title: 28px;       /* 页面大标题 */
+  --tg-font-subtitle: 15px;    /* 区块/卡片标题 */
+  --tg-font-body: 14px;        /* 正文 */
+  --tg-font-caption: 13px;     /* 说明/次要 */
+  --tg-font-stat: 38px;        /* 统计大数字 */
+
+  /* ===== 玻璃拟态 & 动效（松弛感：轻透 + 克制的悬浮反馈） ===== */
+  --tg-bg-glass: rgba(255, 255, 255, 0.72);
+  --tg-bg-code: #FBF4E8;        /* 代码/JSON 预览（暖米玻璃） */
+  --tg-radius-pill: 999px;     /* 胶囊按钮 / chip 筛选器 */
+  --tg-blur: 20px;
+  --tg-ease: cubic-bezier(0.22, 1, 0.36, 1); /* Apple 常用弹性缓动 */
+  --tg-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1); /* 筛选器切换等轻弹性 */
+
+  /* ===== 字体 ===== */
+  --tg-font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'PingFang SC',
+    'Microsoft YaHei', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --tg-font-mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, 'Courier New',
+    monospace;
+
+  /* ===== Element Plus 主题覆盖（官方 CSS 变量机制） ===== */
+  --el-color-primary: var(--tg-accent);
+  --el-color-primary-light-3: #C99B3F;
+  --el-color-primary-light-5: #D9B96A;
+  --el-color-primary-light-7: #EDD9A5;
+  --el-color-primary-light-8: #F2E4C2;
+  --el-color-primary-light-9: #F8F0DF;
+  --el-color-primary-dark-2: #75581C;
+  --el-color-success: var(--tg-success);
+  --el-color-warning: var(--tg-warning);
+  --el-color-danger: var(--tg-danger);
+  --el-color-error: var(--tg-danger);
+  --el-text-color-primary: var(--tg-text-primary);
+  --el-text-color-regular: #3C3C43;
+  --el-text-color-secondary: var(--tg-text-secondary);
+  --el-bg-color-page: var(--tg-bg-page);
+  --el-bg-color: var(--tg-bg-card);
+  --el-border-color: rgba(0, 0, 0, 0.1);
+  --el-border-color-light: rgba(0, 0, 0, 0.07);
+  --el-border-color-lighter: rgba(0, 0, 0, 0.05);
+  --el-border-radius-base: var(--tg-radius-input);
+  --el-border-radius-small: 6px;
+  --el-border-radius-round: 20px;
+  --el-font-family: var(--tg-font-family);
+  --el-box-shadow-light: var(--tg-shadow-card);
+
+  /* ===== 系统化视觉升级 v2：层次/色彩/动效增强令牌 ===== */
+  /* 渐变强调（主按钮/关键数字点睛，蜂蜜琥珀暖色过渡） */
+  --tg-accent-gradient: linear-gradient(135deg, #8F6B22 0%, #C99B3F 48%, #E8C877 100%);
+  --tg-gradient-soft: linear-gradient(120deg, rgba(143, 107, 34, 0.1), rgba(217, 169, 102, 0.08));
+  /* 点缀色补充（暖色时尚感，用于关键状态/徽章） */
+  --tg-gold: #C99B3F;             /* 金（里程碑/星级数据，与主色协调） */
+  --tg-coral: #C2694F;            /* 陶土（次要警示/热度） */
+  --tg-slate: #9A8B72;            /* 暖灰（弱化/禁用小字） */
+  /* 层次阴影与光效（Liquid Glass 高光 + Z-depth） */
+  --tg-shadow-float: 0 2px 6px rgba(60, 45, 25, 0.05), 0 18px 44px rgba(60, 45, 25, 0.1);
+  --tg-glow-accent: 0 8px 24px rgba(143, 107, 34, 0.18);       /* 主色光晕（主按钮/关键卡） */
+  --tg-glow-indigo: 0 8px 24px rgba(201, 155, 63, 0.16);       /* 蜜糖光晕 */
+  --tg-ring-accent: 0 0 0 3px rgba(143, 107, 34, 0.18);        /* 输入聚焦光环 */
+  --tg-card-highlight: linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(255, 255, 255, 0.62) 100%);
+  /* 动效增强 */
+  --tg-blur-strong: 32px;                                     /* 弹窗/悬浮层磨砂强度 */
+  --tg-ease-smooth: cubic-bezier(0.65, 0, 0.35, 1);           /* 页面过渡等长缓动 */
+  --tg-dur-enter: 0.55s;                                      /* 入场时长 */
+  --tg-dur-hover: 0.25s;                                      /* 悬停反馈时长 */
+}
+
+/* ===== 全局基础 ===== */
+html,
+body {
+  font-family: var(--tg-font-family);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color: var(--tg-text-primary);
+}
+
+body {
+  background-color: var(--tg-bg-page);
+}
+
+/* =====================================================================
+ * W3-03/R16：深色主题（暖深棕基调，保持温感）
+ * html[data-theme='dark'] 覆盖全部设计令牌；校正层修正公共容器/组件，与浅色并存。
+ * 说明：个别页面 scoped 内深拷贝样式的细微色值随迭代逐步收敛。
+ * ===================================================================== */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --tg-bg-page: #17130F;
+  --tg-bg-card: #211C16;
+  --tg-text-primary: #EDE3D2;
+  --tg-text-secondary: #B3A48C;
+  --tg-accent: #D9A966;
+  --tg-accent-hover: #E8C877;
+  --tg-success: #9AB27B;
+  --tg-warning: #E89B3C;
+  --tg-danger: #D97A66;
+  --tg-border: rgba(237, 227, 210, 0.12);
+  --tg-indigo: #D9A966;
+  --tg-teal: #B3B68A;
+  --tg-mint: #A8B98A;
+  --tg-pink: #CB8A6A;
+  --tg-violet: #D9A966;
+  --tg-sky: #B98A2F;
+  --tg-amber: #E89B3C;
+  --tg-slate: #8A7C66;
+  --tg-gold: #D9A966;
+  --tg-coral: #CB7A5E;
+  --tg-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 14px rgba(0, 0, 0, 0.25);
+  --tg-shadow-card-hover: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 26px rgba(0, 0, 0, 0.42);
+  --tg-shadow-float: 0 2px 6px rgba(0, 0, 0, 0.35), 0 18px 44px rgba(0, 0, 0, 0.5);
+  --tg-shadow-modal: 0 24px 70px rgba(0, 0, 0, 0.6);
+  --tg-bg-glass: rgba(33, 28, 22, 0.72);
+  --tg-bg-code: #262019;
+  --tg-blur: 20px;
+  --tg-glow-accent: 0 8px 24px rgba(217, 169, 102, 0.16);
+  --tg-ring-accent: 0 0 0 3px rgba(217, 169, 102, 0.22);
+  --tg-card-highlight: linear-gradient(180deg, rgba(38, 32, 25, 0.96) 0%, rgba(33, 28, 22, 0.72) 100%);
+  --tg-gradient-soft: linear-gradient(120deg, rgba(217, 169, 102, 0.09), rgba(185, 138, 47, 0.06));
+  --el-color-primary-light-9: rgba(217, 169, 102, 0.12);
+  --el-color-primary-light-8: rgba(217, 169, 102, 0.16);
+  --el-color-success-light-9: rgba(154, 178, 123, 0.12);
+  --el-color-warning-light-9: rgba(232, 155, 60, 0.14);
+  --el-color-danger-light-9: rgba(217, 122, 102, 0.12);
+  --el-bg-color: var(--tg-bg-card);
+  --el-bg-color-page: var(--tg-bg-page);
+  --el-bg-color-overlay: #262119;
+  --el-text-color-primary: var(--tg-text-primary);
+  --el-text-color-regular: #CFC4B0;
+  --el-text-color-secondary: var(--tg-text-secondary);
+  --el-border-color: rgba(237, 227, 210, 0.14);
+  --el-border-color-light: rgba(237, 227, 210, 0.1);
+  --el-border-color-lighter: rgba(237, 227, 210, 0.08);
+  --el-fill-color-blank: var(--tg-bg-card);
+  --el-fill-color-light: rgba(0, 0, 0, 0.18);
+  --el-fill-color: rgba(0, 0, 0, 0.14);
+  --el-box-shadow-light: var(--tg-shadow-card);
+}
+
+/* ---- 暗色校正层：公共容器与组件（specificity 高于页面 scoped 拷贝样式） ---- */
+:root[data-theme='dark'] body {
+  background-color: var(--tg-bg-page);
+}
+
+:root[data-theme='dark'] .glass-card,
+:root[data-theme='dark'] .table-panel,
+:root[data-theme='dark'] .recent-panel,
+:root[data-theme='dark'] .chart-panel,
+:root[data-theme='dark'] .trend-panel,
+:root[data-theme='dark'] .radar-note,
+:root[data-theme='dark'] .guard-panel,
+:root[data-theme='dark'] .detail-card,
+:root[data-theme='dark'] .tg-card,
+:root[data-theme='dark'] .el-card {
+  background: var(--tg-card-highlight) !important;
+}
+
+:root[data-theme='dark'] .kpi-card,
+:root[data-theme='dark'] .tg-stat-cell,
+:root[data-theme='dark'] .toggle-tab,
+:root[data-theme='dark'] .batch-item,
+:root[data-theme='dark'] .chart-box,
+:root[data-theme='dark'] .tg-pill {
+  background: rgba(33, 28, 22, 0.66) !important;
+}
+
+:root[data-theme='dark'] .topbar {
+  background: rgba(23, 19, 15, 0.78) !important;
+}
+
+:root[data-theme='dark'] .tabs-nav__item {
+  background: rgba(33, 28, 22, 0.6);
+  color: var(--tg-text-primary);
+}
+
+:root[data-theme='dark'] .tabs-nav__item:hover {
+  background: rgba(46, 39, 30, 0.9);
+}
+
+:root[data-theme='dark'] .cmd-trigger,
+:root[data-theme='dark'] .notif__btn {
+  background: rgba(33, 28, 22, 0.6);
+  color: var(--tg-text-secondary);
+}
+
+:root[data-theme='dark'] .tg-avatar {
+  box-shadow: 0 8px 24px rgba(217, 169, 102, 0.25);
+}
+
+:root[data-theme='dark'] .el-table,
+:root[data-theme='dark'] .manage-table,
+:root[data-theme='dark'] .recent-table,
+:root[data-theme='dark'] .project-table,
+:root[data-theme='dark'] .report-table {
+  --el-table-header-bg-color: rgba(0, 0, 0, 0.18);
+  --el-table-border-color: rgba(237, 227, 210, 0.08);
+  --el-table-row-hover-bg-color: rgba(217, 169, 102, 0.06);
+  --el-table-bg-color: transparent;
+  --el-table-tr-bg-color: transparent;
+}
+
+:root[data-theme='dark'] .el-table .el-table__row:hover > td.el-table__cell {
+  background: linear-gradient(90deg, rgba(217, 169, 102, 0.09), rgba(217, 169, 102, 0.02) 70%, transparent) !important;
+}
+
+:root[data-theme='dark'] .el-pagination .el-pager li {
+  color: var(--tg-text-secondary);
+}
+
+:root[data-theme='dark'] .el-dialog,
+:root[data-theme='dark'] .el-drawer,
+:root[data-theme='dark'] .el-popper,
+:root[data-theme='dark'] .el-dropdown-menu,
+:root[data-theme='dark'] .el-message-box,
+:root[data-theme='dark'] .el-select__popper {
+  background: rgba(38, 33, 25, 0.96) !important;
+  border-color: rgba(237, 227, 210, 0.12);
+}
+
+:root[data-theme='dark'] .el-dropdown-menu__item,
+:root[data-theme='dark'] .el-dialog__title,
+:root[data-theme='dark'] .el-drawer__header,
+:root[data-theme='dark'] .el-drawer__title {
+  color: var(--tg-text-primary) !important;
+}
+
+:root[data-theme='dark'] .el-dropdown-menu__item:not(.is-disabled):hover,
+:root[data-theme='dark'] .el-dropdown-menu__item:not(.is-disabled):focus {
+  background: rgba(217, 169, 102, 0.1);
+  color: var(--tg-accent);
+}
+
+:root[data-theme='dark'] .el-input__wrapper,
+:root[data-theme='dark'] .el-select__wrapper,
+:root[data-theme='dark'] .el-textarea__inner {
+  background: rgba(0, 0, 0, 0.2) !important;
+  box-shadow: 0 0 0 1px rgba(237, 227, 210, 0.12) inset !important;
+}
+
+:root[data-theme='dark'] .el-message-box__message {
+  color: var(--tg-text-primary);
+}
+
+:root[data-theme='dark'] .el-tabs__nav-wrap::after {
+  background-color: rgba(237, 227, 210, 0.1);
+}
+
+:root[data-theme='dark'] .el-descriptions__label {
+  color: var(--tg-text-secondary) !important;
+}
+
+:root[data-theme='dark'] .el-card__header {
+  border-bottom-color: rgba(237, 227, 210, 0.08);
+}
+
+:root[data-theme='dark'] .keyword-tag,
+:root[data-theme='dark'] .num-cell,
+:root[data-theme='dark'] .min-pill,
+:root[data-theme='dark'] .status-pill {
+  filter: brightness(1.12);
+}
+
+:root[data-theme='dark'] .tg-pre {
+  background: #211B14;
+  border-color: rgba(237, 227, 210, 0.1);
+}
+
+:root[data-theme='dark'] .tg-searchbar__form {
+  background: rgba(217, 169, 102, 0.06);
+}
+
+:root[data-theme='dark'] .din-note,
+:root[data-theme='dark'] .tg-info-block {
+  background: rgba(217, 169, 102, 0.06);
+}
+
+:root[data-theme='dark'] ::-webkit-scrollbar-thumb {
+  background: rgba(237, 227, 210, 0.2);
+}
+
+:root[data-theme='dark'] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(237, 227, 210, 0.32);
+}
+
+:root[data-theme='dark'] a {
+  color: var(--tg-accent);
+}
+
+:root[data-theme='dark'] .el-pager li.is-active {
+  background: var(--tg-accent-gradient);
+}
+
+/* ===== 鼠标指针：所有可点击元素 ===== */
+.tg-clickable,
+[class*='el-button'],
+[class*='el-link'],
+[class*='el-menu-item'],
+[class*='el-dropdown'],
+[class*='el-select'],
+[class*='el-checkbox'],
+[class*='el-radio'],
+[class*='el-switch'],
+[class*='el-tag'] {
+  cursor: pointer;
+}
+
+/* 尊重系统减少动效偏好 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* 键盘焦点可见 */
+:focus-visible {
+  outline: 2px solid var(--tg-accent);
+  outline-offset: 2px;
+}
+
+/* ===== 滚动条（Webkit） ===== */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.16);
+  border-radius: 8px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.28);
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* =====================================================================
+ * Apple 页面骨架（公共类，供所有页面复用，禁止各页重复定义）
+ * ===================================================================== */
+
+/* 页面容器：限宽居中 + 大留白（呼吸感的核心） */
+.page {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 8px var(--tg-space-page-x) 48px;
+}
+
+/* 页面头：大标题 + 副标题 + 右侧操作区（Apple 典型层级 + Ins 渐变点缀）
+   玻璃彩色卡：圆角 + 加大内边距，文字与卡边留出间隔，蓝/紫/金多色光晕保留封面层次 */
+.page-header {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+  row-gap: 16px;
+  margin-bottom: 28px;
+  padding: 26px 30px;
+  border-radius: 22px;
+  background:
+    radial-gradient(130% 180% at 0% 0%, rgba(232, 200, 119, 0.3), transparent 52%),
+    radial-gradient(120% 170% at 100% 0%, rgba(110, 147, 176, 0.18), transparent 55%),
+    radial-gradient(100% 150% at 50% 115%, rgba(154, 127, 176, 0.16), transparent 58%),
+    radial-gradient(90% 130% at 85% 100%, rgba(201, 127, 138, 0.12), transparent 55%),
+    linear-gradient(160deg, rgba(255, 250, 240, 0.94), rgba(255, 246, 230, 0.62));
+  border: 1px solid rgba(201, 155, 63, 0.2);
+  box-shadow: var(--tg-shadow-soft);
+  backdrop-filter: blur(14px);
+  overflow: hidden;
+}
+
+.page-header__title {
+  position: relative;
+  margin: 0;
+  padding-left: 15px;
+  font-size: var(--tg-font-title);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: var(--tg-text-primary);
+  text-wrap: balance;
+}
+
+/* 标题左侧渐变强调条（精致点缀，统一所有业务页页头） */
+.page-header__title::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 9px;
+  bottom: 9px;
+  width: 4px;
+  border-radius: 4px;
+  background: var(--tg-accent-gradient);
+  box-shadow: var(--tg-glow-accent);
+}
+
+.page-header__desc {
+  margin: 8px 0 0 15px;
+  font-size: var(--tg-font-body);
+  color: var(--tg-text-secondary);
+  line-height: 1.6;
+  text-wrap: pretty;
+}
+
+.page-header__actions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* =====================================================================
+ * W4 全局设计强化：页头光效与入场 + 页面星点纹理 + 递进质感
+ * 一次性作用于全部子页面，维护全局视觉一致
+ * ===================================================================== */
+
+/* 页面容器建立层级，承接星点纹理层（兼容 .page 与 Layout 的 .main-content） */
+.main-content,
+.page {
+  position: relative;
+}
+
+/* 星点装饰纹理：金色微粒沿顶部渐隐（纯 CSS，不引入图片请求） */
+.main-content::before,
+.page::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    radial-gradient(rgba(201, 155, 63, 0.18) 1px, transparent 1.2px),
+    radial-gradient(rgba(201, 155, 63, 0.1) 1px, transparent 1.3px);
+  background-size: 34px 34px, 68px 68px;
+  background-position: 0 0, 17px 17px;
+  -webkit-mask-image: radial-gradient(ellipse at 50% 0%, rgba(0, 0, 0, 0.55), transparent 72%);
+  mask-image: radial-gradient(ellipse at 50% 0%, rgba(0, 0, 0, 0.55), transparent 72%);
+}
+
+/* 页头随页面入场（主标题 + 副标题 + 操作区整体） */
+.page-header {
+  animation: tg-fade-up 0.6s var(--tg-ease) both;
+}
+
+/* 标题右上角暖金光晕（低透明呼吸光，不挡交互） */
+.page-header__title::after {
+  content: '';
+  position: absolute;
+  right: -16px;
+  top: -20px;
+  width: 130px;
+  height: 46px;
+  background: radial-gradient(closest-side, rgba(232, 200, 119, 0.3), transparent);
+  filter: blur(6px);
+  pointer-events: none;
+}
+
+/* 窄屏：页头卡内边距收缩，仍保持圆角与间隔 */
+@media (max-width: 720px) {
+  .page-header {
+    padding: 18px 20px;
+  }
+}
+
+/* 滚动条悬停质感细化（金色渐变滑块） */
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(201, 155, 63, 0.55), rgba(217, 169, 102, 0.45));
+}
+
+/* =====================================================================
+ * 配置页公共组件（.cfg-*）：统计条 + 分区卡，供所有配置页复用
+ * ===================================================================== */
+
+/* 统计条：四格概览 */
+.cfg-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.cfg-stat {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.82), rgba(255, 246, 230, 0.5));
+  border: 1px solid rgba(201, 155, 63, 0.18);
+  box-shadow: var(--tg-shadow-soft);
+  backdrop-filter: blur(12px);
+  transition: transform 0.3s var(--tg-ease-spring), box-shadow 0.3s ease;
+}
+
+.cfg-stat:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(60, 45, 25, 0.1);
+}
+
+.cfg-stat__tile {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 13px;
+}
+
+.cfg-stat__tile.tile--gold {
+  background: var(--tg-accent-gradient);
+  color: #fff;
+  box-shadow: var(--tg-glow-accent);
+}
+
+.cfg-stat__tile.tile--amber {
+  background: rgba(232, 155, 60, 0.16);
+  color: #9a5d12;
+}
+
+.cfg-stat__tile.tile--sage {
+  background: rgba(154, 156, 107, 0.16);
+  color: #55682e;
+}
+
+.cfg-stat__tile.tile--coral {
+  background: rgba(194, 94, 76, 0.13);
+  color: #9a3f30;
+}
+
+.cfg-stat__body b {
+  display: block;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--tg-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.cfg-stat__body b.is-on {
+  color: #55682e;
+}
+
+.cfg-stat__body span {
+  font-size: 12px;
+  color: var(--tg-text-secondary);
+}
+
+/* ---- 富信息统计卡（W4 v5）：标题 + 大数值 + 副行进度/文字，四格更饱满 ---- */
+.cfg-stat--rich {
+  display: block;
+  position: relative;
+  overflow: hidden;
+  padding: 16px 18px 14px;
+}
+
+.cfg-stat--rich::after {
+  content: '';
+  position: absolute;
+  top: -30px;
+  right: -30px;
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(201, 155, 63, 0.14), transparent 68%);
+  pointer-events: none;
+}
+
+.cfg-stat--rich .cfg-stat__top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  min-width: 0;
+}
+
+.cfg-stat--rich .cfg-stat__tile {
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+}
+
+.cfg-stat--rich .cfg-stat__label {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--tg-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cfg-stat--rich .cfg-stat__num {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 0 0 9px;
+}
+
+.cfg-stat--rich .cfg-stat__num b {
+  display: block;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.05;
+  color: var(--tg-text-primary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.cfg-stat--rich .cfg-stat__num b.is-on {
+  color: #55682e;
+}
+
+.cfg-stat--rich .cfg-stat__num .cfg-stat__unit {
+  font-size: 12px;
+  color: var(--tg-slate);
+  white-space: nowrap;
+}
+
+.cfg-stat--rich .cfg-stat__foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.cfg-stat--rich .cfg-stat__bar {
+  flex: 1;
+  height: 5px;
+  min-width: 0;
+  border-radius: 999px;
+  background: rgba(201, 155, 63, 0.14);
+  overflow: hidden;
+}
+
+.cfg-stat--rich .cfg-stat__bar i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--tg-accent-gradient);
+  transition: width 0.6s var(--tg-ease);
+}
+
+.cfg-stat--rich .cfg-stat__ratio {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--tg-text-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* 分区卡 */
+.cfg-section {
+  margin-bottom: 24px;
+  padding: 22px 24px;
+  border-radius: 20px;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.72), rgba(255, 250, 240, 0.42));
+  border: 1px solid rgba(201, 155, 63, 0.16);
+  box-shadow: var(--tg-shadow-soft);
+  backdrop-filter: blur(12px);
+}
+
+.cfg-section__head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.cfg-section__title h3 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--tg-text-primary);
+}
+
+.cfg-section__ic {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  background: rgba(201, 155, 63, 0.14);
+  color: var(--tg-accent);
+}
+
+.cfg-section__title p {
+  margin: 4px 0 0 38px;
+  font-size: 12.5px;
+  color: var(--tg-text-secondary);
+}
+
+/* ---- 多色强调系统（W4 v3）：打破单一金色，封面页式彩色层次 ---- */
+
+/* 统计瓦片扩展色（blue / violet / rose / mint） */
+.cfg-stat__tile.tile--blue {
+  background: rgba(110, 147, 176, 0.16);
+  color: #3f6b8f;
+}
+
+.cfg-stat__tile.tile--violet {
+  background: rgba(154, 127, 176, 0.18);
+  color: #6e4f8f;
+}
+
+.cfg-stat__tile.tile--rose {
+  background: rgba(201, 127, 138, 0.15);
+  color: #9a4455;
+}
+
+.cfg-stat__tile.tile--mint {
+  background: rgba(127, 168, 160, 0.16);
+  color: #3f6b64;
+}
+
+/* 分区图标瓦片语义着色（覆盖默认金色） */
+.cfg-section__ic--blue {
+  background: rgba(110, 147, 176, 0.16);
+  color: #3f6b8f;
+}
+
+.cfg-section__ic--violet {
+  background: rgba(154, 127, 176, 0.18);
+  color: #6e4f8f;
+}
+
+.cfg-section__ic--rose {
+  background: rgba(201, 127, 138, 0.15);
+  color: #9a4455;
+}
+
+.cfg-section__ic--sage {
+  background: rgba(154, 156, 107, 0.16);
+  color: #55682e;
+}
+
+.cfg-section__ic--amber {
+  background: rgba(232, 155, 60, 0.16);
+  color: #9a5d12;
+}
+
+.cfg-section__ic--coral {
+  background: rgba(194, 94, 76, 0.13);
+  color: #9a3f30;
+}
+
+/* 封面式彩色光晕层：蓝 / 藤紫 / 玫瑰三团柔和色斑，置于页面内容底层 */
+.page-glow {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.page-glow i {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(72px);
+  opacity: 0.4;
+  transition: transform 1.2s var(--tg-ease);
+}
+
+.page-glow i:nth-child(1) {
+  width: 300px;
+  height: 300px;
+  background: rgba(110, 147, 176, 0.5);
+  top: -90px;
+  right: 6%;
+}
+
+.page-glow i:nth-child(2) {
+  width: 250px;
+  height: 250px;
+  background: rgba(154, 127, 176, 0.42);
+  top: 30px;
+  left: -60px;
+}
+
+.page-glow i:nth-child(3) {
+  width: 260px;
+  height: 260px;
+  background: rgba(201, 127, 138, 0.32);
+  bottom: -70px;
+  right: 42%;
+}
+
+/* ---- 信息可视化 Bento（W4 v4）：高级视觉图形容器 ---- */
+.cfg-viz {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.cfg-viz__card {
+  padding: 16px 18px;
+  border-radius: 18px;
+  background: linear-gradient(165deg, rgba(255, 255, 255, 0.84), rgba(255, 246, 230, 0.5));
+  border: 1px solid rgba(201, 155, 63, 0.18);
+  box-shadow: var(--tg-shadow-soft);
+  transition: transform 0.3s var(--tg-ease-spring), border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.cfg-viz__card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(201, 155, 63, 0.36);
+  box-shadow: 0 12px 26px rgba(60, 45, 25, 0.1);
+}
+
+.cfg-viz__card--wide {
+  grid-column: span 2;
+}
+
+.cfg-viz__card--full {
+  grid-column: 1 / -1;
+}
+
+.cfg-viz__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cfg-viz__head b {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--tg-text-primary);
+}
+
+.cfg-viz__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.dot--gold { background: #C99B3F; box-shadow: 0 0 0 3px rgba(201, 155, 63, 0.18); }
+.dot--blue { background: #6E93B0; box-shadow: 0 0 0 3px rgba(110, 147, 176, 0.18); }
+.dot--violet { background: #9A7FB0; box-shadow: 0 0 0 3px rgba(154, 127, 176, 0.18); }
+.dot--rose { background: #C97F8A; box-shadow: 0 0 0 3px rgba(201, 127, 138, 0.16); }
+.dot--sage { background: #9A9C6B; box-shadow: 0 0 0 3px rgba(154, 156, 107, 0.18); }
+
+.cfg-viz__sub {
+  margin: 4px 0 8px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--tg-slate);
+}
+
+.cfg-viz__chart {
+  width: 100%;
+  height: 210px;
+}
+
+.cfg-viz__chart--tall {
+  height: 256px;
+}
+
+@media (max-width: 960px) {
+  .cfg-viz {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 720px) {
+  .cfg-viz {
+    grid-template-columns: 1fr;
+  }
+
+  .cfg-viz__card--wide {
+    grid-column: span 1;
+  }
+}
+
+/* ---- 眉题（页头上方的小号引导词，Ins 式气质） ---- */
+.tg-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 8px 15px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--tg-accent);
+}
+
+.tg-kicker::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--tg-accent-gradient);
+  box-shadow: var(--tg-glow-accent);
+}
+
+/* ---- 区块标题（卡片/分区小标题：圆点 + 文字，层级更清晰） ---- */
+.tg-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 14px;
+  font-size: var(--tg-font-subtitle);
+  font-weight: 600;
+  color: var(--tg-text-primary);
+}
+
+.tg-section-title::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--tg-accent-gradient);
+  box-shadow: var(--tg-glow-accent);
+}
+
+/* ---- 横向统计条（页头下方 3-4 张迷你统计卡，Apple 指标区） ---- */
+.tg-stat-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.tg-stat-cell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px 18px;
+  border-radius: var(--tg-radius-card);
+  background: var(--tg-card-highlight);
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  box-shadow: var(--tg-shadow-card);
+  overflow: hidden;
+  transition: transform 0.3s var(--tg-ease), box-shadow 0.3s var(--tg-ease);
+}
+
+.tg-stat-cell::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--tg-accent-gradient);
+  opacity: 0.85;
+}
+
+.tg-stat-cell:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--tg-shadow-float);
+}
+
+.tg-stat-cell__label {
+  font-size: 12.5px;
+  color: var(--tg-text-secondary);
+  font-weight: 500;
+}
+
+.tg-stat-cell__value {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--tg-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.tg-stat-cell__hint {
+  font-size: 12px;
+  color: var(--tg-slate);
+}
+
+/* ---- 表格/内容工具栏（筛选区：搜索框 + 按钮组） ---- */
+.tg-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.tg-toolbar__left,
+.tg-toolbar__right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* ---- 通用入场（卡片/区块依次淡入上浮，配合 stagger 延迟） ---- */
+.tg-enter {
+  animation: tg-fade-up var(--tg-dur-enter) var(--tg-ease) both;
+}
+
+/* ---- 页面切换过渡（配合 App.vue / Layout.vue 的 <transition>） ---- */
+.tg-page-enter-active,
+.tg-page-leave-active {
+  transition: opacity var(--tg-dur-enter) var(--tg-ease-smooth),
+    transform var(--tg-dur-enter) var(--tg-ease-smooth);
+}
+
+.tg-page-enter-from {
+  opacity: 0;
+  transform: translateY(14px);
+}
+
+.tg-page-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+/* ---- 空状态/加载占位提示（Apple 式克制空态） ---- */
+.tg-empty {
+  padding: 48px 16px;
+  text-align: center;
+  color: var(--tg-text-secondary);
+  font-size: 13px;
+}
+
+/* 页面头内的返回链接（列表/详情页返回上一级） */
+.page-header__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 6px;
+  padding: 0;
+  color: var(--tg-text-secondary);
+  font-size: 13px;
+}
+
+.page-header__back:hover {
+  color: var(--tg-accent);
+}
+
+/* ===== 统计卡（Apple：大数字 + 浅色圆角图标 + 灰标签） ===== */
+.stat-card {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: var(--tg-space-card);
+  height: 100%;
+}
+
+.stat-card__icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.stat-card__value {
+  font-size: var(--tg-font-stat);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: var(--tg-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-card__label {
+  margin-top: 4px;
+  font-size: var(--tg-font-caption);
+  color: var(--tg-text-secondary);
+}
+
+/* 统计卡图标底色：浅色系底 + 主色图标（Apple 柔和层次，避免彩色实心块） */
+.stat-card__icon--primary {
+  background: var(--el-color-primary-light-9);
+  color: var(--tg-accent);
+}
+
+.stat-card__icon--success {
+  background: var(--el-color-success-light-9);
+  color: var(--tg-success);
+}
+
+.stat-card__icon--warning {
+  background: var(--el-color-warning-light-9);
+  color: var(--tg-warning);
+}
+
+.stat-card__icon--danger {
+  background: var(--el-color-danger-light-9);
+  color: var(--tg-danger);
+}
+
+/* ===== 通用 Apple 风格卡片 ===== */
+.tg-card {
+  background: var(--tg-bg-card);
+  border-radius: var(--tg-radius-card);
+  box-shadow: var(--tg-shadow-card);
+  border: 1px solid var(--tg-border);
+  padding: var(--tg-space-card);
+}
+
+/* ===== 玻璃拟态卡片（轻透不厚重：半透明 + 磨砂 + 细边框） ===== */
+.glass-card {
+  background: var(--tg-bg-glass);
+  -webkit-backdrop-filter: blur(var(--tg-blur)) saturate(1.4);
+  backdrop-filter: blur(var(--tg-blur)) saturate(1.4);
+  border: 1px solid var(--tg-border);
+  border-radius: var(--tg-radius-card);
+  box-shadow: var(--tg-shadow-card);
+  transition: transform 0.3s var(--tg-ease), box-shadow 0.3s var(--tg-ease);
+}
+
+.glass-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--tg-shadow-card-hover);
+}
+
+/* ===== chip 筛选器 / 标签（轻量胶囊，替代厚重选择器） ===== */
+.tg-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 16px;
+  border-radius: var(--tg-radius-pill);
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--tg-text-primary);
+  font-size: var(--tg-font-caption);
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.25s var(--tg-ease-spring);
+}
+
+.tg-chip:hover {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.tg-chip.is-active {
+  background: var(--el-color-primary-light-9);
+  color: var(--tg-accent);
+  font-weight: 500;
+}
+
+/* ===== 入场动画（丝滑渐入，尊重 reduced-motion） ===== */
+@keyframes tg-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.tg-fade-up {
+  animation: tg-fade-up 0.6s var(--tg-ease) both;
+}
+
+/* =====================================================================
+ * 认证页公共外壳（登录/注册/改密共用）
+ * 纯净 Apple：无炫彩渐变，浅色底 + 顶部单色蓝 tint，克制干净
+ * ===================================================================== */
+.auth-container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  position: relative;
+  background:
+    radial-gradient(1100px 520px at 50% -10%, rgba(143, 107, 34, 0.10), transparent 70%),
+    var(--tg-bg-page);
+}
+
+.auth-container > .tg-aurora {
+  z-index: 0;
+}
+
+.auth-card {
+  width: 420px;
+  max-width: 100%;
+  position: relative;
+  z-index: 1;
+  background: var(--tg-bg-card);
+  border-radius: var(--tg-radius-modal);
+  padding: 44px 40px;
+  box-shadow: var(--tg-shadow-modal);
+  border: 1px solid var(--tg-border);
+}
+
+.auth-card__back {
+  display: flex;
+  justify-content: center;
+  margin-top: 16px;
+}
+
+.auth-card__header {
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+/* 品牌图形标（登录/注册页标题上方的 logo 主标） */
+.auth-card__header .brand-mark {
+  display: block;
+  width: 68px;
+  height: 68px;
+  margin: 0 auto 14px;
+  filter: drop-shadow(0 6px 18px rgba(143, 107, 34, 0.22));
+  animation: tg-float 5s ease-in-out infinite;
+}
+
+.auth-card__header .brand {
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--tg-text-primary);
+  margin-bottom: 10px;
+}
+
+.auth-card__header .brand span {
+  background: var(--tg-accent-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.auth-card__header p {
+  color: var(--tg-text-secondary);
+  font-size: var(--tg-font-caption);
+  line-height: 1.6;
+  margin: 0;
+}
+
+.auth-card__footer {
+  text-align: center;
+  margin-top: 12px;
+}
+
+/* =====================================================================
+ * Element Plus 组件 Apple 化（全局，无需逐页覆写）
+ * ===================================================================== */
+/* 卡片：浅玻璃质感（Liquid Glass）+ 顶部高光 + hover 悬浮，全站业务卡统一外观 */
+.el-card {
+  position: relative;
+  border-radius: var(--tg-radius-card);
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  background: var(--tg-card-highlight);
+  box-shadow: var(--tg-shadow-card);
+  transition: transform 0.3s var(--tg-ease), box-shadow 0.3s var(--tg-ease),
+    background-color 0.3s ease;
+}
+
+/* 顶部高光线（玻璃受光的微妙边缘） */
+.el-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.95), transparent);
+  pointer-events: none;
+}
+
+.el-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--tg-shadow-float);
+}
+
+.el-card__header {
+  position: relative;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+  padding: 18px var(--tg-space-card) 14px;
+  font-size: var(--tg-font-subtitle);
+  font-weight: 600;
+  color: var(--tg-text-primary);
+  display: flex;
+  align-items: center;
+}
+
+.el-card__body {
+  padding: 6px var(--tg-space-card) var(--tg-space-card);
+}
+
+/* 弹窗：Liquid Glass 磨砂 + 柔和阴影 + 弹性缩放入场 */
+.el-dialog {
+  border-radius: var(--tg-radius-modal);
+  box-shadow: var(--tg-shadow-modal);
+  background: rgba(255, 255, 255, 0.86);
+  -webkit-backdrop-filter: blur(var(--tg-blur-strong)) saturate(1.5);
+  backdrop-filter: blur(var(--tg-blur-strong)) saturate(1.5);
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  animation: tg-dialog-in 0.4s var(--tg-ease);
+}
+
+@keyframes tg-dialog-in {
+  from {
+    transform: scale(0.94) translateY(12px);
+    opacity: 0.6;
+  }
+  to {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
+}
+
+.el-dialog__title {
+  font-weight: 600;
+  color: var(--tg-text-primary);
+}
+
+.el-dialog__header {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+  margin-right: 0;
+  padding: 18px 24px 14px;
+}
+
+.el-dialog__body {
+  padding: 20px 24px;
+}
+
+/* 表格：去斑马纹/粗边框，Apple 干净行，hover 主色渐变引导线 */
+.el-table {
+  --el-table-header-bg-color: rgba(0, 0, 0, 0.022);
+  --el-table-row-hover-bg-color: transparent;
+  --el-table-border-color: rgba(0, 0, 0, 0.045);
+  --el-table-header-text-color: var(--tg-text-secondary);
+  --el-table-cell-padding: 14px 14px;
+  --el-table-bg-color: transparent;
+  --el-table-tr-bg-color: transparent;
+  font-size: 14px;
+}
+
+.el-table th.el-table__cell {
+  background: transparent;
+  color: var(--tg-text-secondary);
+  font-weight: 600;
+  font-size: 12.5px;
+  letter-spacing: 0.02em;
+}
+
+.el-table .el-table__inner-wrapper::before {
+  display: none;
+}
+
+/* 行 hover：左侧主色引导条 + 主色横向渐变（Apple 式聚焦） */
+.el-table .el-table__row {
+  transition: background-color 0.2s ease;
+}
+
+.el-table .el-table__row:hover > td.el-table__cell {
+  background: linear-gradient(90deg, rgba(143, 107, 34, 0.055), rgba(143, 107, 34, 0.012) 70%, transparent);
+}
+
+/* 主按钮：胶囊形 + 渐变主色 + 光晕 + 按压反馈 */
+.el-button {
+  border-radius: var(--tg-radius-pill);
+  transition: transform 0.25s var(--tg-ease), box-shadow 0.25s var(--tg-ease),
+    background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.el-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+}
+
+.el-button:active {
+  transform: translateY(0) scale(0.96);
+}
+
+.el-button--primary {
+  background-image: var(--tg-accent-gradient);
+  border-color: transparent;
+  box-shadow: var(--tg-glow-accent);
+  --el-button-bg-color: transparent;
+  --el-button-hover-bg-color: transparent;
+  --el-button-active-bg-color: transparent;
+  --el-button-hover-border-color: transparent;
+  --el-button-active-border-color: transparent;
+}
+
+.el-button--primary:hover {
+  box-shadow: 0 10px 26px rgba(143, 107, 34, 0.28);
+}
+
+/* 输入/选择器：聚焦主色光环（Apple 风格） */
+.el-input__wrapper,
+.el-select__wrapper {
+  border-radius: var(--tg-radius-input);
+  transition: box-shadow 0.2s ease;
+}
+
+.el-input__wrapper.is-focus,
+.el-select__wrapper.is-focused {
+  box-shadow: var(--tg-ring-accent) !important;
+}
+
+/* 标签：胶囊 + 柔和浅底 + 内深色字（状态可读性） */
+.el-tag {
+  border-radius: var(--tg-radius-pill);
+  border-color: transparent;
+  font-weight: 500;
+}
+
+.el-tag--primary {
+  background: var(--el-color-primary-light-9);
+  color: var(--tg-accent);
+}
+
+.el-tag--success {
+  background: var(--el-color-success-light-9);
+  color: var(--tg-success);
+}
+
+.el-tag--warning {
+  background: var(--el-color-warning-light-9);
+  color: var(--tg-amber);
+}
+
+.el-tag--danger {
+  background: var(--el-color-danger-light-9);
+  color: var(--tg-danger);
+}
+
+.el-tag--info {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--tg-text-secondary);
+}
+
+/* 分页：胶囊页码 + 激活渐变 + 光晕 */
+.el-pagination {
+  --el-pagination-button-bg-color: transparent;
+  --el-pagination-hover-color: var(--tg-accent);
+}
+
+.el-pagination .el-pager li {
+  border-radius: var(--tg-radius-pill);
+  transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.el-pagination .el-pager li.is-active {
+  background: var(--tg-accent-gradient);
+  color: #fff;
+  box-shadow: var(--tg-glow-accent);
+}
+
+.el-pagination .el-pager li:not(.is-active):hover {
+  background: rgba(143, 107, 34, 0.08);
+}
+
+/* 标签页：主色渐变下划线 */
+.el-tabs__item {
+  transition: color 0.2s ease;
+}
+
+.el-tabs__item.is-active {
+  color: var(--tg-accent);
+  font-weight: 600;
+}
+
+.el-tabs__active-bar {
+  height: 3px;
+  border-radius: 3px;
+  background: var(--tg-accent-gradient);
+}
+
+/* 下拉/悬浮面板：玻璃 + 更柔和阴影 */
+.el-popper {
+  border-radius: 14px;
+  box-shadow: var(--tg-shadow-float);
+}
+
+/* =====================================================================
+ * 丰富化扩展：氛围光斑 / 呼吸动效 / 渐变文字 / 滚动出现 / 状态点
+ * 全部复用 Design Tokens，供任意页面直接使用（禁止页面内重复定义）
+ * ===================================================================== */
+
+/* ---- 氛围光斑背景（多色柔和光晕，Apple 产品页式的透气感） ---- */
+.tg-aurora {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(720px 520px at 10% 14%, rgba(201, 155, 63, 0.1), transparent 65%),
+    radial-gradient(820px 560px at 90% 8%, rgba(143, 107, 34, 0.08), transparent 65%),
+    radial-gradient(700px 620px at 72% 96%, rgba(168, 185, 138, 0.07), transparent 65%),
+    radial-gradient(560px 480px at 24% 88%, rgba(192, 94, 76, 0.05), transparent 65%);
+  animation: tg-aurora-shift 18s ease-in-out infinite alternate;
+}
+
+@keyframes tg-aurora-shift {
+  from {
+    opacity: 0.8;
+    transform: scale(1);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+}
+
+/* ---- 呼吸动效：状态点/图标的柔和明暗起伏（呼吸感） ---- */
+@keyframes tg-breath {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(0.86);
+  }
+}
+
+.tg-breath {
+  animation: tg-breath 2.8s ease-in-out infinite;
+}
+
+/* 悬浮慢漂（装饰物，ins 松弛感的"空气感"） */
+@keyframes tg-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.tg-float {
+  animation: tg-float 5s ease-in-out infinite;
+}
+
+/* ---- 呼吸状态点（实时/进行中）：中心实心 + 扩散波纹 ---- */
+.tg-live-dot {
+  position: relative;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--tg-success);
+  flex-shrink: 0;
+}
+
+.tg-live-dot::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 2px solid var(--tg-success);
+  animation: tg-ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+.tg-live-dot--indigo {
+  background: var(--tg-indigo);
+}
+
+.tg-live-dot--indigo::after {
+  border-color: var(--tg-indigo);
+}
+
+.tg-live-dot--pink {
+  background: var(--tg-pink);
+}
+
+.tg-live-dot--pink::after {
+  border-color: var(--tg-pink);
+}
+
+@keyframes tg-ping {
+  0% {
+    transform: scale(0.55);
+    opacity: 0.9;
+  }
+  80%,
+  100% {
+    transform: scale(1.7);
+    opacity: 0;
+  }
+}
+
+/* ---- 渐变文字（大标题点睛，杂志感） ---- */
+.tg-gradient-text {
+  background: var(--tg-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* ---- 滚动出现动画（配合全局 v-reveal 指令） ---- */
+.tg-reveal {
+  opacity: 0;
+  transform: translateY(26px);
+  transition: opacity 0.7s var(--tg-ease), transform 0.7s var(--tg-ease);
+}
+
+.tg-reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+/* ---- 通用图标瓦片（圆形浅色底图标，比方形更松弛） ---- */
+.tg-icon-tile {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.tg-icon-tile--blue {
+  background: var(--el-color-primary-light-9);
+  color: var(--tg-accent);
+}
+
+.tg-icon-tile--indigo {
+  background: rgba(201, 155, 63, 0.12);
+  color: var(--tg-indigo);
+}
+
+.tg-icon-tile--teal {
+  background: rgba(154, 156, 107, 0.14);
+  color: var(--tg-teal);
+}
+
+.tg-icon-tile--pink {
+  background: rgba(176, 101, 63, 0.12);
+  color: var(--tg-pink);
+}
+
+.tg-icon-tile--violet {
+  background: rgba(217, 169, 102, 0.14);
+  color: var(--tg-violet);
+}
+
+/* ---- Hero 段落（Landing 等叙事页用的大字层级） ---- */
+.tg-hero {
+  font-size: clamp(34px, 5vw, 60px);
+  font-weight: 700;
+  letter-spacing: -0.015em; /* 中文字形满框，负字距需远轻于英文紧排 */
+  line-height: 1.2; /* 中文两行标题需要行间空气，1.08 会贴死 */
+  color: var(--tg-text-primary);
+}
+
+.tg-hero-desc {
+  font-size: clamp(16px, 2vw, 19px);
+  color: var(--tg-text-secondary);
+  line-height: 1.75;
+  max-width: 620px;
+  margin-top: 36px; /* 标题与描述之间留足呼吸（两行大字标题需更多行间空气） */
+  text-wrap: balance; /* 均衡各行长度消除末行孤字（pretty 基于空格词边界，对中文无效） */
+}
+
+/* ---- 胶囊状态徽章（柔和浅底圆点+文字） ---- */
+.tg-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: var(--tg-radius-pill);
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid var(--tg-border);
+  color: var(--tg-text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: var(--tg-shadow-card);
+}
+
+/* =====================================================================
+ * 封面页动效扩展：标题文字逐词浮现 / SVG 描边与虚线流动 / 数字计数
+ * ===================================================================== */
+
+/* ---- 标题逐词浮现（kinetic text）：子元素 .tg-word 依次上浮 ---- */
+.tg-word {
+  display: inline-block;
+  opacity: 0;
+  transform: translateY(0.45em);
+  animation: tg-word-in 0.85s var(--tg-ease) forwards; /* 0.85s 出场更从容 */
+}
+
+@keyframes tg-word-in {
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---- SVG 描边绘制动画（mini 环形/折线/链路） ---- */
+.tg-stroke {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: tg-stroke-draw 1.4s var(--tg-ease) forwards;
+}
+
+@keyframes tg-stroke-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* ---- 虚线流动（追溯链路/进度线）：dashoffset 循环 ---- */
+.tg-flow {
+  stroke-dasharray: 6 8;
+  animation: tg-flow-run 1.6s linear infinite;
+}
+
+@keyframes tg-flow-run {
+  to {
+    stroke-dashoffset: -14;
+  }
+}
+
+/* ---- 渐变流动背景（hero 光晕，缓慢位移） ---- */
+.tg-gradient-move {
+  background-size: 200% 200%;
+  animation: tg-gradient-shift 8s ease-in-out infinite;
+}
+
+@keyframes tg-gradient-shift {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+/* ---- 数字计数（配合 v-countup 指令，从 0 滚动到目标值） ---- */
+.tg-count {
+  font-variant-numeric: tabular-nums;
+}
+
+/* =====================================================================
+ * 通用增强组件（为「不起眼」管理页注入层次感与设计感，可全局复用）
+ * ===================================================================== */
+
+/* ---- 渐变首字母头像（用户/角色标识：暖色渐变 + 圆角，替代朴素图标） ---- */
+.tg-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #fff;
+  background: var(--tg-accent-gradient);
+  box-shadow: var(--tg-glow-accent);
+  user-select: none;
+}
+
+.tg-avatar--lg {
+  width: 72px;
+  height: 72px;
+  border-radius: 20px;
+  font-size: 28px;
+  box-shadow: 0 6px 18px rgba(143, 107, 34, 0.28);
+}
+
+/* 用户组合单元（头像 + 名称 + 副信息），表格列使用 */
+.tg-user-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.tg-user-cell__main {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.35;
+  min-width: 0;
+}
+
+.tg-user-cell__name {
+  font-weight: 600;
+  font-size: 13.5px;
+  color: var(--tg-text-primary);
+}
+
+.tg-user-cell__sub {
+  font-size: 12px;
+  color: var(--tg-slate);
+}
+
+/* ---- 代码 / JSON 预览（暖色玻璃代码块，替代硬编码灰底） ---- */
+.tg-pre {
+  margin: 0;
+  padding: 16px 18px;
+  border-radius: var(--tg-radius-card);
+  background: var(--tg-bg-code);
+  border: 1px solid rgba(60, 45, 25, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Courier New', monospace;
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: var(--tg-text-primary);
+  overflow: auto;
+  max-height: 420px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ---- 数据变更日志 diff 高亮（旧值陶土红 / 新值橄榄绿） ---- */
+.tg-diff-old {
+  color: var(--tg-danger);
+  text-decoration: line-through;
+  text-decoration-color: rgba(194, 94, 76, 0.45);
+}
+
+.tg-diff-new {
+  color: var(--tg-success);
+  font-weight: 500;
+}
+
+/* ---- 信息区块（图标 tile + 标题 + 描述：设置页分组卡头部通用） ---- */
+.tg-info-block {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: var(--tg-radius-card);
+  background: var(--tg-gradient-soft);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow: var(--tg-shadow-card);
+}
+
+.tg-info-block__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--tg-text-primary);
+  margin: 0;
+}
+
+.tg-info-block__desc {
+  margin: 3px 0 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--tg-text-secondary);
+}
+
+/* ---- 迷你状态徽点（状态行前的彩色圆点，增强可读性） ---- */
+.tg-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: 1px;
+}
+
+.tg-dot--success { background: var(--tg-success); box-shadow: 0 0 0 3px rgba(107, 142, 78, 0.16); }
+.tg-dot--warning { background: var(--tg-warning); box-shadow: 0 0 0 3px rgba(232, 155, 60, 0.16); }
+.tg-dot--danger  { background: var(--tg-danger);  box-shadow: 0 0 0 3px rgba(194, 94, 76, 0.16); }
+.tg-dot--accent  { background: var(--tg-accent);  box-shadow: 0 0 0 3px rgba(143, 107, 34, 0.16); }
+.tg-dot--indigo  { background: var(--tg-indigo);  box-shadow: 0 0 0 3px rgba(201, 155, 63, 0.16); }
+.tg-dot--teal    { background: var(--tg-teal);    box-shadow: 0 0 0 3px rgba(154, 156, 107, 0.16); }
+
+/* =====================================================================
+ * 管理后台/列表页通用组件（备份/审计/用户管理等共用）
+ * 与 Projects/Dashboard/ProjectDetail/Results 视觉完全一致：
+ * KPI 卡 + 玻璃面板 + 状态/迷你胶囊 + 操作胶囊，集中定义避免各页 scoped 重复复制。
+ * ===================================================================== */
+
+/* ---- KPI 统计行（4 卡：玻璃 + 渐变瓦片 + hover 上浮 + 数字滚动） ---- */
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 18px;
+  margin-bottom: 26px;
+}
+
+.kpi-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 22px;
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(var(--tg-blur)) saturate(1.4);
+  -webkit-backdrop-filter: blur(var(--tg-blur)) saturate(1.4);
+  border: 1px solid var(--tg-border);
+  border-radius: 20px;
+  box-shadow: var(--tg-shadow-card);
+  transition: transform 0.35s var(--tg-ease), box-shadow 0.35s ease, border-color 0.35s ease;
+}
+
+.kpi-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(201, 155, 63, 0.4);
+  box-shadow: 0 18px 44px rgba(60, 45, 25, 0.12), 0 0 0 1px rgba(201, 155, 63, 0.1);
+}
+
+.kpi-card__tile {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: transform 0.35s var(--tg-ease-spring);
+}
+
+.kpi-card:hover .kpi-card__tile {
+  transform: scale(1.08) rotate(-4deg);
+}
+
+.kpi-card__tile--gold {
+  background: linear-gradient(135deg, rgba(201, 155, 63, 0.16), rgba(232, 200, 119, 0.22));
+  color: var(--tg-accent);
+}
+
+.kpi-card__tile--green {
+  background: linear-gradient(135deg, rgba(154, 156, 107, 0.16), rgba(168, 185, 138, 0.2));
+  color: var(--tg-success);
+}
+
+.kpi-card__tile--amber {
+  background: linear-gradient(135deg, rgba(232, 155, 60, 0.16), rgba(232, 200, 119, 0.2));
+  color: #b5731f;
+}
+
+.kpi-card__tile--coral {
+  background: linear-gradient(135deg, rgba(176, 101, 63, 0.14), rgba(194, 94, 76, 0.16));
+  color: var(--tg-pink);
+}
+
+.kpi-card__body { min-width: 0; }
+
+.kpi-card__num {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: var(--tg-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.kpi-card__num--sm { font-size: 21px; letter-spacing: -0.01em; line-height: 1.25; }
+
+.kpi-card__suffix { font-size: 15px; font-weight: 600; color: var(--tg-text-secondary); }
+
+.kpi-card__label { margin-top: 4px; font-size: 14px; font-weight: 500; color: var(--tg-text-primary); }
+
+.kpi-card__meta { margin-top: 2px; font-size: 12px; color: var(--tg-text-secondary); }
+
+/* ---- 玻璃内容面板（表格/内容区） ---- */
+.table-panel {
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(var(--tg-blur)) saturate(1.4);
+  -webkit-backdrop-filter: blur(var(--tg-blur)) saturate(1.4);
+  border: 1px solid var(--tg-border);
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: var(--tg-shadow-card);
+  margin-bottom: 24px;
+}
+
+.table-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.table-panel__title h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--tg-text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.table-panel__title p { margin: 3px 0 0; font-size: 13px; color: var(--tg-text-secondary); }
+
+.table-panel__tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+.section-title__ic {
+  color: var(--tg-accent);
+  background: var(--el-color-primary-light-9);
+  border-radius: 8px;
+  padding: 4px;
+  box-sizing: content-box;
+}
+
+/* ---- 管理列表表格通用美化 ---- */
+.manage-table :deep(.el-table) {
+  --el-table-border-color: rgba(0, 0, 0, 0.05);
+  --el-table-header-bg-color: transparent;
+  --el-table-row-hover-bg-color: rgba(201, 155, 63, 0.06);
+  background: transparent;
+}
+
+.manage-table :deep(.el-table__body tr) { transition: box-shadow 0.3s ease; }
+
+.manage-table :deep(.el-table__body tr:hover) {
+  box-shadow: 0 2px 0 rgba(201, 155, 63, 0.28), 0 8px 22px rgba(60, 45, 25, 0.1);
+}
+
+.manage-table :deep(.el-table__body tr:hover > td.el-table__cell:first-child) {
+  box-shadow: inset 3px 0 0 var(--tg-accent);
+}
+
+.manage-table :deep(.el-table th.el-table__cell) {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tg-text-secondary);
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.manage-table :deep(.el-table__cell) { padding: 12px 0; }
+
+/* ---- 状态胶囊（语义小圆点 + 半透底，统一全局风格） ---- */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 11px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: transform 0.25s var(--tg-ease-spring), box-shadow 0.25s ease;
+}
+
+.status-pill:hover {
+  transform: translateY(-1px) scale(1.05);
+  box-shadow: 0 4px 12px rgba(60, 45, 25, 0.12);
+}
+
+.status-pill::before { content: ''; width: 6px; height: 6px; border-radius: 50%; }
+
+.status-pill--analyzed { background: rgba(154, 156, 107, 0.14); color: #55682e; }
+.status-pill--analyzed::before { background: var(--tg-success); }
+.status-pill--running { background: rgba(232, 155, 60, 0.14); color: #9a5d12; }
+.status-pill--running::before { background: var(--tg-amber); }
+.status-pill--failed { background: rgba(194, 94, 76, 0.12); color: #9a3f30; }
+.status-pill--failed::before { background: var(--tg-danger); }
+.status-pill--created { background: rgba(0, 0, 0, 0.05); color: var(--tg-text-secondary); }
+.status-pill--created::before { background: var(--tg-slate); }
+.status-pill--archived { background: rgba(154, 155, 128, 0.12); color: #6a6b56; }
+.status-pill--archived::before { background: var(--tg-slate); }
+/* 通用布尔/口令状态 */
+.status-pill--done { background: rgba(154, 156, 107, 0.14); color: #55682e; }
+.status-pill--done::before { background: var(--tg-success); }
+.status-pill--wait { background: rgba(232, 155, 60, 0.14); color: #9a5d12; }
+.status-pill--wait::before { background: var(--tg-amber); }
+
+/* ---- 迷你胶囊（表格内短标签：操作/方法/角色等） ---- */
+.mini-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.mini-pill::before { content: ''; width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+
+.mini-pill--gold { background: var(--el-color-primary-light-9); color: var(--tg-accent); }
+.mini-pill--gold::before { background: var(--tg-accent); }
+.mini-pill--green { background: rgba(154, 156, 107, 0.14); color: #55682e; }
+.mini-pill--green::before { background: var(--tg-success); }
+.mini-pill--amber { background: rgba(232, 155, 60, 0.14); color: #9a5d12; }
+.mini-pill--amber::before { background: var(--tg-amber); }
+.mini-pill--coral { background: rgba(194, 94, 76, 0.12); color: #9a3f30; }
+.mini-pill--coral::before { background: var(--tg-danger); }
+.mini-pill--slate { background: rgba(0, 0, 0, 0.05); color: var(--tg-text-secondary); }
+.mini-pill--slate::before { background: var(--tg-slate); }
+
+/* ---- 操作胶囊按钮组（表格行内，语义配色） ---- */
+.op-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.op-actions :deep(.el-button + .el-button) { margin-left: 0; }
+
+.op-btn {
+  height: 30px;
+  padding: 0 11px;
+  font-size: 12.5px;
+  font-weight: 500;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  transition: transform 0.25s var(--tg-ease), box-shadow 0.25s ease, background 0.25s ease;
+}
+
+.op-btn :deep(.el-icon) { font-size: 14px; }
+
+.op-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(60, 45, 25, 0.14); }
+
+.op-btn--view { background: var(--el-color-primary-light-9); border-color: rgba(143, 107, 34, 0.22); color: var(--tg-accent); }
+.op-btn--view:hover { background: var(--el-color-primary-light-8); color: var(--tg-accent); }
+.op-btn--edit { background: rgba(201, 155, 63, 0.14); border-color: rgba(201, 155, 63, 0.28); color: #8a651a; }
+.op-btn--edit:hover { background: rgba(201, 155, 63, 0.22); color: #8a651a; }
+.op-btn--success { background: rgba(154, 156, 107, 0.16); border-color: rgba(154, 156, 107, 0.3); color: #55682e; }
+.op-btn--success:hover { background: rgba(154, 156, 107, 0.26); color: #55682e; }
+.op-btn--warn { background: rgba(232, 155, 60, 0.14); border-color: rgba(232, 155, 60, 0.28); color: #9a5d12; }
+.op-btn--warn:hover { background: rgba(232, 155, 60, 0.24); color: #9a5d12; }
+.op-btn--restore { background: rgba(154, 156, 107, 0.16); border-color: rgba(154, 156, 107, 0.3); color: #55682e; }
+.op-btn--restore:hover { background: rgba(154, 156, 107, 0.26); color: #55682e; }
+.op-btn--danger { background: rgba(194, 94, 76, 0.1); border-color: rgba(194, 94, 76, 0.24); color: #9a3f30; }
+.op-btn--danger:hover { background: rgba(194, 94, 76, 0.18); color: #9a3f30; }
+
+/* ---- 数字单元格 ---- */
+.num-cell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  padding: 2px 8px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--tg-text-primary);
+  font-variant-numeric: tabular-nums;
+  background: rgba(0, 0, 0, 0.035);
+  transition: background 0.25s ease, color 0.25s ease, transform 0.25s var(--tg-ease);
+}
+
+.num-cell:hover { background: var(--el-color-primary-light-9); color: var(--tg-accent); transform: scale(1.08); }
+
+/* ---- 文件名单元（备份文件等） ---- */
+.file-cell { display: flex; align-items: center; gap: 12px; min-width: 0; }
+
+.file-cell__tile {
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  background: var(--el-color-primary-light-9);
+  color: var(--tg-accent);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: transform 0.3s var(--tg-ease-spring), box-shadow 0.3s ease, background 0.3s ease;
+}
+
+.file-cell:hover .file-cell__tile {
+  transform: scale(1.12) rotate(-6deg);
+  box-shadow: var(--tg-glow-accent);
+  background: var(--el-color-primary-light-8);
+}
+
+.file-cell__name {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--tg-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+/* ---- 表格内用户单元 + 小号头像 ---- */
+.tg-avatar--xs { width: 30px; height: 30px; border-radius: 9px; font-size: 12px; }
+
+.audit-user { display: inline-flex; align-items: center; gap: 9px; min-width: 0; }
+.audit-user__name { font-size: 13.5px; font-weight: 500; color: var(--tg-text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---- 页头操作区搜索框 ---- */
+.search-input { width: 220px; }
+
+/* ---- 窄屏适配（KPI 自动拆行） ---- */
+@media (max-width: 1280px) {
+  .kpi-row { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 720px) {
+  .kpi-row { grid-template-columns: 1fr; }
+}
+
+/* =====================================================================
+ * 个性化增强 BATCH-1：主题色变体（蜜金默认 / 橄榄 / 陶土 / 青黛）
+ * 通过 html[data-accent] 覆盖主色令牌；Element Plus 色阶用 color-mix 派生。
+ * ===================================================================== */
+html[data-accent='olive'] {
+  --tg-accent: #6B8E4E;
+  --tg-accent-hover: #55682E;
+  --tg-accent-gradient: linear-gradient(135deg, #4E6B2E 0%, #6B8E4E 48%, #A8B98A 100%);
+  --tg-gradient-soft: linear-gradient(120deg, rgba(107, 142, 78, 0.1), rgba(168, 185, 138, 0.08));
+  --tg-glow-accent: 0 8px 24px rgba(107, 142, 78, 0.2);
+  --tg-ring-accent: 0 0 0 3px rgba(107, 142, 78, 0.18);
+  --el-color-primary: var(--tg-accent);
+  --el-color-primary-light-3: color-mix(in srgb, var(--tg-accent) 70%, white);
+  --el-color-primary-light-5: color-mix(in srgb, var(--tg-accent) 50%, white);
+  --el-color-primary-light-7: color-mix(in srgb, var(--tg-accent) 30%, white);
+  --el-color-primary-light-8: color-mix(in srgb, var(--tg-accent) 20%, white);
+  --el-color-primary-light-9: color-mix(in srgb, var(--tg-accent) 10%, white);
+  --el-color-primary-dark-2: color-mix(in srgb, var(--tg-accent) 80%, black);
+}
+
+html[data-accent='coral'] {
+  --tg-accent: #BC5F3C;
+  --tg-accent-hover: #9A4A30;
+  --tg-accent-gradient: linear-gradient(135deg, #9A4A30 0%, #C2694F 48%, #E0A183 100%);
+  --tg-gradient-soft: linear-gradient(120deg, rgba(188, 95, 60, 0.1), rgba(224, 161, 131, 0.08));
+  --tg-glow-accent: 0 8px 24px rgba(188, 95, 60, 0.2);
+  --tg-ring-accent: 0 0 0 3px rgba(188, 95, 60, 0.18);
+  --el-color-primary: var(--tg-accent);
+  --el-color-primary-light-3: color-mix(in srgb, var(--tg-accent) 70%, white);
+  --el-color-primary-light-5: color-mix(in srgb, var(--tg-accent) 50%, white);
+  --el-color-primary-light-7: color-mix(in srgb, var(--tg-accent) 30%, white);
+  --el-color-primary-light-8: color-mix(in srgb, var(--tg-accent) 20%, white);
+  --el-color-primary-light-9: color-mix(in srgb, var(--tg-accent) 10%, white);
+  --el-color-primary-dark-2: color-mix(in srgb, var(--tg-accent) 80%, black);
+}
+
+html[data-accent='teal'] {
+  --tg-accent: #47707F;
+  --tg-accent-hover: #385A67;
+  --tg-accent-gradient: linear-gradient(135deg, #3B5A66 0%, #47707F 48%, #8FB3BF 100%);
+  --tg-gradient-soft: linear-gradient(120deg, rgba(71, 112, 127, 0.1), rgba(143, 179, 191, 0.08));
+  --tg-glow-accent: 0 8px 24px rgba(71, 112, 127, 0.2);
+  --tg-ring-accent: 0 0 0 3px rgba(71, 112, 127, 0.18);
+  --el-color-primary: var(--tg-accent);
+  --el-color-primary-light-3: color-mix(in srgb, var(--tg-accent) 70%, white);
+  --el-color-primary-light-5: color-mix(in srgb, var(--tg-accent) 50%, white);
+  --el-color-primary-light-7: color-mix(in srgb, var(--tg-accent) 30%, white);
+  --el-color-primary-light-8: color-mix(in srgb, var(--tg-accent) 20%, white);
+  --el-color-primary-light-9: color-mix(in srgb, var(--tg-accent) 10%, white);
+  --el-color-primary-dark-2: color-mix(in srgb, var(--tg-accent) 80%, black);
+}
+
+/* 深色模式下的主题色变体（提亮主色以保持对比度） */
+:root[data-theme='dark'][data-accent='olive'] {
+  --tg-accent: #9AB27B;
+  --tg-accent-hover: #A8B98A;
+  --tg-accent-gradient: linear-gradient(135deg, #6B8E4E 0%, #9AB27B 48%, #C3D1A9 100%);
+  --tg-glow-accent: 0 8px 24px rgba(154, 178, 123, 0.16);
+  --tg-ring-accent: 0 0 0 3px rgba(154, 178, 123, 0.22);
+  --el-color-primary: var(--tg-accent);
+  --el-color-primary-light-3: color-mix(in srgb, var(--tg-accent) 30%, #17130F);
+  --el-color-primary-light-5: color-mix(in srgb, var(--tg-accent) 20%, #17130F);
+  --el-color-primary-light-7: color-mix(in srgb, var(--tg-accent) 15%, #17130F);
+  --el-color-primary-light-8: color-mix(in srgb, var(--tg-accent) 13%, #17130F);
+  --el-color-primary-light-9: color-mix(in srgb, var(--tg-accent) 10%, transparent);
+  --el-color-primary-dark-2: color-mix(in srgb, var(--tg-accent) 80%, black);
+}
+
+:root[data-theme='dark'][data-accent='coral'] {
+  --tg-accent: #D08A66;
+  --tg-accent-hover: #DFA07F;
+  --tg-accent-gradient: linear-gradient(135deg, #B05A40 0%, #D08A66 48%, #E8BCA4 100%);
+  --tg-glow-accent: 0 8px 24px rgba(208, 138, 102, 0.16);
+  --tg-ring-accent: 0 0 0 3px rgba(208, 138, 102, 0.22);
+  --el-color-primary: var(--tg-accent);
+  --el-color-primary-light-3: color-mix(in srgb, var(--tg-accent) 30%, #17130F);
+  --el-color-primary-light-5: color-mix(in srgb, var(--tg-accent) 20%, #17130F);
+  --el-color-primary-light-7: color-mix(in srgb, var(--tg-accent) 15%, #17130F);
+  --el-color-primary-light-8: color-mix(in srgb, var(--tg-accent) 13%, #17130F);
+  --el-color-primary-light-9: color-mix(in srgb, var(--tg-accent) 10%, transparent);
+  --el-color-primary-dark-2: color-mix(in srgb, var(--tg-accent) 80%, black);
+}
+
+:root[data-theme='dark'][data-accent='teal'] {
+  --tg-accent: #7FA7B5;
+  --tg-accent-hover: #93B9C6;
+  --tg-accent-gradient: linear-gradient(135deg, #5E8A99 0%, #7FA7B5 48%, #B3CFD8 100%);
+  --tg-glow-accent: 0 8px 24px rgba(127, 167, 181, 0.16);
+  --tg-ring-accent: 0 0 0 3px rgba(127, 167, 181, 0.22);
+  --el-color-primary: var(--tg-accent);
+  --el-color-primary-light-3: color-mix(in srgb, var(--tg-accent) 30%, #17130F);
+  --el-color-primary-light-5: color-mix(in srgb, var(--tg-accent) 20%, #17130F);
+  --el-color-primary-light-7: color-mix(in srgb, var(--tg-accent) 15%, #17130F);
+  --el-color-primary-light-8: color-mix(in srgb, var(--tg-accent) 13%, #17130F);
+  --el-color-primary-light-9: color-mix(in srgb, var(--tg-accent) 10%, transparent);
+  --el-color-primary-dark-2: color-mix(in srgb, var(--tg-accent) 80%, black);
+}
+
+/* ===== 密度：紧凑模式（信息密度优先的桌面场景） ===== */
+html[data-density='compact'] {
+  --tg-space-card: 18px;
+  --tg-space-section: 20px;
+  --tg-radius-card: 12px;
+  --tg-radius-input: 8px;
+  --el-font-size-base: 13px;
+}
+
+html[data-density='compact'] .el-table .el-table__cell {
+  padding: 6px 0;
+}
+
+/* ===== 外观设置面板（Layout 头部入口，popper 挂 body 故放全局） ===== */
+.appearance-popper { border-radius: 14px !important; }
+.appearance-panel { display: flex; flex-direction: column; gap: 10px; }
+.appearance-panel__title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tg-text-secondary);
+  letter-spacing: 0.02em;
+}
+.appearance-panel__swatches { display: flex; gap: 10px; }
+.appearance-panel__swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.25s var(--tg-ease-spring), box-shadow 0.25s ease, border-color 0.25s ease;
+}
+.appearance-panel__swatch:hover { transform: scale(1.12); }
+.appearance-panel__swatch.is-active {
+  border-color: var(--tg-text-primary);
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.06);
+  transform: scale(1.08);
+}
+.appearance-panel__density { display: flex; gap: 8px; }
+.appearance-panel__density-chip {
+  flex: 1;
+  padding: 6px 0;
+  font-size: 12.5px;
+  font-family: inherit;
+  border-radius: 8px;
+  border: 1px solid var(--tg-border);
+  background: transparent;
+  color: var(--tg-text-secondary);
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+.appearance-panel__density-chip:hover { border-color: var(--tg-accent); color: var(--tg-accent); }
+.appearance-panel__density-chip.is-active {
+  background: var(--tg-accent);
+  border-color: var(--tg-accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+/* ===== 工作台布局自定义面板（popper 挂 body 故放全局） ===== */
+.dash-customize { display: flex; flex-direction: column; gap: 2px; }
+.dash-customize__row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 2px 0; }
+.dash-customize__row .el-checkbox { height: 26px; }
+.dash-customize__ops { display: inline-flex; gap: 4px; }
+.dash-customize__op {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: 1px solid var(--tg-border);
+  background: transparent;
+  color: var(--tg-text-secondary);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.25s ease;
+}
+.dash-customize__op:hover {
+  border-color: var(--tg-accent);
+  color: var(--tg-accent);
+  background: var(--el-color-primary-light-9);
+}
+.dash-customize__reset { align-self: flex-end; margin-top: 4px; }
+
+/* =====================================================================
+ * 个性化增强 BATCH-2：Java 语法高亮令牌
+ * 代码面板为常暗底（.code-block #1e1e1e），故使用固定的暗底亮字暖调配色
+ * ===================================================================== */
+.code-hl .tok-kw  { color: #E8C877; font-weight: 600; }
+.code-hl .tok-str { color: #A8B98A; }
+.code-hl .tok-com { color: #8A7C66; font-style: italic; }
+.code-hl .tok-ann { color: #D9A966; }
+.code-hl .tok-num { color: #E0B36A; font-variant-numeric: tabular-nums; }
+.code-hl .tok-fn  { color: #93B9C6; }
+
+/* ===== 快捷键速查表（el-dialog append-to-body 故放全局） ===== */
+.hotkey-dialog { border-radius: 16px !important; }
+.hotkey-sheet { display: flex; flex-direction: column; gap: 18px; }
+.hotkey-sheet__title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tg-text-secondary);
+  letter-spacing: 0.02em;
+  margin-bottom: 8px;
+}
+.hotkey-sheet__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 0;
+}
+.hotkey-sheet__keys { display: inline-flex; gap: 5px; min-width: 74px; }
+.hotkey-sheet__keys kbd {
+  min-width: 26px;
+  height: 26px;
+  padding: 0 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  font-family: var(--tg-font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tg-text-primary);
+  background: rgba(0, 0, 0, 0.045);
+  border: 1px solid var(--tg-border);
+  box-shadow: 0 1.5px 0 rgba(0, 0, 0, 0.08);
+}
+:root[data-theme='dark'] .hotkey-sheet__keys kbd {
+  background: rgba(237, 227, 210, 0.08);
+  color: var(--tg-text-primary);
+}
+.hotkey-sheet__label { font-size: 13px; color: var(--tg-text-primary); }
+
+/* ===== 统一危险操作确认（confirmDanger） ===== */
+.el-message-box { border-radius: 14px !important; }
+.el-message-box .tg-btn-danger {
+  background: var(--tg-danger) !important;
+  border-color: var(--tg-danger) !important;
+  color: #fff !important;
+}
+.el-message-box .tg-btn-danger:hover {
+  background: #a94b3a !important;
+  border-color: #a94b3a !important;
+}
+
+/* =====================================================================
+ * 移动端适配层（RWD / Mobile Adaptation）
+ * 适配策略：
+ *   ① 优先覆盖设计令牌（--tg-*）——全站 scoped 样式引用令牌，自动跟随缩放；
+ *   ② 结构性布局（容器/页头/网格/导航）与硬编码尺寸用 !important 兜底；
+ *   ③ 触控目标 ≥44px（主操作）/ ≥36px（表格内小按钮）；输入框 ≥16px 防 iOS 自动缩放；
+ *   ④ 移动端降级磨砂与装饰动画，降低 GPU 负担，保证滚动流畅。
+ * 断点：≤1180px 小笔电 / ≤1024px 平板 / ≤768px 手机 / ≤480px 小屏手机
+ * 兼容：iOS Safari 12+ / Android Chrome 80+（与 .browserslistrc 声明一致）
+ * ===================================================================== */
+
+/* ---------- 全局：媒体内容自适应（所有断点生效，避免溢出） ---------- */
+img,
+video,
+canvas,
+svg,
+iframe,
+embed {
+  max-width: 100%;
+}
+
+img,
+video {
+  height: auto;
+}
+
+/* 文本与容器：允许长串/英文换行，杜绝横向溢出 */
+body * {
+  overflow-wrap: break-word;
+}
+
+/* ========================= 断点 1：小笔电 ≤1180px ========================= */
+@media (max-width: 1180px) {
+  :root {
+    --tg-space-page-x: 24px;
+  }
+}
+
+/* ========================= 断点 2：平板 ≤1024px ========================= */
+@media (max-width: 1024px) {
+  :root {
+    --tg-space-page-x: 20px;
+    --tg-space-section: 20px;
+    --tg-font-title: 24px;
+    --tg-font-stat: 32px;
+  }
+
+  /* 主内容区留白跟随令牌 */
+  .main-content {
+    padding-left: var(--tg-space-page-x) !important;
+    padding-right: var(--tg-space-page-x) !important;
+  }
+
+  /* 四格统计 → 两格 */
+  .kpi-row,
+  .cfg-stats {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* 配置页可视化卡片 → 两列 */
+  .cfg-viz {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* ========================= 断点 3：手机 ≤768px ========================= */
+@media (max-width: 768px) {
+  :root {
+    /* 间距：收紧留白，换取内容宽度 */
+    --tg-space-page-x: 14px;
+    --tg-space-section: 16px;
+    --tg-space-card: 16px;
+    /* 字号：标题降档，正文保持 14px 可读 */
+    --tg-font-title: 21px;
+    --tg-font-subtitle: 15px;
+    --tg-font-body: 14px;
+    --tg-font-caption: 13px;
+    --tg-font-stat: 27px;
+    /* 圆角与模糊：小屏收敛，降低渲染成本 */
+    --tg-radius-card: 14px;
+    --tg-radius-modal: 16px;
+    --tg-blur: 10px;
+    --tg-blur-strong: 14px;
+  }
+
+  /* ---- 根容器：禁止整页横向滚动 ---- */
+  html,
+  body {
+    overflow-x: hidden;
+    -webkit-text-size-adjust: 100%; /* 防止 iOS 横屏自动放大文本 */
+  }
+
+  /* ---- 页面容器：左右留白贴合屏幕 ---- */
+  .page,
+  .main-content {
+    max-width: 100% !important;
+    padding-left: var(--tg-space-page-x) !important;
+    padding-right: var(--tg-space-page-x) !important;
+  }
+
+  /* ---- 页头：纵向堆叠，标题与操作区各占一行 ---- */
+  .page-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px;
+    padding: 16px !important;
+    border-radius: 16px;
+    margin-bottom: 18px;
+  }
+
+  .page-header__title {
+    padding-left: 12px;
+    font-size: var(--tg-font-title);
+  }
+
+  .page-header__title::before {
+    top: 6px;
+    bottom: 6px;
+  }
+
+  .page-header__desc {
+    margin-left: 12px;
+    font-size: 13px;
+  }
+
+  .page-header__actions {
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* 页头内按钮：撑满等分，便于拇指点击 */
+  .page-header__actions > .el-button {
+    flex: 1 1 auto;
+    min-width: 96px;
+  }
+
+  /* ---- 网格：统一单列（统计/可视化/分区） ---- */
+  .kpi-row,
+  .cfg-stats,
+  .cfg-viz,
+  .tg-stat-strip {
+    grid-template-columns: 1fr !important;
+    gap: 12px;
+  }
+
+  .cfg-viz__card--wide,
+  .cfg-viz__card--full {
+    grid-column: 1 / -1 !important;
+  }
+
+  /* 统计卡：横向紧凑排布，避免竖向过长 */
+  .kpi-card,
+  .cfg-stat,
+  .tg-stat-cell {
+    padding: 14px 16px !important;
+    border-radius: 14px;
+  }
+
+  .kpi-card__num {
+    font-size: 26px;
+  }
+
+  /* config 分区卡 */
+  .cfg-section {
+    padding: 16px !important;
+    border-radius: 16px;
+    margin-bottom: 16px;
+  }
+
+  .cfg-section__head {
+    flex-direction: column;
+    align-items: flex-start !important;
+    gap: 10px;
+  }
+
+  .cfg-section__title p {
+    margin-left: 0;
+  }
+
+  /* ---- 工具条：纵向堆叠 ---- */
+  .tg-toolbar,
+  .table-panel__head {
+    flex-direction: column;
+    align-items: stretch !important;
+    gap: 10px;
+  }
+
+  .tg-toolbar__left,
+  .tg-toolbar__right,
+  .table-panel__tools {
+    width: 100%;
+  }
+
+  .table-panel {
+    padding: 16px !important;
+    border-radius: 14px;
+  }
+
+  /* ===================== 触控目标 ===================== */
+  /* 主操作按钮：≥44px（Apple HIG / Material 触控最小尺寸） */
+  .el-button {
+    min-height: 44px;
+    padding: 0 16px;
+    font-size: 14px;
+  }
+
+  .el-button--small {
+    min-height: 36px;
+    padding: 0 12px;
+  }
+
+  /* 表格内操作胶囊：36px（兼顾行高与可点击） */
+  .op-btn {
+    height: 36px !important;
+    padding: 0 13px !important;
+    font-size: 13px;
+  }
+
+  /* 行内操作区不换行导致超宽时允许换行 */
+  .op-actions {
+    flex-wrap: wrap !important;
+    justify-content: flex-start !important;
+    gap: 6px;
+  }
+
+  /* chip 筛选器 / 胶囊：触控加大 */
+  .tg-chip {
+    padding: 9px 16px;
+    font-size: 14px;
+  }
+
+  /* 顶栏按钮：触控加大 */
+  .cmd-trigger {
+    min-height: 40px;
+    padding: 8px 14px;
+  }
+
+  /* 下拉项：≥44px 便于点选 */
+  .el-dropdown-menu__item {
+    min-height: 44px;
+    line-height: 44px;
+    padding: 0 16px;
+    font-size: 15px;
+  }
+
+  /* 单选/复选/开关：加大点击热区 */
+  .el-radio,
+  .el-checkbox {
+    min-height: 40px;
+    margin-right: 18px;
+  }
+
+  .el-radio__inner,
+  .el-checkbox__inner {
+    width: 18px;
+    height: 18px;
+  }
+
+  /* ===================== 表单（iOS 防自动缩放关键） ===================== */
+  /* iOS Safari 在字号 <16px 的输入框聚焦时会自动放大页面，故输入类统一 16px */
+  .el-input__inner,
+  .el-textarea__inner,
+  .el-select__placeholder,
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+
+  .el-form-item__label {
+    font-size: 14px;
+    padding-bottom: 6px;
+  }
+
+  /* 表单项纵向排布（label 在上，控件在下，避免横向挤压） */
+  .el-form--inline .el-form-item {
+    display: block;
+    margin-right: 0;
+  }
+
+  .el-form--inline .el-form-item__content {
+    width: 100%;
+  }
+
+  /* 搜索框等固定宽度控件：撑满可用宽度 */
+  .search-input,
+  .el-date-editor.el-input,
+  .el-date-editor.el-input__wrapper {
+    width: 100% !important;
+  }
+
+  /* 输入/选择器高度：触控友好 */
+  .el-input__wrapper,
+  .el-select__wrapper {
+    min-height: 44px;
+  }
+
+  /* ===================== 表格 ===================== */
+  /* 单元格收紧 + 内容换行，列多时由表格自身横向滚动承接 */
+  .el-table {
+    font-size: 13px;
+    --el-table-cell-padding: 10px 8px;
+  }
+
+  .el-table th.el-table__cell {
+    font-size: 12px;
+    padding: 10px 8px;
+  }
+
+  /* 表头/表体允许横向滚动（惯性滚动，iOS 顺滑） */
+  .el-table__body-wrapper,
+  .el-table__header-wrapper,
+  .el-scrollbar__wrap {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* 单元格内容：超长自动换行，避免截断与横向撑开 */
+  .el-table .cell {
+    white-space: normal !important;
+    word-break: break-word;
+    line-height: 1.5;
+  }
+
+  /* 表格内头像/图标等固定尺寸保持不缩 */
+  .el-table .tg-avatar,
+  .el-table .file-cell__tile {
+    flex-shrink: 0;
+  }
+
+  /* ===================== 弹窗 / 抽屉 ===================== */
+  /* 弹窗：近全屏 + 内部滚动（避免内容溢出屏幕） */
+  .el-dialog {
+    width: calc(100% - 24px) !important;
+    margin: 12px auto !important;
+    max-height: 88vh;
+    display: flex;
+    flex-direction: column;
+    border-radius: 16px !important;
+  }
+
+  .el-dialog__header {
+    padding: 16px 18px 12px;
+  }
+
+  .el-dialog__body {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 14px 18px;
+  }
+
+  .el-dialog__footer {
+    padding: 12px 18px 16px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .el-dialog__footer .el-button {
+    flex: 1 1 auto;
+    min-width: 100px;
+    margin-left: 0 !important;
+  }
+
+  /* 覆盖层垂直居中改为顶部对齐，长弹窗更友好 */
+  .el-overlay-dialog {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    overflow: auto;
+  }
+
+  /* 抽屉：占屏 86%，上限 340px */
+  .el-drawer {
+    width: 86% !important;
+    max-width: 340px;
+  }
+
+  .el-drawer__body {
+    padding: 16px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* 消息框（confirmDanger 等） */
+  .el-message-box {
+    width: calc(100% - 32px) !important;
+    max-height: 80vh;
+    overflow-y: auto;
+  }
+
+  /* 全局轻提示：避免超出小屏 */
+  .el-message {
+    min-width: calc(100% - 32px);
+    max-width: calc(100% - 32px);
+  }
+
+  /* ===================== 分页 ===================== */
+  /* 简化为「上一页 + 页码 + 下一页」，隐藏总数/每页条数/跳转 */
+  .el-pagination {
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 6px 0;
+  }
+
+  .el-pagination__total,
+  .el-pagination__sizes,
+  .el-pagination__jump {
+    display: none !important;
+  }
+
+  .el-pagination .btn-prev,
+  .el-pagination .btn-next,
+  .el-pagination .el-pager li {
+    min-width: 36px;
+    height: 36px;
+    line-height: 36px;
+  }
+
+  /* ===================== 标签页 / 多标签导航 ===================== */
+  .tabs-nav {
+    gap: 6px;
+    padding: 8px var(--tg-space-page-x) 2px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tabs-nav__item {
+    flex-shrink: 0;
+    max-width: 160px;
+    min-height: 36px;
+  }
+
+  /* Element 标签页（el-tabs）：移动端可横向滚动 */
+  .el-tabs__nav-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .el-tabs__nav-scroll {
+    overflow: visible;
+  }
+
+  .el-tabs__item {
+    font-size: 14px;
+    padding: 0 14px;
+    height: 44px;
+    line-height: 44px;
+  }
+
+  /* ===================== 代码 / 预格式文本 ===================== */
+  .tg-pre,
+  .code-block,
+  pre {
+    font-size: 12px;
+    max-height: 320px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* ===================== 描述列表（详情弹窗常用） ===================== */
+  .el-descriptions {
+    font-size: 13px;
+  }
+
+  /* 移动端：标签在上、值在下（横向空间不足） */
+  .el-descriptions__body .el-descriptions__row {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .el-descriptions__label {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  .el-descriptions__content {
+    width: 100% !important;
+  }
+
+  /* ===================== 性能降级（移动端 GPU 保守策略） ===================== */
+  /* 隐藏大面积模糊光斑：小屏收益低、合成成本高 */
+  .tg-aurora,
+  .page-glow {
+    display: none !important;
+  }
+
+  /* 磨砂降级：blur 半径减半，显著降低滚动掉帧 */
+  .glass-card,
+  .table-panel,
+  .kpi-card,
+  .el-dialog,
+  .el-drawer,
+  .topbar,
+  .cfg-section,
+  .cfg-stat {
+    backdrop-filter: blur(8px) saturate(1.2) !important;
+    -webkit-backdrop-filter: blur(8px) saturate(1.2) !important;
+  }
+
+  /* 关闭卡片 hover 位移（移动端无 hover，且避免误触抖动） */
+  .glass-card:hover,
+  .el-card:hover,
+  .kpi-card:hover,
+  .tg-stat-cell:hover,
+  .cfg-stat:hover,
+  .cfg-viz__card:hover {
+    transform: none !important;
+  }
+
+  /* 星点纹理：小屏简化（保留首屏质感，去掉大面积 mask 合成） */
+  .main-content::before,
+  .page::before {
+    background-size: 26px 26px;
+  }
+}
+
+/* ========================= 断点 4：小屏手机 ≤480px ========================= */
+@media (max-width: 480px) {
+  :root {
+    --tg-space-page-x: 12px;
+    --tg-space-card: 14px;
+    --tg-font-title: 19px;
+    --tg-font-stat: 24px;
+  }
+
+  .kpi-card__num {
+    font-size: 23px;
+  }
+
+  .kpi-card__tile {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+  }
+
+  .stat-card {
+    gap: 12px;
+    padding: 14px;
+  }
+
+  .stat-card__icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+  }
+
+  /* 页头进一步收紧 */
+  .page-header {
+    padding: 14px !important;
+  }
+
+  /* 顶栏 logo 文字在小屏隐藏，仅保留图形标 */
+  .logo-text {
+    display: none;
+  }
+
+  /* 统计条两列（单列过长，两列更紧凑） */
+  .tg-stat-strip {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px;
+  }
+
+  .tg-stat-cell__value {
+    font-size: 20px;
+  }
+
+  /* 认证页（登录/注册/改密）：贴合屏幕 */
+  .auth-container {
+    padding: 16px;
+    align-items: flex-start;
+  }
+
+  .auth-card {
+    padding: 28px 20px !important;
+    border-radius: 16px;
+    margin-top: 24px;
+  }
+
+  .auth-card__header .brand {
+    font-size: 26px;
+  }
+
+  .auth-card__header .brand-mark {
+    width: 56px;
+    height: 56px;
+  }
+
+  .el-dialog {
+    width: calc(100% - 16px) !important;
+    margin: 8px auto !important;
+    max-height: 92vh;
+  }
+
+  .el-drawer {
+    width: 100% !important;
+    max-width: 100%;
+  }
+
+  /* 分页：仅保留核心页码 */
+  .el-pagination .el-pager li:not(.is-active):not(.btn-quicknext):not(.btn-quickprev) {
+    display: none;
+  }
+}
+
+/* ========================= 横屏手机（高度受限） ========================= */
+@media (max-height: 480px) and (orientation: landscape) {
+  .el-dialog {
+    max-height: 92vh;
+  }
+
+  .auth-container {
+    align-items: flex-start;
+    padding: 12px;
+  }
+
+  .auth-card {
+    margin: 12px auto;
+    padding: 20px 18px !important;
+  }
+}
+
+/* ========================= 触摸设备：移除 hover 残留态 ========================= */
+@media (hover: none) {
+  /* 触摸设备无 hover，避免点击后样式"粘住" */
+  .el-button:hover {
+    transform: none;
+    box-shadow: none;
+  }
+
+  .manage-table :deep(.el-table__body tr:hover) {
+    box-shadow: none;
+  }
+}

@@ -1,8 +1,20 @@
 <template>
   <div class="traceability-page">
-    <el-page-header @back="$router.back()" content="需求-代码双向追溯矩阵" style="margin-bottom: 20px" />
+    <div class="page-header">
+      <div>
+        <el-button link class="page-header__back" @click="$router.back()">
+          <el-icon><ArrowLeft /></el-icon> 返回
+        </el-button>
+        <p class="tg-kicker">Traceability Matrix</p>
+        <h2 class="page-header__title">需求-代码双向追溯矩阵</h2>
+        <p class="page-header__desc">需求与代码实现的双向关联追溯与一致性分析</p>
+      </div>
+      <div class="page-header__actions">
+        <!-- 页面原有主要操作按钮（若有） -->
+      </div>
+    </div>
 
-    <el-card>
+    <el-card shadow="never">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px">
         <el-alert type="info" :closable="false" style="flex: 1; margin-right: 15px">
           追溯矩阵实现需求条目到代码实现的双向关联追溯，支持需求正向追溯和代码反向追溯。
@@ -30,7 +42,7 @@
       </div>
 
       <div v-if="viewMode === 'table' && direction === 'forward'">
-      <el-table :data="matrix" stripe border :loading="loadingPage">
+      <el-table :data="matrix" :loading="loadingPage">
         <el-table-column type="index" label="序号" width="60" :index="globalIndex" />
         <el-table-column prop="requirementId" label="需求ID" width="110" fixed />
         <el-table-column prop="requirementText" label="需求原文" min-width="280" show-overflow-tooltip />
@@ -59,7 +71,7 @@
           <template #default="{ row }">
             <el-tag v-if="row.defectLevel === 'serious'" type="danger" size="small">严重</el-tag>
             <el-tag v-else-if="row.defectLevel === 'general'" type="warning" size="small">一般</el-tag>
-            <span v-else style="color: #67C23A">无</span>
+            <span v-else style="color: var(--tg-success)">无</span>
           </template>
         </el-table-column>
         <el-table-column label="修复建议" min-width="250" show-overflow-tooltip>
@@ -83,7 +95,7 @@
       </div>
 
       <div v-if="viewMode === 'table' && direction === 'reverse'">
-        <el-table :data="matrix" stripe border :loading="loadingPage">
+        <el-table :data="matrix" :loading="loadingPage">
           <el-table-column type="index" label="序号" width="60" :index="globalIndex" />
           <el-table-column prop="filePath" label="文件路径" min-width="200" show-overflow-tooltip fixed />
           <el-table-column label="代码单元" width="200">
@@ -137,6 +149,21 @@
       </div>
 
       <div v-else-if="viewMode === 'heatmap'" class="heatmap-wrapper">
+        <!-- W3-12/O12：矩阵健康概览 -->
+        <div v-if="hasHeatmapData" class="heat-kpis">
+          <div class="heat-kpi">
+            <b>{{ heatStats.req }}</b>
+            <span>需求节点</span>
+          </div>
+          <div class="heat-kpi">
+            <b>{{ heatStats.unit }}</b>
+            <span>代码单元</span>
+          </div>
+          <div class="heat-kpi">
+            <b>{{ heatStats.points }}</b>
+            <span>关联点位</span>
+          </div>
+        </div>
         <div id="traceHeatmap" class="heatmap-chart" />
         <div v-if="!hasHeatmapData" class="heatmap-empty">暂无一致性校验数据，无法生成热力图</div>
         <el-alert v-if="hasHeatmapData && heatmapSampled" type="warning" :closable="false" show-icon style="margin-bottom: 8px">
@@ -158,14 +185,14 @@
         <div class="radar-chart-wrapper">
           <div id="radarChart" class="radar-chart" />
           <div v-if="!radarHasData" class="radar-empty">暂无一致性校验数据，无法生成雷达图</div>
-          <div v-else-if="!selectedRadar.available" class="radar-empty">当前记录三维分项得分缺失（GAP-005 未落地或已降级），暂无可展示分项得分，请选择其他记录</div>
+          <div v-else-if="!selectedRadar.available" class="radar-empty">当前记录三维分项得分缺失，暂无可展示分项得分，请选择其他记录</div>
         </div>
         <div v-if="radarHasData && selectedRadar.available" class="radar-legend">
           <span><span class="legend-line solid"></span>当前选中（{{ direction === 'reverse' ? selectedRadar.unitLabel + ' → ' + selectedRadar.reqLabel : selectedRadar.reqLabel + ' → ' + selectedRadar.unitLabel }}）</span>
           <span><span class="legend-line dashed-green"></span>T1 完全一致阈值（{{ thresholdT1 }}%）</span>
           <span><span class="legend-line dashed-red"></span>T2 严重不一致阈值（{{ thresholdT2 }}%）</span>
         </div>
-        <el-table :data="radarPageRecords" stripe border size="small" highlight-current-row style="margin-top: 12px" :row-class-name="radarRowClassName" @row-click="onRadarRowClick">
+        <el-table :data="radarPageRecords" size="small" highlight-current-row style="margin-top: 12px" :row-class-name="radarRowClassName" @row-click="onRadarRowClick">
           <el-table-column type="index" label="序号" width="60" :index="radarGlobalIndex" />
           <el-table-column v-if="direction === 'reverse'" prop="unitLabel" label="代码单元" min-width="200" show-overflow-tooltip />
           <el-table-column v-if="direction !== 'reverse'" prop="reqLabel" label="需求ID" width="110" />
@@ -224,6 +251,7 @@ import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import * as echarts from 'echarts'
+import { chartColors, chartThemeName, chartText, chartFaint, chartAxisLine, chartSplitLine, chartTooltipBg, chartTitleColor, onChartThemeChange } from '@/utils/echartsTheme'
 import { resultApi, exportApi, analysisApi } from '@/api'
 import { printReportPdf } from '@/utils/print'
 
@@ -237,6 +265,8 @@ const viewMode = ref('table')
 const direction = ref('forward')
 const hasHeatmapData = ref(false)
 const heatmapSampled = ref(false)
+/** W3-12：矩阵健康概览（需求/代码/点位统计） */
+const heatStats = ref({ req: 0, unit: 0, points: 0 })
 let heatmapChart = null
 // 热力图原始数据缓存 {reqAxis, unitAxis, data}
 let heatmapDataset = null
@@ -424,6 +454,7 @@ const buildHeatmapData = (reqs, units, consistency, dir = 'forward') => {
 
 /** 渲染热力图 */
 const renderHeatmap = ({ reqAxis, unitAxis, data, sampled }) => {
+  heatStats.value = { req: reqAxis.length, unit: unitAxis.length, points: data.length }
   const el = document.getElementById('traceHeatmap')
   if (!el) return
   // 视图切换经 v-if 重建容器 DOM，旧实例绑定在已移除节点上，必须先销毁再初始化
@@ -431,7 +462,7 @@ const renderHeatmap = ({ reqAxis, unitAxis, data, sampled }) => {
     heatmapChart.dispose()
     heatmapChart = null
   }
-  heatmapChart = echarts.init(el)
+  heatmapChart = echarts.init(el, chartThemeName())
   heatmapChart.setOption({
     tooltip: {
       position: 'top',
@@ -462,7 +493,7 @@ const renderHeatmap = ({ reqAxis, unitAxis, data, sampled }) => {
       orient: 'horizontal',
       left: 'center',
       bottom: 0,
-      inRange: { color: ['#F56C6C', '#E6A23C', '#67C23A'] }
+      inRange: { color: [chartColors.danger, chartColors.warning, chartColors.success] }
     },
     dataZoom: [
       { type: 'slider', xAxisIndex: 0, height: 16, bottom: 36 },
@@ -622,8 +653,8 @@ const buildRadarOption = () => {
         { name: '不变量满足度', max: 100 }
       ],
       radius: '65%',
-      axisName: { color: '#606266' },
-      splitArea: { areaStyle: { color: ['rgba(64,158,255,0.03)', 'rgba(64,158,255,0.06)'] } }
+      axisName: { color: chartColors.neutral },
+      splitArea: { areaStyle: { color: [chartColors.primary], opacity: 0.06 } }
     },
     series: [
       {
@@ -632,16 +663,16 @@ const buildRadarOption = () => {
         data: [{
           value: [s.alpha, s.beta, s.gamma],
           name: '当前选中',
-          lineStyle: { color: '#409EFF', width: 2 },
-          itemStyle: { color: '#409EFF' },
-          areaStyle: { color: 'rgba(64,158,255,0.25)' }
+          lineStyle: { color: chartColors.primary, width: 2 },
+          itemStyle: { color: chartColors.primary },
+          areaStyle: { color: chartColors.primary, opacity: 0.25 }
         }]
       },
       {
         type: 'radar',
         data: [
-          { value: [t1, t1, t1], name: 'T1 阈值', symbol: 'none', lineStyle: { type: 'dashed', color: '#67C23A' }, areaStyle: { opacity: 0 } },
-          { value: [t2, t2, t2], name: 'T2 阈值', symbol: 'none', lineStyle: { type: 'dashed', color: '#F56C6C' }, areaStyle: { opacity: 0 } }
+          { value: [t1, t1, t1], name: 'T1 阈值', symbol: 'none', lineStyle: { type: 'dashed', color: chartColors.success }, areaStyle: { opacity: 0 } },
+          { value: [t2, t2, t2], name: 'T2 阈值', symbol: 'none', lineStyle: { type: 'dashed', color: chartColors.danger }, areaStyle: { opacity: 0 } }
         ]
       }
     ]
@@ -664,7 +695,7 @@ const renderRadar = () => {
     radarChart.dispose()
     radarChart = null
   }
-  if (!radarChart) radarChart = echarts.init(el)
+  if (!radarChart) radarChart = echarts.init(el, chartThemeName())
   radarChart.setOption(buildRadarOption(), true)
 }
 
@@ -709,6 +740,8 @@ const handlePrintMatrix = async () => {
   }
 }
 
+onChartThemeChange(() => { radarChart?.dispose(); radarChart = null; renderRadar() })
+
 onMounted(() => {
   loadData()
 })
@@ -726,6 +759,37 @@ onUnmounted(() => {
   min-height: 420px;
 }
 
+/* W3-12：矩阵健康概览 */
+.heat-kpis {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.heat-kpi {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: var(--tg-gradient-soft);
+  border: 1px solid var(--tg-border);
+}
+
+.heat-kpi b {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--tg-accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.heat-kpi span {
+  font-size: 12px;
+  color: var(--tg-text-secondary);
+}
+
 .heatmap-chart {
   width: 100%;
   height: 420px;
@@ -737,7 +801,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #909399;
+  color: var(--tg-text-secondary);
 }
 
 .heatmap-legend {
@@ -745,7 +809,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  color: #666;
+  color: var(--tg-text-secondary);
   font-size: 12px;
   margin-top: 8px;
 }
@@ -755,7 +819,7 @@ onUnmounted(() => {
   width: 160px;
   height: 10px;
   border-radius: 5px;
-  background: linear-gradient(to right, #F56C6C, #E6A23C, #67C23A);
+  background: linear-gradient(to right, var(--tg-danger), var(--tg-warning), var(--tg-success));
 }
 
 /* GAP-034：三维分项得分雷达图样式 */
@@ -780,7 +844,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #909399;
+  color: var(--tg-text-secondary);
   background: rgba(0, 0, 0, 0.02);
 }
 
@@ -790,7 +854,7 @@ onUnmounted(() => {
   justify-content: center;
   flex-wrap: wrap;
   gap: 16px;
-  color: #666;
+  color: var(--tg-text-secondary);
   font-size: 12px;
   margin-top: 8px;
 }
@@ -804,21 +868,21 @@ onUnmounted(() => {
 }
 
 .legend-line.solid {
-  background: #409EFF;
+  background: var(--tg-accent);
 }
 
 .legend-line.dashed-green {
-  border-top: 2px dashed #67C23A;
+  border-top: 2px dashed var(--tg-success);
   background: transparent;
 }
 
 .legend-line.dashed-red {
-  border-top: 2px dashed #F56C6C;
+  border-top: 2px dashed var(--tg-danger);
   background: transparent;
 }
 
 .radar-selected-row {
-  background: #ecf5ff !important;
+  background: var(--el-color-primary-light-9) !important;
 }
 
 .legend h4 {
@@ -829,7 +893,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  color: #666;
+  color: var(--tg-text-secondary);
 }
 
 /* GAP-026：分页组件样式 */

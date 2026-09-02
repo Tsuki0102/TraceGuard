@@ -1,8 +1,20 @@
 <template>
   <div class="requirements-page">
-    <el-page-header @back="$router.back()" content="需求分析" style="margin-bottom: 20px" />
+    <div class="page-header">
+      <div>
+        <el-button link class="page-header__back" @click="$router.back()">
+          <el-icon><ArrowLeft /></el-icon> 返回
+        </el-button>
+        <p class="tg-kicker">Requirements Hub</p>
+        <h2 class="page-header__title">需求分析</h2>
+        <p class="page-header__desc">需求语义单元解析、形式化建模与质量检测</p>
+      </div>
+      <div class="page-header__actions">
+        <!-- 页面原有主要操作按钮（若有） -->
+      </div>
+    </div>
 
-    <el-card>
+    <el-card shadow="never">
       <el-alert type="info" :closable="false" style="margin-bottom: 20px">
         共提取到 {{ requirements.length }} 条需求语义单元，已完成自动化分析与形式化建模。
       </el-alert>
@@ -35,7 +47,7 @@
         </el-button>
       </div>
 
-      <el-table :data="pagedRequirements" stripe border @selection-change="handleSelectionChange">
+      <el-table :data="pagedRequirements" @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="55" fixed />
         <el-table-column prop="requirementId" label="需求ID" width="110" fixed />
         <!-- GAP-019：标题/优先级/来源 -->
@@ -54,7 +66,7 @@
         <el-table-column prop="sourceFile" label="来源" width="150" show-overflow-tooltip />
         <el-table-column prop="requirementType" label="类型" width="100">
           <template #default="{ row }">
-            <el-tag size="small" :type="row.requirementType === 'functional' ? 'primary' : 'warning'">
+            <el-tag size="small" :type="row.requirementType === 'functional' ? 'success' : 'warning'">
               {{ {functional:'功能', non_functional:'非功能', constraint:'约束'}[row.requirementType] || row.requirementType }}
             </el-tag>
           </template>
@@ -112,7 +124,7 @@
         <!-- 2.2：结构化质量检测报告 -->
         <el-descriptions-item label="质量检测">
           <div v-if="qualityIssues(currentReq).length > 0">
-            <el-table :data="qualityIssues(currentReq)" size="small" border>
+            <el-table :data="qualityIssues(currentReq)" size="small">
               <el-table-column label="类型" width="100">
                 <template #default="{ row }">
                   <el-tag size="small" :type="row.type === 'contradiction' ? 'danger' : 'warning'">{{ row.typeLabel }}</el-tag>
@@ -144,6 +156,20 @@
           </el-descriptions-item>
           <el-descriptions-item label="校验结果" :span="2">{{ currentSpec.verificationResult }}</el-descriptions-item>
         </el-descriptions>
+        <!-- W3-07/08：需求-规约双栏对比 -->
+        <div class="spec-view-switch">
+          <el-radio-group v-model="specView" size="small">
+            <el-radio-button label="code">规约视图</el-radio-button>
+            <el-radio-button label="diff">需求 × 规约对比</el-radio-button>
+          </el-radio-group>
+        </div>
+        <template v-if="specView === 'diff' && !editing">
+          <TextDiff :left="curReqText" :right="currentSpec.alloyCode" />
+          <el-alert type="info" :closable="false" show-icon style="margin-top: 12px">
+            左栏为需求原文、右栏为生成的 Alloy 形式化规约；红色行表示仅需求侧存在的表述，绿色行表示仅规约侧新增的承诺。
+          </el-alert>
+        </template>
+        <template v-else>
         <!-- 6.2 整改：Alloy 反例（counterexample）与 Kripke 状态迁移图可视化 -->
         <el-divider content-position="left">反例 / Kripke 状态迁移图</el-divider>
         <el-alert
@@ -203,6 +229,7 @@
         <div v-else class="edit-actions" style="margin-top: 12px; text-align: right">
           <el-button size="small" type="primary" plain @click="startEdit">编辑规约</el-button>
         </div>
+        </template>
       </div>
     </el-dialog>
   </div>
@@ -213,7 +240,9 @@ import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import * as echarts from 'echarts'
+import { chartColors, chartThemeName, chartText, chartFaint, chartAxisLine, chartSplitLine, chartTooltipBg, chartTitleColor, onChartThemeChange } from '@/utils/echartsTheme'
 import { resultApi, integrationApi } from '@/api'
+import TextDiff from '@/components/TextDiff.vue'
 
 const route = useRoute()
 const projectId = route.params.id
@@ -225,6 +254,9 @@ const currentSpec = ref(null)
 const editing = ref(false)
 const editCode = ref('')
 const savingSpec = ref(false)
+/** W3-07/08：规约查看视图（code 规约视图 / diff 需求-规约对比） */
+const specView = ref('code')
+const curReqText = ref('')
 
 /** GAP-019：标题/优先级筛选 */
 const filterKeyword = ref('')
@@ -333,12 +365,17 @@ const viewDetail = async (row) => {
 const viewSpec = async (row) => {
   currentReq.value = row
   currentSpec.value = await resultApi.getSpec(row.id)
+  // W3-07/08：记录需求原文供双栏对比（原文以完整详情为准）
+  curReqText.value = row.originalText || ''
+  specView.value = 'code'
   editing.value = false
   showSpec.value = true
   // 拉取需求详情中的 Kripke 结构（stateSet/stateTransitions/initialState）用于渲染状态迁移图
   try {
     const detail = await resultApi.getRequirement(row.id)
     if (detail) currentReq.value = detail
+    // W3-07/08：以完整详情原文作为对比左栏
+    if (detail?.originalText) curReqText.value = detail.originalText
   } catch (e) {
     // 忽略，保留列表行数据
   }
@@ -372,7 +409,7 @@ const kripkeGraphData = computed(() => {
     id: s,
     name: s,
     symbolSize: 46,
-    itemStyle: { color: i === 0 ? '#67C23A' : '#409EFF' },
+    itemStyle: { color: i === 0 ? chartColors.success : chartColors.primary },
     label: { show: true, fontSize: 11, color: '#fff' }
   }))
   const links = parseKripkeTransitions(currentReq.value.stateTransitions)
@@ -381,7 +418,7 @@ const kripkeGraphData = computed(() => {
       source: t.from,
       target: t.to,
       value: t.condition || '',
-      lineStyle: { color: t.from === t.to ? '#E6A23C' : '#a0a6ad', type: t.from === t.to ? 'dashed' : 'solid', curveness: 0.12 }
+      lineStyle: { color: t.from === t.to ? chartColors.warning : chartColors.neutral, type: t.from === t.to ? 'dashed' : 'solid', curveness: 0.12 }
     }))
   return { nodes, links }
 })
@@ -425,7 +462,7 @@ const parseKripkeTransitions = (stateTransitions) => {
 const renderKripke = () => {
   const el = document.getElementById('kripkeChart')
   if (!el || !kripkeGraphData.value) return
-  if (!kripkeChart) kripkeChart = echarts.init(el)
+  if (!kripkeChart) kripkeChart = echarts.init(el, chartThemeName())
   kripkeChart.setOption({
     tooltip: {
       formatter: (p) => p.dataType === 'edge'
@@ -439,7 +476,7 @@ const renderKripke = () => {
       links: kripkeGraphData.value.links,
       roam: true,
       draggable: true,
-      edgeLabel: { show: true, formatter: '{c}', fontSize: 10, color: '#606266' },
+      edgeLabel: { show: true, formatter: '{c}', fontSize: 10, color: chartColors.neutral },
       force: { repulsion: 260, edgeLength: [80, 150], gravity: 0.1, layoutAnimation: false },
       labelLayout: { hideOverlap: true }
     }]
@@ -566,6 +603,8 @@ const handleSelectionChange = (selection) => {
   selectedRequirements.value = selection.map(r => r.id)
 }
 
+onChartThemeChange(() => { kripkeChart?.dispose(); kripkeChart = null; renderKripke() })
+
 onMounted(() => {
   loadData()
 })
@@ -585,8 +624,17 @@ onUnmounted(() => {
 }
 
 .spec-content {
+  position: relative;
   max-height: 70vh;
   overflow-y: auto;
+}
+
+.spec-view-switch {
+  margin-bottom: 14px;
+}
+
+.spec-content :deep(.text-diff) {
+  min-height: 320px;
 }
 
 .code-block {
@@ -627,7 +675,7 @@ onUnmounted(() => {
 
 /* 6.2 整改：反例 / Kripke 状态迁移图可视化 */
 .counterexample-block {
-  color: #cf1322;
+  color: var(--tg-danger);
   font-family: 'Consolas', 'Monaco', monospace;
   font-size: 12px;
   max-height: 260px;
@@ -635,9 +683,9 @@ onUnmounted(() => {
 .kripke-chart {
   width: 100%;
   height: 340px;
-  border: 1px solid #e4e7ed;
+  border: 1px solid var(--tg-border);
   border-radius: 6px;
   margin-bottom: 12px;
-  background: #fafafa;
+  background: var(--tg-bg-card);
 }
 </style>

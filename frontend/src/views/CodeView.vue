@@ -1,21 +1,29 @@
 <template>
   <div class="code-view">
-    <el-page-header @back="$router.back()" content="代码分析" style="margin-bottom: 20px" />
-
-    <!-- FR-CODE-003 规则3（2.5 整改项）：导出语义向量（需求+代码单元，按项目） -->
-    <div style="display: flex; gap: 8px; margin-bottom: 16px; justify-content: flex-end; align-items: center">
-      <el-radio-group v-model="vectorFormat" size="small">
-        <el-radio-button label="json">JSON</el-radio-button>
-        <el-radio-button label="csv">CSV</el-radio-button>
-      </el-radio-group>
-      <el-button type="success" plain :loading="exportingVectors" @click="handleExportVectors">
-        <el-icon><Download /></el-icon> 导出语义向量
-      </el-button>
+    <div class="page-header">
+      <div>
+        <el-button link class="page-header__back" @click="$router.back()">
+          <el-icon><ArrowLeft /></el-icon> 返回
+        </el-button>
+        <p class="tg-kicker">Code Analysis</p>
+        <h2 class="page-header__title">代码分析</h2>
+        <p class="page-header__desc">代码单元对比、控制流图分析与基础缺陷检测</p>
+      </div>
+      <div class="page-header__actions">
+        <!-- FR-CODE-003 规则3（2.5 整改项）：导出语义向量（需求+代码单元，按项目） -->
+        <el-radio-group v-model="vectorFormat" size="small">
+          <el-radio-button label="json">JSON</el-radio-button>
+          <el-radio-button label="csv">CSV</el-radio-button>
+        </el-radio-group>
+        <el-button type="success" plain :loading="exportingVectors" @click="handleExportVectors">
+          <el-icon><Download /></el-icon> 导出语义向量
+        </el-button>
+      </div>
     </div>
 
     <el-row :gutter="20">
       <el-col :span="8">
-        <el-card>
+        <el-card shadow="never">
           <template #header>
             <span>代码单元列表 ({{ codeUnits.length }}个方法)</span>
           </template>
@@ -51,7 +59,7 @@
       </el-col>
 
       <el-col :span="16">
-        <el-card v-if="currentUnit">
+        <el-card v-if="currentUnit" shadow="never">
           <template #header>
             <div class="code-header">
               <span>{{ currentUnit.className }}.{{ currentUnit.methodName }}()</span>
@@ -72,7 +80,7 @@
                       :class="{ 'defect-line': isDefectLine(ln.no) }"
                     >
                       <span class="line-no">{{ ln.no }}</span>
-                      <span class="line-text">{{ ln.text }}</span>
+                      <span class="line-text code-hl" v-html="highlightJava(ln.text)"></span>
                     </div>
                   </div>
                 </div>
@@ -95,7 +103,7 @@
                   :class="{ 'defect-line': isDefectLine(ln.no) }"
                 >
                   <span class="line-no">{{ ln.no }}</span>
-                  <span class="line-text">{{ ln.text }}</span>
+                  <span class="line-text code-hl" v-html="highlightJava(ln.text)"></span>
                 </div>
               </div>
             </el-tab-pane>
@@ -141,7 +149,7 @@
       </el-col>
     </el-row>
 
-    <el-card style="margin-top: 20px">
+    <el-card shadow="never" style="margin-top: 20px">
       <template #header>
         <div style="display: flex; justify-content: space-between; align-items: center">
           <span>代码基础缺陷检测结果 ({{ defectTotal }}个潜在缺陷)</span>
@@ -150,7 +158,7 @@
           </el-button>
         </div>
       </template>
-      <el-table :data="codeDefects" stripe>
+      <el-table :data="codeDefects">
         <el-table-column prop="filePath" label="文件" show-overflow-tooltip />
         <el-table-column prop="className" label="类名" width="150" />
         <el-table-column prop="methodName" label="方法" width="150" />
@@ -188,6 +196,8 @@ import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import * as echarts from 'echarts'
+import { highlightJava } from '@/utils/highlightJava'
+import { chartColors, chartThemeName, chartText, chartFaint, chartAxisLine, chartSplitLine, chartTooltipBg, chartTitleColor, onChartThemeChange } from '@/utils/echartsTheme'
 import { resultApi, exportApi } from '@/api'
 
 const route = useRoute()
@@ -274,7 +284,8 @@ const complexityLevel = (c) => {
 const loadDefects = async () => {
   const res = await resultApi.getCodeDefectsPage(projectId, defectPage.value, defectSize.value)
   codeDefects.value = (res && res.records) || res || []
-  defectTotal.value = (res && res.total) != null ? res.total : codeDefects.value.length
+  // total 强转 Number，避免 ElPagination "Expected Number, got String" 告警
+  defectTotal.value = (res && res.total) != null ? Number(res.total) : codeDefects.value.length
 }
 
 const loadData = async () => {
@@ -294,27 +305,27 @@ let cfgChart = null
 
 /** CFG节点类型配色与图形 */
 const CFG_NODE_STYLE = {
-  start:  { color: '#909399', symbol: 'roundRect', size: 46 },
-  end:    { color: '#909399', symbol: 'roundRect', size: 46 },
-  if:     { color: '#409EFF', symbol: 'diamond', size: [56, 40] },
-  loop:   { color: '#E6A23C', symbol: 'diamond', size: [56, 40] },
-  switch: { color: '#9B59B6', symbol: 'diamond', size: [56, 40] },
-  catch:  { color: '#F56C6C', symbol: 'roundRect', size: 52 },
-  return: { color: '#67C23A', symbol: 'circle', size: 34 },
-  throw:  { color: '#F56C6C', symbol: 'triangle', size: 36 },
+  start:  { color: chartColors.faint, symbol: 'roundRect', size: 46 },
+  end:    { color: chartColors.faint, symbol: 'roundRect', size: 46 },
+  if:     { color: chartColors.primary, symbol: 'diamond', size: [56, 40] },
+  loop:   { color: chartColors.warning, symbol: 'diamond', size: [56, 40] },
+  switch: { color: chartColors.purple, symbol: 'diamond', size: [56, 40] },
+  catch:  { color: chartColors.danger, symbol: 'roundRect', size: 52 },
+  return: { color: chartColors.success, symbol: 'circle', size: 34 },
+  throw:  { color: chartColors.danger, symbol: 'triangle', size: 36 },
   break:  { color: '#B88230', symbol: 'triangle', size: 34 },
   continue: { color: '#B88230', symbol: 'triangle', size: 34 },
-  merge:  { color: '#C0C4CC', symbol: 'circle', size: 22 },
-  stmt:   { color: '#5470C6', symbol: 'roundRect', size: 50 }
+  merge:  { color: chartColors.faint, symbol: 'circle', size: 22 },
+  stmt:   { color: chartColors.sky, symbol: 'roundRect', size: 50 }
 }
 
 /** 边标签样式：true/false实线着色，back/loop_exit虚线 */
 const edgeStyle = (label) => {
-  if (label === 'true') return { color: '#67C23A', type: 'solid', width: 2 }
-  if (label === 'false') return { color: '#F56C6C', type: 'solid', width: 2 }
-  if (label === 'back' || label === 'loop_exit') return { color: '#E6A23C', type: 'dashed', width: 2 }
-  if (label === 'catch') return { color: '#F56C6C', type: 'dotted', width: 1.5 }
-  return { color: '#a0a6ad', type: 'solid', width: 1.2 }
+  if (label === 'true') return { color: chartColors.success, type: 'solid', width: 2 }
+  if (label === 'false') return { color: chartColors.danger, type: 'solid', width: 2 }
+  if (label === 'back' || label === 'loop_exit') return { color: chartColors.warning, type: 'dashed', width: 2 }
+  if (label === 'catch') return { color: chartColors.danger, type: 'dotted', width: 1.5 }
+  return { color: chartColors.neutral, type: 'solid', width: 1.2 }
 }
 
 const cfgData = computed(() => {
@@ -330,7 +341,7 @@ const cfgData = computed(() => {
 const renderCfg = () => {
   const el = document.getElementById('cfgChart')
   if (!el || !cfgData.value) return
-  if (!cfgChart) cfgChart = echarts.init(el)
+  if (!cfgChart) cfgChart = echarts.init(el, chartThemeName())
 
   const nodes = cfgData.value.nodes.map((n) => {
     const style = CFG_NODE_STYLE[n.type] || CFG_NODE_STYLE.stmt
@@ -366,7 +377,7 @@ const renderCfg = () => {
         show: true,
         formatter: '{c}',
         fontSize: 10,
-        color: '#606266'
+        color: chartColors.neutral
       },
       force: {
         repulsion: 320,
@@ -394,6 +405,8 @@ watch(currentUnit, () => {
   }
 })
 
+onChartThemeChange(() => { cfgChart?.dispose(); cfgChart = null; renderCfg() })
+
 onMounted(() => {
   loadData()
 })
@@ -415,26 +428,26 @@ onUnmounted(() => {
   border-radius: 4px;
   cursor: pointer;
   margin-bottom: 8px;
-  border: 1px solid #ebeef5;
+  border: 1px solid var(--tg-border);
   transition: all 0.2s;
 }
 
 .code-item:hover {
-  background: #f5f7fa;
+  background: var(--tg-bg-page);
 }
 
 .code-item.active {
-  background: #ecf5ff;
-  border-color: #409EFF;
+  background: var(--el-color-primary-light-9);
+  border-color: var(--tg-accent);
 }
 
 .class-name {
   font-weight: bold;
-  color: #303133;
+  color: var(--tg-text-primary);
 }
 
 .method-name {
-  color: #409EFF;
+  color: var(--tg-accent);
   margin-top: 4px;
 }
 
@@ -445,12 +458,12 @@ onUnmounted(() => {
 .complexity-tip {
   margin-left: 8px;
   font-size: 12px;
-  color: #909399;
+  color: var(--tg-text-secondary);
 }
 
 .file-path {
   font-size: 12px;
-  color: #909399;
+  color: var(--tg-text-secondary);
   margin-top: 4px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -490,19 +503,19 @@ onUnmounted(() => {
   background: rgba(255, 255, 255, 0.04);
 }
 .code-line.defect-line {
-  background: rgba(245, 108, 108, 0.18);
-  box-shadow: inset 3px 0 0 #f56c6c;
+  background: color-mix(in srgb, var(--tg-danger) 18%, transparent);
+  box-shadow: inset 3px 0 0 var(--tg-danger);
 }
 .line-no {
   flex-shrink: 0;
   width: 48px;
   margin-right: 12px;
   text-align: right;
-  color: #6a737d;
+  color: var(--tg-text-secondary);
   user-select: none;
 }
 .defect-line .line-no {
-  color: #f56c6c;
+  color: var(--tg-danger);
   font-weight: 600;
 }
 .line-text {
@@ -512,7 +525,7 @@ onUnmounted(() => {
 
 .logic-text {
   padding: 15px;
-  background: #f5f7fa;
+  background: var(--tg-bg-page);
   border-radius: 4px;
   line-height: 1.8;
   white-space: pre-wrap;
@@ -541,10 +554,10 @@ onUnmounted(() => {
 .compare-title {
   font-weight: bold;
   font-size: 13px;
-  color: #606266;
+  color: var(--tg-text-secondary);
   margin-bottom: 8px;
   padding-left: 8px;
-  border-left: 3px solid #409EFF;
+  border-left: 3px solid var(--tg-accent);
 }
 
 .compare-tip {
@@ -567,10 +580,10 @@ onUnmounted(() => {
   gap: 14px;
   margin-bottom: 10px;
   padding: 8px 12px;
-  background: #f5f7fa;
+  background: var(--tg-bg-page);
   border-radius: 4px;
   font-size: 12px;
-  color: #606266;
+  color: var(--tg-text-secondary);
 }
 
 .legend-item {
@@ -586,17 +599,36 @@ onUnmounted(() => {
   border-radius: 50%;
 }
 
-.dot-start { background: #909399; }
-.dot-if { background: #409EFF; }
-.dot-loop { background: #E6A23C; }
-.dot-catch { background: #F56C6C; }
+.dot-start { background: var(--tg-text-secondary); }
+.dot-if { background: var(--tg-accent); }
+.dot-loop { background: var(--tg-warning); }
+.dot-catch { background: var(--tg-danger); }
 .dot-jump { background: #B88230; }
 .dot-stmt { background: #5470C6; }
 
 .cfg-chart {
   width: 100%;
   height: 520px;
-  border: 1px solid #ebeef5;
+  border: 1px solid var(--tg-border);
   border-radius: 6px;
+}
+
+/* ===== 移动端适配（≤768px） ===== */
+@media (max-width: 768px) {
+  /* 需求-代码对比：并排会挤成两条极窄栏（内容不可读），改为上下堆叠 */
+  .compare-pane {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  /* CFG 图高度降低，避免小屏上过长 */
+  .cfg-chart {
+    height: 360px;
+  }
+
+  /* 代码块高度收敛，配合弹窗内滚动 */
+  .compare-col .code-block {
+    max-height: 320px;
+  }
 }
 </style>

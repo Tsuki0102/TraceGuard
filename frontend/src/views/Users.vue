@@ -1,63 +1,129 @@
 <template>
   <div class="users-page">
-    <el-card>
-      <template #header>
-        <div class="card-header">
-          <span>用户管理</span>
-          <div class="header-actions">
-            <el-input
-              v-model="keyword"
-              placeholder="搜索用户名/姓名"
-              clearable
-              style="width: 220px; margin-right: 10px"
-              @keyup.enter="loadData"
-              @clear="loadData"
-            >
-              <template #prefix><el-icon><Search /></el-icon></template>
-            </el-input>
-            <el-button type="primary" @click="openCreate">
-              <el-icon><Plus /></el-icon> 新增用户
-            </el-button>
-          </div>
+    <!-- ===== 页头：标题 + 搜索 + 新增 ===== -->
+    <div class="page-header tg-fade-up">
+      <div>
+        <div class="page-header__greet">
+          <el-icon class="page-header__greet-icon"><User /></el-icon>
+          Identity &amp; Access
         </div>
-      </template>
+        <h2 class="page-header__title">用户管理</h2>
+        <p class="page-header__desc">管理系统用户、角色分配与密码重置</p>
+      </div>
+      <div class="page-header__actions">
+        <el-button type="primary" size="large" round @click="openCreate">
+          <el-icon style="margin-right: 6px"><Plus /></el-icon> 新增用户
+        </el-button>
+      </div>
+    </div>
 
-      <el-table :data="records" stripe v-loading="loading">
-        <el-table-column prop="username" label="用户名" width="140" />
-        <el-table-column prop="realName" label="姓名" width="140">
-          <template #default="{ row }">{{ row.realName || '-' }}</template>
+    <!-- ===== KPI 统计行 ===== -->
+    <div class="kpi-row">
+      <div class="kpi-card tg-fade-up">
+        <div class="kpi-card__tile kpi-card__tile--gold"><el-icon :size="22"><User /></el-icon></div>
+        <div class="kpi-card__body">
+          <div class="kpi-card__num"><span class="tg-count">{{ totalDisp }}</span></div>
+          <div class="kpi-card__label">用户总数</div>
+          <div class="kpi-card__meta">全部系统账号</div>
+        </div>
+      </div>
+      <div class="kpi-card tg-fade-up" style="animation-delay: 60ms">
+        <div class="kpi-card__tile kpi-card__tile--amber"><el-icon :size="22"><UserFilled /></el-icon></div>
+        <div class="kpi-card__body">
+          <div class="kpi-card__num"><span class="tg-count">{{ adminDisp }}</span></div>
+          <div class="kpi-card__label">管理员</div>
+          <div class="kpi-card__meta">当前页 · 管理权限</div>
+        </div>
+      </div>
+      <div class="kpi-card tg-fade-up" style="animation-delay: 120ms">
+        <div class="kpi-card__tile kpi-card__tile--coral"><el-icon :size="22"><Lock /></el-icon></div>
+        <div class="kpi-card__body">
+          <div class="kpi-card__num"><span class="tg-count">{{ pendingDisp }}</span></div>
+          <div class="kpi-card__label">待改密</div>
+          <div class="kpi-card__meta">强制改密标记</div>
+        </div>
+      </div>
+      <div class="kpi-card tg-fade-up" style="animation-delay: 180ms">
+        <div class="kpi-card__tile kpi-card__tile--green"><el-icon :size="22"><Avatar /></el-icon></div>
+        <div class="kpi-card__body">
+          <div class="kpi-card__num kpi-card__num--sm">
+            <span class="tg-count">{{ userDisp }}</span>
+            <span class="kpi-card__meta-inline">普通用户</span>
+          </div>
+          <div class="kpi-card__label">角色分布</div>
+          <div class="kpi-card__meta">当前页 · 普通账号</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 用户列表面板 ===== -->
+    <section class="table-panel tg-fade-up">
+      <div class="table-panel__head">
+        <div class="table-panel__title">
+          <h3><el-icon class="section-title__ic" :size="17"><User /></el-icon>系统账号</h3>
+          <p>共 {{ total }} 个用户账号</p>
+        </div>
+      </div>
+
+      <!-- W1-05/R14：统一搜索表单（keyword 走后端查询；角色先按当前页本地过滤） -->
+      <TgSearchBar
+        :fields="searchFields"
+        :collapse-count="1"
+        @search="onSearch"
+        @reset="onResetSearch"
+      />
+
+      <el-table :data="filteredRecords" v-loading="loading" class="manage-table">
+        <el-table-column label="用户" min-width="190">
+          <template #default="{ row }">
+            <div class="tg-user-cell">
+              <span class="tg-avatar">{{ avatarText(row.username) }}</span>
+              <span class="tg-user-cell__main">
+                <span class="tg-user-cell__name">{{ row.username }}</span>
+                <span class="tg-user-cell__sub">{{ row.realName || '未填写姓名' }}</span>
+              </span>
+            </div>
+          </template>
         </el-table-column>
         <el-table-column prop="email" label="邮箱" show-overflow-tooltip>
           <template #default="{ row }">{{ row.email || '-' }}</template>
         </el-table-column>
-        <el-table-column prop="role" label="角色" width="100">
+        <el-table-column label="角色" width="120">
           <template #default="{ row }">
-            <el-tag :type="row.role === 'admin' ? 'danger' : 'info'" size="small">
+            <span class="mini-pill" :class="row.role === 'admin' ? 'mini-pill--gold' : 'mini-pill--green'">
               {{ row.role === 'admin' ? '管理员' : '普通用户' }}
-            </el-tag>
+            </span>
           </template>
         </el-table-column>
-        <el-table-column label="强制改密" width="100">
+        <el-table-column label="强制改密" width="100" align="center">
           <template #default="{ row }">
-            <el-tag v-if="row.mustChangePassword" type="warning" size="small">待改密</el-tag>
-            <el-tag v-else type="success" size="small">正常</el-tag>
+            <span class="mini-pill" :class="row.mustChangePassword ? 'mini-pill--amber' : 'mini-pill--green'">
+              {{ row.mustChangePassword ? '待改密' : '正常' }}
+            </span>
           </template>
         </el-table-column>
         <el-table-column prop="lastLoginTime" label="最近登录" width="170">
           <template #default="{ row }">{{ row.lastLoginTime || '从未登录' }}</template>
         </el-table-column>
         <el-table-column prop="createTime" label="创建时间" width="170" />
-        <el-table-column label="操作" width="230" fixed="right">
+        <el-table-column label="操作" width="280" fixed="right" align="right">
           <template #default="{ row }">
-            <el-button link type="primary" size="small" @click="openEdit(row)">编辑</el-button>
-            <el-button link type="warning" size="small" @click="openResetPwd(row)">重置密码</el-button>
-            <el-button
-              link
-              type="danger"
-              size="small"
-              :disabled="row.username === 'admin' || row.id === currentUserId"
-              @click="handleDelete(row)"
-            >删除</el-button>
+            <div class="op-actions">
+              <el-button class="op-btn op-btn--view" round @click="openEdit(row)">
+                <el-icon><EditPen /></el-icon> 编辑
+              </el-button>
+              <el-button class="op-btn op-btn--warn" round @click="openResetPwd(row)">
+                <el-icon><Key /></el-icon> 重置密码
+              </el-button>
+              <el-button
+                class="op-btn op-btn--danger"
+                round
+                :disabled="row.username === 'admin' || row.id === currentUserId"
+                @click="handleDelete(row)"
+              >
+                <el-icon><Delete /></el-icon> 删除
+              </el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -72,7 +138,7 @@
         @size-change="loadData"
         @current-change="loadData"
       />
-    </el-card>
+    </section>
 
     <!-- 新增/编辑对话框 -->
     <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑用户' : '新增用户'" width="480px">
@@ -98,7 +164,7 @@
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="handleSave">保存</el-button>
+        <el-button type="primary" round :loading="saving" @click="handleSave">保存</el-button>
       </template>
     </el-dialog>
 
@@ -114,7 +180,7 @@
       </el-form>
       <template #footer>
         <el-button @click="resetVisible = false">取消</el-button>
-        <el-button type="primary" :loading="resetting" @click="handleResetPassword">确认重置</el-button>
+        <el-button type="primary" round :loading="resetting" @click="handleResetPassword">确认重置</el-button>
       </template>
     </el-dialog>
   </div>
@@ -124,6 +190,8 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { userApi } from '@/api'
+import { useCountUp } from '@/composables/useCountUp'
+import TgSearchBar from '@/components/TgSearchBar.vue'
 
 const records = ref([])
 const total = ref(0)
@@ -131,6 +199,43 @@ const pageNum = ref(1)
 const pageSize = ref(10)
 const keyword = ref('')
 const loading = ref(false)
+
+// ===== W1-05/R14：统一搜索表单（keyword 走后端查询；角色先按当前页本地过滤） =====
+const searchParams = ref({})
+const searchFields = [
+  { key: 'keyword', label: '用户名/姓名', type: 'input', width: 220 },
+  {
+    key: 'role',
+    label: '角色',
+    type: 'select',
+    width: 130,
+    options: [
+      { label: '管理员', value: 'admin' },
+      { label: '普通用户', value: 'user' }
+    ]
+  }
+]
+
+const onSearch = (params) => {
+  searchParams.value = params
+  keyword.value = params.keyword || ''
+  pageNum.value = 1
+  loadData()
+}
+
+const onResetSearch = () => {
+  searchParams.value = {}
+  keyword.value = ''
+  pageNum.value = 1
+  loadData()
+}
+
+const filteredRecords = computed(() => {
+  let list = records.value
+  const role = searchParams.value.role
+  if (role) list = list.filter((r) => r.role === role)
+  return list
+})
 
 const dialogVisible = ref(false)
 const isEdit = ref(false)
@@ -148,6 +253,17 @@ const currentUserId = computed(() => {
   const userStr = localStorage.getItem('userInfo')
   return userStr ? JSON.parse(userStr).id : null
 })
+
+const adminCount = computed(() => records.value.filter(r => r.role === 'admin').length)
+const pendingPwdCount = computed(() => records.value.filter(r => r.mustChangePassword).length)
+const userCount = computed(() => records.value.length - adminCount.value)
+const avatarText = (name) => (name || '?').slice(0, 1).toUpperCase()
+
+// ===== KPI 数字滚动 =====
+const totalDisp = useCountUp(computed(() => total.value))
+const adminDisp = useCountUp(computed(() => adminCount.value))
+const pendingDisp = useCountUp(computed(() => pendingPwdCount.value))
+const userDisp = useCountUp(computed(() => userCount.value))
 
 /** 密码复杂度校验（与个人中心、后端规则统一：至少8位，含大小写字母和数字） */
 const validatePasswordComplexity = (rule, value, callback) => {
@@ -271,14 +387,83 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+.users-page {
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
-.header-actions {
+/* ===== 页头（与已优化页面统一） ===== */
+.page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 26px;
+}
+
+.page-header__greet {
   display: flex;
   align-items: center;
+  gap: 7px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--tg-accent);
+  margin-bottom: 8px;
+}
+
+.page-header__greet-icon {
+  font-size: 15px;
+}
+
+.page-header__title {
+  margin: 0;
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  color: var(--tg-text-primary);
+  background: linear-gradient(115deg, #6E521A 0%, #8F6B22 50%, #B98A2F 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.page-header__desc {
+  margin: 8px 0 0;
+  font-size: 14px;
+  color: var(--tg-text-secondary);
+}
+
+.page-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+/* 角色分布卡：数字旁的内联标签 */
+.kpi-card__meta-inline {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--tg-text-secondary);
+  white-space: nowrap;
+}
+
+/* 窄屏 */
+@media (max-width: 720px) {
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .page-header__actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .search-input {
+    flex: 1;
+  }
 }
 </style>

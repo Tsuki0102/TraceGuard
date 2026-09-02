@@ -1,5 +1,13 @@
 <template>
   <div class="profile-page">
+    <div class="page-header">
+      <div>
+        <p class="tg-kicker">Account Center</p>
+        <h2 class="page-header__title">个人中心</h2>
+        <p class="page-header__desc">查看个人信息并修改登录密码</p>
+      </div>
+    </div>
+
     <el-alert
       v-if="passwordExpiringSoon"
       title="您的密码即将过期"
@@ -11,31 +19,45 @@
     />
     <el-row :gutter="20">
       <el-col :span="8">
-        <el-card>
+        <el-card shadow="never" class="profile-id-card">
           <template #header><span>个人信息</span></template>
-          <div class="avatar-area">
-            <el-avatar :size="72" icon="UserFilled" />
-          </div>
-          <el-descriptions :column="1" border style="margin-top: 16px">
-            <el-descriptions-item label="用户名">{{ user.username }}</el-descriptions-item>
-            <el-descriptions-item label="姓名">{{ user.realName || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="角色">
-              <el-tag :type="user.role === 'admin' ? 'danger' : 'info'" size="small">
+          <div class="profile-id">
+            <span class="profile-avatar" :title="'点击更换头像'">
+              <img v-if="avatarUrl" :src="avatarUrl" alt="头像" class="profile-avatar__img" />
+              <span v-else class="tg-avatar tg-avatar--lg">{{ avatarText(user.username) }}</span>
+              <span class="profile-avatar__mask" aria-hidden="true">
+                <el-icon :size="16"><Camera /></el-icon>
+              </span>
+              <input
+                ref="avatarInputRef"
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                class="profile-avatar__input"
+                aria-label="上传头像"
+                @change="onAvatarChange"
+              />
+            </span>
+            <div class="profile-id__text">
+              <div class="profile-id__name">{{ user.realName || user.username || '未知用户' }}</div>
+              <div class="profile-id__user">@{{ user.username }}</div>
+              <el-tag :type="user.role === 'admin' ? 'danger' : 'success'" size="small" effect="light">
                 {{ user.role === 'admin' ? '管理员' : '普通用户' }}
               </el-tag>
-            </el-descriptions-item>
+            </div>
+          </div>
+          <el-descriptions :column="1" class="profile-desc">
             <el-descriptions-item label="邮箱">{{ user.email || '-' }}</el-descriptions-item>
             <el-descriptions-item label="最近登录">{{ user.lastLoginTime || '-' }}</el-descriptions-item>
             <el-descriptions-item label="密码状态">
-              <el-tag v-if="passwordExpiringSoon" type="warning" size="small">即将过期</el-tag>
-              <el-tag v-else type="success" size="small">正常</el-tag>
+              <span class="tg-dot" :class="passwordExpiringSoon ? 'tg-dot--warning' : 'tg-dot--success'"></span>
+              <span>{{ passwordExpiringSoon ? '即将过期' : '正常' }}</span>
             </el-descriptions-item>
           </el-descriptions>
         </el-card>
       </el-col>
 
       <el-col :span="16">
-        <el-card>
+        <el-card shadow="never">
           <template #header><span>修改密码</span></template>
           <el-form ref="pwdFormRef" :model="pwdForm" :rules="pwdRules" label-width="100px" style="max-width: 480px">
             <el-form-item label="原密码" prop="oldPassword">
@@ -60,6 +82,24 @@
             style="max-width: 480px"
           />
         </el-card>
+
+        <!-- 个性化增强 BATCH-5：我的操作足迹 -->
+        <el-card shadow="never" class="profile-footprint" v-loading="footprintLoading">
+          <template #header><span>我的操作足迹</span></template>
+          <el-timeline v-if="footprint.length" class="footprint-timeline">
+            <el-timeline-item
+              v-for="(f, i) in footprint"
+              :key="i"
+              :type="f.statusCode >= 400 ? 'danger' : 'success'"
+              :hollow="i > 0"
+              :timestamp="f.createTime"
+            >
+              <b>{{ f.operation }}</b>
+              <small>{{ f.method }} {{ f.path }}</small>
+            </el-timeline-item>
+          </el-timeline>
+          <EmptyArt v-else text="暂无操作记录，去创建第一个项目吧" />
+        </el-card>
       </el-col>
     </el-row>
   </div>
@@ -69,10 +109,80 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { authApi } from '@/api'
+import { authApi, auditApi, preferenceApi } from '@/api'
+import { readLocalPreference } from '@/utils/preferenceSync'
 
 const router = useRouter()
 const user = ref({})
+const avatarUrl = ref('')
+const avatarInputRef = ref(null)
+const footprint = ref([])
+const footprintLoading = ref(false)
+
+const applyAvatar = () => {
+  avatarUrl.value = user.value?.avatarDataUrl || ''
+}
+
+const triggerAvatarUpload = () => avatarInputRef.value?.click()
+
+/** 前端压缩到 96×96 JPEG，存入偏好 JSON（免改表）；同步广播给顶栏 */
+const onAvatarChange = async (e) => {
+  const file = e.target.files && e.target.files[0]
+  e.target.value = ''
+  if (!file) return
+  if (!/^image\/(png|jpeg|webp)$/.test(file.type)) {
+    ElMessage.error('仅支持 PNG / JPG / WebP 图片')
+    return
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    ElMessage.error('图片不能超过 5MB')
+    return
+  }
+  const dataUrl = await new Promise((resolve, reject) => {
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    img.onload = () => {
+      const size = 96
+      const canvas = document.createElement('canvas')
+      canvas.width = size
+      canvas.height = size
+      const ctx = canvas.getContext('2d')
+      const min = Math.min(img.width, img.height)
+      ctx.drawImage(img, (img.width - min) / 2, (img.height - min) / 2, min, min, 0, 0, size, size)
+      URL.revokeObjectURL(url)
+      resolve(canvas.toDataURL('image/jpeg', 0.85))
+    }
+    img.onerror = reject
+    img.src = url
+  })
+  try {
+    const merged = { ...readLocalPreference(), avatarDataUrl: dataUrl }
+    await preferenceApi.save(merged)
+    user.value = { ...user.value, avatarDataUrl: dataUrl }
+    try {
+      const info = JSON.parse(localStorage.getItem('userInfo') || '{}')
+      info.avatarDataUrl = dataUrl
+      localStorage.setItem('userInfo', JSON.stringify(info))
+    } catch (err) { /* ignore */ }
+    applyAvatar()
+    window.dispatchEvent(new CustomEvent('tg:avatar', { detail: dataUrl }))
+    ElMessage.success('头像已更新')
+  } catch (err) {
+    ElMessage.error(err?.message || '头像保存失败')
+  }
+}
+
+const loadFootprint = async () => {
+  footprintLoading.value = true
+  try {
+    const res = await auditApi.mine(12)
+    footprint.value = (res && res.records) || []
+  } catch (e) {
+    footprint.value = []
+  } finally {
+    footprintLoading.value = false
+  }
+}
 const pwdFormRef = ref(null)
 const submitting = ref(false)
 
@@ -143,7 +253,15 @@ const pwdRules = {
 onMounted(async () => {
   const res = await authApi.getCurrentUserInfo()
   user.value = res || {}
+  try {
+    const info = JSON.parse(localStorage.getItem('userInfo') || '{}')
+    if (info.avatarDataUrl && !user.value.avatarDataUrl) user.value.avatarDataUrl = info.avatarDataUrl
+  } catch (e) { /* ignore */ }
+  applyAvatar()
+  loadFootprint()
 })
+
+const avatarText = (name) => (name || '?').slice(0, 1).toUpperCase()
 
 const handleChangePassword = () => {
   pwdFormRef.value.validate(async (valid) => {
@@ -174,8 +292,83 @@ const resetForm = () => {
 </script>
 
 <style scoped>
-.avatar-area {
+.profile-id {
   display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 6px 0 2px;
+}
+
+.profile-id__text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.profile-id__name {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--tg-text-primary);
+  letter-spacing: -0.01em;
+}
+
+.profile-id__user {
+  font-size: 12.5px;
+  color: var(--tg-slate);
+}
+
+.profile-desc {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--tg-border);
+}
+/* ===== 个性化增强 BATCH-5：头像上传 + 操作足迹 ===== */
+.profile-avatar {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  overflow: hidden;
+  cursor: pointer;
+  flex-shrink: 0;
+  box-shadow: var(--tg-shadow-card);
+}
+.profile-avatar__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.profile-avatar__mask {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
   justify-content: center;
+  color: #fff;
+  background: rgba(43, 36, 28, 0.45);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+.profile-avatar:hover .profile-avatar__mask { opacity: 1; }
+.profile-avatar__input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.profile-footprint { margin-top: 16px; }
+.footprint-timeline { padding-left: 4px; max-height: 360px; overflow-y: auto; }
+.footprint-timeline :deep(.el-timeline-item__content) b {
+  font-size: 13px;
+  color: var(--tg-text-primary);
+}
+.footprint-timeline :deep(.el-timeline-item__content) small {
+  display: block;
+  margin-top: 2px;
+  font-size: 11.5px;
+  color: var(--tg-slate);
+  word-break: break-all;
 }
 </style>

@@ -1,6 +1,12 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
 const routes = [
+  // 产品封面页（Landing）：未登录可访问，已登录自动进入工作台
+  {
+    path: '/home',
+    name: 'Landing',
+    component: () => import('@/views/Landing.vue')
+  },
   {
     path: '/login',
     name: 'Login',
@@ -23,7 +29,7 @@ const routes = [
     path: '/',
     name: 'Layout',
     component: () => import('@/views/Layout.vue'),
-    redirect: '/dashboard',
+    redirect: '/home',
     children: [
       {
         path: 'dashboard',
@@ -64,6 +70,48 @@ const routes = [
         path: 'traceability/:id',
         name: 'Traceability',
         component: () => import('@/views/Traceability.vue')
+      },
+      // ===== W5 质量洞察波：跨项目分析模块 =====
+      {
+        path: 'insight/trends',
+        name: 'DefectTrends',
+        component: () => import('@/views/DefectTrends.vue')
+      },
+      {
+        path: 'insight/portfolio',
+        name: 'PortfolioBrief',
+        component: () => import('@/views/PortfolioBrief.vue')
+      },
+      {
+        path: 'tickets',
+        name: 'DefectTickets',
+        component: () => import('@/views/DefectTickets.vue')
+      },
+      {
+        path: 'patterns',
+        name: 'DefectPatterns',
+        component: () => import('@/views/DefectPatterns.vue')
+      },
+      {
+        path: 'reports',
+        name: 'ReportsHub',
+        component: () => import('@/views/ReportsHub.vue')
+      },
+      // ===== W6 二期：阈值实验室 / 评测中心 / Alloy 工作台 =====
+      {
+        path: 'lab/threshold',
+        name: 'ThresholdLab',
+        component: () => import('@/views/ThresholdLab.vue')
+      },
+      {
+        path: 'eval',
+        name: 'EvalCenter',
+        component: () => import('@/views/EvalCenter.vue')
+      },
+      {
+        path: 'alloy-lab',
+        name: 'AlloyLab',
+        component: () => import('@/views/AlloyLab.vue')
       },
       // SEC-11：以下为管理员专属路由（守卫校验 role，菜单隐藏对普通用户不可见）
       {
@@ -116,8 +164,49 @@ const routes = [
         name: 'DataChangeLog',
         component: () => import('@/views/DataChangeLog.vue'),
         meta: { requiresAdmin: true }
+      },
+      // W2-07/R11：系统运行状态（仅管理员）
+      {
+        path: 'system-status',
+        name: 'SystemStatus',
+        component: () => import('@/views/SystemStatus.vue'),
+        meta: { requiresAdmin: true }
+      },
+      // W3-02：菜单配置化（仅管理员；仅隐藏入口，不改权限模型）
+      {
+        path: 'menu-config',
+        name: 'MenuConfig',
+        component: () => import('@/views/MenuConfig.vue'),
+        meta: { requiresAdmin: true }
       }
     ]
+  },
+  // W1-02/R7：403/404/500 定制结果页 + 通用成功反馈页（注册成功等）
+  {
+    path: '/403',
+    name: 'Forbidden',
+    component: () => import('@/views/ResultPage.vue')
+  },
+  {
+    path: '/404',
+    name: 'NotFound',
+    component: () => import('@/views/ResultPage.vue')
+  },
+  {
+    path: '/500',
+    name: 'ServerError',
+    component: () => import('@/views/ResultPage.vue')
+  },
+  {
+    path: '/success',
+    name: 'SuccessPage',
+    component: () => import('@/views/ResultPage.vue')
+  },
+  // 兜底 404（未匹配路由统一走定制页）
+  {
+    path: '/:pathMatch(.*)*',
+    name: 'CatchAll',
+    component: () => import('@/views/ResultPage.vue')
   }
 ]
 
@@ -129,7 +218,19 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
   // SEC-10①：登录态由服务端 HttpOnly Cookie 承载，前端仅通过非敏感标志 cookie 判断是否已登录
   const loggedIn = document.cookie.split(';').some(c => c.trim().startsWith('tg_logged_in='))
-  if (to.path !== '/login' && !loggedIn) {
+  // 产品封面页：统一作为开始界面，无论是否登录均展示封面；已登录用户通过"进入工作台"进入系统
+  if (to.path === '/home') {
+    next()
+    return
+  }
+  // 登录/注册页：未登录可访问；已登录访问则进入工作台
+  if (to.path === '/login' || to.path === '/register') {
+    if (loggedIn) next('/dashboard')
+    else next()
+    return
+  }
+  // 注册成功反馈页可匿名访问
+  if (to.path !== '/success' && to.path !== '/login' && !loggedIn) {
     next('/login')
     return
   }
@@ -143,13 +244,13 @@ router.beforeEach((to, from, next) => {
       }
       // SEC-11：管理员路由角色校验（role 来自登录时服务端返回，后端 403 仍为最终兜底）
       if (to.meta.requiresAdmin && userInfo.role !== 'admin') {
-        next('/dashboard')
+        next('/403')
         return
       }
     } catch (e) {
       // 本地 userInfo 解析失败时按无权限处理，避免绕过管理员路由
       if (to.meta.requiresAdmin) {
-        next('/dashboard')
+        next('/403')
         return
       }
     }

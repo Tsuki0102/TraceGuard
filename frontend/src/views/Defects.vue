@@ -1,8 +1,25 @@
 <template>
   <div class="defects-page">
-    <el-page-header @back="$router.back()" content="缺陷报告" style="margin-bottom: 20px" />
+    <div class="page-header">
+      <div>
+        <el-button link class="page-header__back" @click="$router.back()">
+          <el-icon><ArrowLeft /></el-icon> 返回
+        </el-button>
+        <p class="tg-kicker">Quality Assurance</p>
+        <h2 class="page-header__title">缺陷报告</h2>
+        <p class="page-header__desc">缺陷报告与第三方平台推送</p>
+      </div>
+      <div class="page-header__actions">
+        <el-button type="success" :loading="exporting" @click="handleExport">
+          <el-icon><Download /></el-icon> 导出Excel
+        </el-button>
+        <el-button type="info" plain :loading="printing" @click="handlePrint">
+          <el-icon><Printer /></el-icon> 打印报告
+        </el-button>
+      </div>
+    </div>
 
-    <el-card>
+    <el-card shadow="never">
       <div class="filter-bar">
         <el-radio-group v-model="filterLevel" @change="loadDefects">
           <el-radio-button label="">全部</el-radio-button>
@@ -33,15 +50,54 @@
         <el-button type="info" plain size="small" :loading="testingConn" @click="testIntegrationConnection">
           <el-icon><Connection /></el-icon> 测试连通
         </el-button>
-        <el-button type="success" style="margin-left: auto" :loading="exporting" @click="handleExport">
-          <el-icon><Download /></el-icon> 导出Excel
-        </el-button>
-        <el-button type="info" plain :loading="printing" @click="handlePrint">
-          <el-icon><Printer /></el-icon> 打印报告
-        </el-button>
       </div>
 
-      <el-table :data="defects" stripe border style="margin-top: 15px" @selection-change="handleSelectionChange">
+      <!-- W1-03/R8：缺陷类型×等级堆叠图 + 处理状态分布（随筛选条件实时联动） -->
+      <div class="defect-charts">
+        <div class="chart-box">
+          <div class="chart-box__title">
+            <el-icon :size="15" class="chart-box__icon"><Histogram /></el-icon>类型 × 等级分布
+          </div>
+          <div id="typeStackChart" style="height: 220px"></div>
+        </div>
+        <div class="chart-box">
+          <div class="chart-box__title">
+            <el-icon :size="15" class="chart-box__icon"><PieChart /></el-icon>处理状态分布
+          </div>
+          <div id="statusChart" style="height: 220px"></div>
+        </div>
+      </div>
+
+      <!-- W2-13/O9：规则命中风险等级占比 -->
+      <div class="risk-strip">
+        <div class="risk-strip__cell">
+          <span class="risk-strip__label">严重缺陷命中</span>
+          <b class="risk-strip__num is-bad">{{ riskStats.serious }}</b>
+        </div>
+        <div class="risk-strip__cell">
+          <span class="risk-strip__label">一般缺陷命中</span>
+          <b class="risk-strip__num">{{ riskStats.general }}</b>
+        </div>
+        <div class="risk-strip__cell risk-strip__track-cell">
+          <span class="risk-strip__label">严重占比</span>
+          <div class="risk-strip__track">
+            <i :style="{ width: riskStats.seriousPct + '%' }" :class="{ 'is-high': riskStats.seriousPct > 50 }"></i>
+          </div>
+          <b class="risk-strip__num" :class="{ 'is-bad': riskStats.seriousPct > 50 }">{{ riskStats.seriousPct }}%</b>
+        </div>
+        <div class="risk-strip__hint">按当前筛选条件下的命中分布实时计算</div>
+      </div>
+
+      <!-- W3-09：表格 / 状态看板视图切换 -->
+      <div class="view-switch">
+        <el-radio-group v-model="viewMode" size="small">
+          <el-radio-button label="table">表格视图</el-radio-button>
+          <el-radio-button label="kanban">状态看板</el-radio-button>
+        </el-radio-group>
+      </div>
+
+      <template v-if="viewMode === 'table'">
+      <el-table :data="defects" style="margin-top: 15px" @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="55" fixed />
         <el-table-column prop="defectId" label="缺陷ID" width="110" fixed />
         <el-table-column prop="defectType" label="缺陷类型" width="130" />
@@ -54,7 +110,7 @@
         <el-table-column label="子类型" width="130">
           <template #default="{ row }">
             <span v-if="row.subType && row.subType !== row.defectType">{{ row.subType }}</span>
-            <span v-else style="color: #999">-</span>
+            <span v-else style="color: var(--tg-text-secondary)">-</span>
           </template>
         </el-table-column>
         <el-table-column prop="defectLevel" label="等级" width="90">
@@ -75,7 +131,7 @@
         <el-table-column label="相关需求" min-width="200" show-overflow-tooltip>
           <template #default="{ row }">
             <span v-if="row.requirementText">{{ row.requirementText }}</span>
-            <span v-else style="color: #999">-</span>
+            <span v-else style="color: var(--tg-text-secondary)">-</span>
           </template>
         </el-table-column>
         <el-table-column label="缺陷原因" min-width="250" show-overflow-tooltip>
@@ -97,13 +153,48 @@
           </template>
         </el-table-column>
       </el-table>
+      </template>
+
+      <!-- W3-09：状态看板（待处理/处理中/已解决/已忽略） -->
+      <div v-else class="kanban">
+        <div v-for="col in kanbanCols" :key="col.status" class="kanban-col" :class="'is-' + col.status">
+          <div class="kanban-col__head">
+            <span class="kanban-col__dot"></span>
+            <b>{{ col.label }}</b>
+            <em>{{ defectsFor(col.status).length }}</em>
+          </div>
+          <div class="kanban-col__body">
+            <div
+              v-for="d in defectsFor(col.status)"
+              :key="d.id"
+              class="kanban-card"
+              @click="viewDetail(d)"
+            >
+              <div class="kanban-card__head">
+                <span class="kanban-card__id">{{ d.defectId }}</span>
+                <el-tag size="small" :type="d.defectLevel === 'serious' ? 'danger' : 'warning'">
+                  {{ d.defectLevel === 'serious' ? '严重' : '一般' }}
+                </el-tag>
+              </div>
+              <div class="kanban-card__type">{{ d.defectType }}{{ d.subType && d.subType !== d.defectType ? ' · ' + d.subType : '' }}</div>
+              <div class="kanban-card__reason">{{ d.defectReason }}</div>
+              <div class="kanban-card__actions" @click.stop>
+                <template v-for="t in getRowTransitions(d)" :key="t.code">
+                  <el-button size="small" round plain @click="changeStatus(d, t.code)">{{ t.label }}</el-button>
+                </template>
+              </div>
+            </div>
+            <div v-if="!defectsFor(col.status).length" class="kanban-col__empty">暂无</div>
+          </div>
+        </div>
+      </div>
     </el-card>
 
     <el-dialog v-model="showDetail" title="缺陷详情" width="960px" top="6vh">
       <template v-if="currentDefect">
         <el-descriptions :column="3" border size="small">
           <el-descriptions-item label="缺陷ID">{{ currentDefect.defectId }}</el-descriptions-item>
-          <el-descriptions-item label="缺陷类型">{{ currentDefect.defectType }}<span v-if="currentDefect.subType && currentDefect.subType !== currentDefect.defectType" style="color: #909399; margin-left: 6px">({{ currentDefect.subType }})</span></el-descriptions-item>
+          <el-descriptions-item label="缺陷类型">{{ currentDefect.defectType }}<span v-if="currentDefect.subType && currentDefect.subType !== currentDefect.defectType" style="color: var(--tg-text-secondary); margin-left: 6px">({{ currentDefect.subType }})</span></el-descriptions-item>
           <el-descriptions-item label="缺陷等级">
             <el-tag :type="currentDefect.defectLevel === 'serious' ? 'danger' : 'warning'" size="small">
               {{ currentDefect.defectLevel === 'serious' ? '严重' : '一般' }}
@@ -113,7 +204,7 @@
             <span v-if="currentDefect.defectLine && currentDefect.defectLine > 0" class="defect-line-badge">
               第 {{ currentDefect.defectLine }} 行
             </span>
-            <span v-else style="color: #999">未定位（方法级）</span>
+            <span v-else style="color: var(--tg-text-secondary)">未定位（方法级）</span>
           </el-descriptions-item>
         </el-descriptions>
 
@@ -166,14 +257,14 @@
             <div style="white-space: pre-wrap">{{ currentDefect.defectReason }}</div>
           </el-descriptions-item>
           <el-descriptions-item label="修复建议">
-            <div style="white-space: pre-wrap; color: #67C23A">{{ currentDefect.repairSuggestion }}</div>
+            <div style="white-space: pre-wrap; color: var(--tg-success)">{{ currentDefect.repairSuggestion }}</div>
           </el-descriptions-item>
         </el-descriptions>
 
         <!-- FUN-11：AI 智能解释入口（大模型分析缺陷原因与修复建议；未启用大模型时后端返回提示） -->
         <div style="margin-top: 12px; display: flex; align-items: center; gap: 8px">
           <el-button type="warning" size="small" :loading="explaining" @click="explainCurrentDefect">AI 解释</el-button>
-          <span style="color: #909399; font-size: 12px">大模型分析缺陷原因与修复建议</span>
+          <span style="color: var(--tg-text-secondary); font-size: 12px">大模型分析缺陷原因与修复建议</span>
         </div>
         <el-alert v-if="explainResult" type="info" :closable="false" show-icon style="margin-top: 8px">
           <template #title>AI 解释</template>
@@ -185,15 +276,36 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox, ElSelect, ElOption } from 'element-plus'
 import { resultApi, exportApi, integrationApi, llmApi } from '@/api'
 import { printReportPdf } from '@/utils/print'
+import * as echarts from 'echarts'
+import { chartColors, chartThemeName, chartText, chartFaint, chartAxisLine, chartSplitLine, chartTooltipBg, chartTitleColor, onChartThemeChange } from '@/utils/echartsTheme'
 
 const route = useRoute()
 const projectId = route.params.id
 const defects = ref([])
+
+// ===== W3-09：状态看板 =====
+const viewMode = ref('table')
+const kanbanCols = [
+  { status: 'pending', label: '待处理' },
+  { status: 'processing', label: '处理中' },
+  { status: 'resolved', label: '已解决' },
+  { status: 'ignored', label: '已忽略' }
+]
+const defectsFor = (status) => defects.value.filter((d) => (d.status || 'pending') === status)
+
+// ===== W2-13/O9：规则命中风险等级占比（随筛选联动） =====
+const riskStats = computed(() => {
+  const serious = defects.value.filter((d) => d.defectLevel === 'serious').length
+  const general = defects.value.length - serious
+  const total = defects.value.length || 0
+  const seriousPct = total ? Math.round((serious / total) * 100) : 0
+  return { serious, general, seriousPct }
+})
 const filterLevel = ref('')
 const filterType = ref('')
 const filterSubType = ref('')
@@ -319,6 +431,81 @@ const changeStatus = async (row, newStatus) => {
 
 const loadDefects = async () => {
   defects.value = await resultApi.getDefects(projectId, null, filterLevel.value, filterType.value || null, filterSubType.value || null, filterStatus.value || null)
+  await nextTick()
+  renderCharts()
+}
+
+// ===== W1-03/R8：类型×等级堆叠 + 状态分布图表（随筛选联动） =====
+let typeStackChart = null
+let statusChart = null
+
+const TYPE_ORDER = ['需求缺失', '代码超范围实现', '业务逻辑不一致', '约束条件不满足']
+const TYPE_COLORS = {
+  '需求缺失': chartColors.danger,
+  '代码超范围实现': chartColors.warning,
+  '业务逻辑不一致': chartColors.primary,
+  '约束条件不满足': chartColors.faint
+}
+
+const renderCharts = () => {
+  const elStack = document.getElementById('typeStackChart')
+  const elStatus = document.getElementById('statusChart')
+  if (!elStack || !elStatus) return
+  if (!typeStackChart) typeStackChart = echarts.init(elStack, chartThemeName())
+  if (!statusChart) statusChart = echarts.init(elStatus, chartThemeName())
+
+  // 类型 × 等级堆叠（未知类型归入"其他"）
+  const typeCount = {}
+  defects.value.forEach((d) => {
+    const t = TYPE_ORDER.includes(d.defectType) ? d.defectType : '其他'
+    if (!typeCount[t]) typeCount[t] = { serious: 0, general: 0 }
+    if (d.defectLevel === 'serious') typeCount[t].serious += 1
+    else typeCount[t].general += 1
+  })
+  const types = [...TYPE_ORDER, '其他'].filter((t) => typeCount[t])
+  typeStackChart.setOption({
+    title: { text: '类型 × 等级', left: 'center' },
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+    legend: { bottom: 0, data: ['严重', '一般'] },
+    grid: { left: 36, right: 16, top: 40, bottom: 42 },
+    xAxis: { type: 'category', data: types.length ? types : ['暂无数据'], axisLabel: { rotate: 20, fontSize: 11 } },
+    yAxis: { type: 'value', splitLine: { lineStyle: { color: chartSplitLine() } } },
+    series: [
+      { name: '严重', type: 'bar', stack: 'total', barMaxWidth: 26, itemStyle: { color: chartColors.danger }, data: types.map((t) => typeCount[t].serious) },
+      { name: '一般', type: 'bar', stack: 'total', barMaxWidth: 26, itemStyle: { color: chartColors.warning }, data: types.map((t) => typeCount[t].general) }
+    ]
+  }, true)
+
+  // 状态分布环形
+  const statusCount = { pending: 0, processing: 0, resolved: 0, ignored: 0 }
+  defects.value.forEach((d) => {
+    const s = d.status || 'pending'
+    if (statusCount[s] != null) statusCount[s] += 1
+  })
+  const STATUS_COLORS = {
+    pending: chartColors.neutral,
+    processing: chartColors.warning,
+    resolved: chartColors.success,
+    ignored: chartColors.faint
+  }
+  statusChart.setOption({
+    title: { text: '处理状态', left: 'center' },
+    tooltip: { trigger: 'item', formatter: '{b}: {c}（{d}%）' },
+    legend: { bottom: 0 },
+    series: [{
+      type: 'pie',
+      radius: ['42%', '68%'],
+      center: ['50%', '46%'],
+      label: { show: false },
+      itemStyle: { borderColor: '#fff', borderWidth: 2 },
+      data: [
+        { value: statusCount.pending, name: '待处理', itemStyle: { color: STATUS_COLORS.pending } },
+        { value: statusCount.processing, name: '处理中', itemStyle: { color: STATUS_COLORS.processing } },
+        { value: statusCount.resolved, name: '已解决', itemStyle: { color: STATUS_COLORS.resolved } },
+        { value: statusCount.ignored, name: '已忽略', itemStyle: { color: STATUS_COLORS.ignored } }
+      ].filter((x) => x.value > 0)
+    }]
+  }, true)
 }
 
 const loadCodeUnits = async () => {
@@ -463,9 +650,18 @@ const pushSingleDefect = async (row) => {
   }
 }
 
+onChartThemeChange(() => { typeStackChart?.dispose(); typeStackChart = null; statusChart?.dispose(); statusChart = null; renderCharts() })
+
 onMounted(() => {
   loadDefects()
   loadCodeUnits()
+})
+
+onUnmounted(() => {
+  typeStackChart?.dispose()
+  statusChart?.dispose()
+  typeStackChart = null
+  statusChart = null
 })
 </script>
 
@@ -476,8 +672,256 @@ onMounted(() => {
   gap: 20px;
 }
 
+/* ===== W1-03/R8：缺陷统计图表区 ===== */
+.defect-charts {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.chart-box {
+  border-radius: 16px;
+  border: 1px solid var(--tg-border);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.6));
+  padding: 14px 18px 6px;
+}
+
+.chart-box__title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--tg-text-primary);
+}
+
+.chart-box__icon {
+  color: var(--tg-accent);
+  background: var(--el-color-primary-light-9);
+  border-radius: 8px;
+  padding: 4px;
+  box-sizing: content-box;
+}
+
+/* ===== W2-13/O9：规则命中风险等级占比 ===== */
+.risk-strip {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  margin-top: 12px;
+  padding: 12px 18px;
+  border-radius: 14px;
+  border: 1px dashed var(--tg-border);
+  background: rgba(255, 255, 255, 0.5);
+  flex-wrap: wrap;
+}
+
+.risk-strip__cell {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.risk-strip__label {
+  font-size: 12px;
+  color: var(--tg-text-secondary);
+}
+
+.risk-strip__num {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--tg-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.risk-strip__num.is-bad {
+  color: var(--tg-danger);
+}
+
+.risk-strip__track-cell {
+  flex: 1;
+  min-width: 180px;
+}
+
+.risk-strip__track {
+  flex: 1;
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+}
+
+.risk-strip__track i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--tg-accent-gradient);
+  transition: width 0.6s var(--tg-ease);
+}
+
+.risk-strip__track i.is-high {
+  background: linear-gradient(90deg, var(--tg-warning), var(--tg-danger));
+}
+
+.risk-strip__hint {
+  font-size: 11.5px;
+  color: var(--tg-slate);
+  margin-left: auto;
+}
+
+/* ===== W3-09：状态看板 ===== */
+.view-switch {
+  margin: 14px 0 4px;
+}
+
+.kanban {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-top: 14px;
+  align-items: start;
+}
+
+.kanban-col {
+  border-radius: 16px;
+  border: 1px solid var(--tg-border);
+  background: rgba(255, 255, 255, 0.5);
+  overflow: hidden;
+  min-width: 0;
+}
+
+.kanban-col__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--tg-text-primary);
+  border-bottom: 1px solid var(--tg-border);
+}
+
+.kanban-col__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.kanban-col.is-pending .kanban-col__dot { background: var(--tg-slate); box-shadow: 0 0 0 3px rgba(154, 139, 114, 0.16); }
+.kanban-col.is-processing .kanban-col__dot { background: var(--tg-warning); box-shadow: 0 0 0 3px rgba(232, 155, 60, 0.16); }
+.kanban-col.is-resolved .kanban-col__dot { background: var(--tg-success); box-shadow: 0 0 0 3px rgba(107, 142, 78, 0.16); }
+.kanban-col.is-ignored .kanban-col__dot { background: var(--tg-slate); box-shadow: 0 0 0 3px rgba(154, 139, 114, 0.12); }
+
+.kanban-col__head em {
+  margin-left: auto;
+  font-style: normal;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--tg-text-secondary);
+  background: rgba(0, 0, 0, 0.05);
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+}
+
+.kanban-col__body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  max-height: 520px;
+  overflow-y: auto;
+}
+
+.kanban-card {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--el-color-primary-light-9);
+  border: 1px solid rgba(143, 107, 34, 0.12);
+  cursor: pointer;
+  transition: transform 0.25s var(--tg-ease), box-shadow 0.25s ease;
+}
+
+.kanban-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--tg-shadow-card-hover);
+}
+
+.kanban-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.kanban-card__id {
+  font-family: var(--tg-font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tg-accent);
+}
+
+.kanban-card__type {
+  margin-top: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--tg-text-primary);
+}
+
+.kanban-card__reason {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--tg-text-secondary);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.kanban-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.kanban-card__actions :deep(.el-button) {
+  margin-left: 0;
+  height: 26px;
+  font-size: 12px;
+  padding: 0 10px;
+}
+
+.kanban-col__empty {
+  padding: 20px 0;
+  text-align: center;
+  font-size: 12px;
+  color: var(--tg-slate);
+}
+
+@media (max-width: 1280px) {
+  .kanban {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 720px) {
+  .kanban {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1100px) {
+  .defect-charts {
+    grid-template-columns: 1fr;
+  }
+}
+
 .count-info {
-  color: #666;
+  color: var(--tg-text-secondary);
 }
 
 /* 需求-代码分栏对比 */
@@ -508,7 +952,7 @@ onMounted(() => {
 
 .line-hint {
   font-weight: 400;
-  color: #909399;
+  color: var(--tg-text-secondary);
   font-size: 12px;
 }
 
@@ -522,13 +966,13 @@ onMounted(() => {
 }
 
 .placeholder {
-  color: #999;
+  color: var(--tg-text-secondary);
 }
 
 .placeholder-box {
   padding: 24px;
   text-align: center;
-  color: #999;
+  color: var(--tg-text-secondary);
 }
 
 .code-box {
@@ -555,7 +999,7 @@ onMounted(() => {
   transition: background 0.15s;
 }
 .req-line:hover {
-  background: #f0f2f5;
+  background: var(--tg-bg-page);
 }
 
 /* GAP-015：双向高亮统一样式（需求侧浅色高亮、代码侧深色高亮） */
@@ -576,7 +1020,7 @@ onMounted(() => {
 .code-line.defect-line {
   background: #5a1d1d;
   color: #ffd2d2;
-  box-shadow: inset 3px 0 0 #f56c6c;
+  box-shadow: inset 3px 0 0 var(--tg-danger);
 }
 .code-line.defect-line:hover {
   background: #6e2424;
@@ -584,11 +1028,11 @@ onMounted(() => {
 
 /* 缺陷行号徽标与片段标题提示 */
 .defect-line-badge {
-  color: #f56c6c;
+  color: var(--tg-danger);
   font-weight: 600;
 }
 .line-hint.defect-hint {
-  color: #f56c6c;
+  color: var(--tg-danger);
   font-weight: 600;
 }
 
@@ -599,12 +1043,41 @@ onMounted(() => {
   padding-right: 12px;
   color: #858585;
   user-select: none;
-  border-right: 1px solid #333;
+  border-right: 1px solid var(--tg-text-secondary);
   margin-right: 12px;
 }
 
 .line-text {
   flex: 1;
   padding-right: 10px;
+}
+
+/* ===== 移动端适配（≤768px） ===== */
+@media (max-width: 768px) {
+  /* 需求-代码对比：并排会挤成两条极窄栏（代码几乎不可读），改为上下堆叠 */
+  .compare-pane {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  /* 纵向堆叠后限制单块高度，避免弹窗内滚动过长 */
+  .requirement-box,
+  .code-box {
+    max-height: 260px;
+    font-size: 12.5px;
+  }
+
+  /* 代码行号列收窄，把宽度让给代码正文 */
+  .line-no {
+    width: 42px;
+    padding-right: 8px;
+    margin-right: 8px;
+  }
+
+  /* 筛选条：允许换行，避免溢出 */
+  .filter-bar {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
 }
 </style>
