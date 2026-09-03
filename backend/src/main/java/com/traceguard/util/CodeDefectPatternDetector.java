@@ -204,34 +204,96 @@ public class CodeDefectPatternDetector {
     /**
      * 数值阈值不匹配风险：需求中的关键数值与代码常量不一致。
      */
-    private static double numericMismatchRisk(String req, String code) {
-        List<Integer> reqNumbers = extractNumbers(req);
-        List<Integer> codeNumbers = extractNumbers(code);
-        if (reqNumbers.isEmpty() || codeNumbers.isEmpty()) return 0.0;
+    /**
+     * numericMismatch v2（A4 域中性化 2026-09-03）：v1 取"需求最小值 vs 代码最小值"比较，
+     * 跨域误报严重（代码中 +1 的 1、时间换算因子 24/3600 都会撞上需求数值，validation FP：
+     * CL-202/203/110/115）。v2 改为逐项判定：
+     *   - 需求/代码数值提取前剔除小数（0.5 的 5 不作独立数值）；
+     *   - 代码侧剔除纯换算因子（24/60/3600/1000/1024，任何域同义的普适常量）与增量 1；
+     *   - 对每个需求数值 N：代码存在相等值 -> 该项匹配；存在同量级（比值∈[1/10,10]）不等值 -> 计不匹配；
+     *     无可比数值（约束由常量/委托承载，字面不在方法体）-> 该项跳过不判；
+     *   - risk = 0.45 x 不匹配项数 / max(1, 可判定项数)。
+     */
+    /**
+     * A4 域中性化（2026-09-03）：剥离代码注释后再做信号分析。
+     * 样例代码/真实代码的 javadoc 注释常含需求编号、缺陷标注等元数据（如【缺陷 D-L01】"欠款超10元"），
+     * 注释中的数字/关键词会被词面型信号（numericMismatch/logicInversion 等）误读为实现证据，
+     * 造成跨域误报——静态分析不应读取注释。
+     */
+    static String stripCodeComments(String code) {
+        if (code == null) return null;
+        String noBlock = code.replaceAll("(?s)/\\*.*?\\*/", " ");
+        return noBlock.replaceAll("//[^\\n]*", " ");
+    }
 
-        int reqPrimary = reqNumbers.stream().min(Integer::compare).orElse(0);
-        int codePrimary = codeNumbers.stream().min(Integer::compare).orElse(0);
-        if (reqPrimary <= 0 || codePrimary <= 0) return 0.0;
-
-        if (reqPrimary != codePrimary) {
-            double ratio = (double) Math.min(reqPrimary, codePrimary) / Math.max(reqPrimary, codePrimary);
-            return 0.45 * (1.0 - ratio);
+    private static double numericMismatchRisk(String req, String rawCode) {
+        String code = stripCodeComments(rawCode);
+        List<Integer> reqNumbers = extractNumbers(req.replaceAll("\\d+\\.\\d+", " "));
+        // 增量/减量 1（+1/-1）不作约束数值证据；但赋值形式的 1（如 maxRetry = 1）是真实约束值，保留
+        String codeNorm = code.replaceAll("\\d+\\.\\d+", " ").replaceAll("[+\\-]\\s*1\\b", " ");
+        List<Integer> codeNumbers = extractNumbers(codeNorm);
+        if (reqNumbers.isEmpty()) return 0.0;
+        // 换算因子黑名单（域中性）：24/60/3600/1000/1024 为时间/字节换算普适常量，不作约束数值证据
+        java.util.Set<Integer> blacklist = new java.util.HashSet<>(java.util.Arrays.asList(24, 60, 3600, 1000, 1024));
+        List<Integer> codeCandidates = new ArrayList<>();
+        for (Integer n : codeNumbers) {
+            if (!blacklist.contains(n)) {
+                codeCandidates.add(n);
+            }
         }
-        return 0.0;
+        int matched = 0, mismatched = 0;
+        for (Integer n : reqNumbers) {
+            if (n <= 0) continue;
+            boolean comparable = false, equal = false, nearMismatch = false;
+            for (Integer c : codeCandidates) {
+                if (c.intValue() == n.intValue()) {
+                    equal = true;
+                    comparable = true;
+                    break;
+                }
+                double ratio = (double) Math.min(n, c) / Math.max(n, c);
+                if (ratio >= 0.1) {
+                    comparable = true;
+                    nearMismatch = true;
+                }
+            }
+            if (equal) {
+                matched++;
+            } else if (nearMismatch) {
+                mismatched++;
+            }
+            // 无可比数值：约束由常量/委托承载，跳过不判
+        }
+        if (matched + mismatched == 0) return 0.0;
+        return 0.45 * ((double) mismatched / (matched + mismatched));
     }
 
     /**
      * 必填参数校验缺失风险：需求提到多个必填参数，代码只校验了部分。
      */
-    private static double paramValidationMissingRisk(String req, String code) {
+    private static double paramValidationMissingRisk(String req, String rawCode) {
+        String code = stripCodeComments(rawCode);
         List<String> params = extractCandidateParamNames(req);
         if (params.isEmpty()) return 0.0;
         // FUN-04（2026-08-27）：仅当需求显式要求"校验/验证/必须/非空/必填/合法性"时才适用本惩罚。
         // 查询/统计/查看/导出类需求中的业务词（数量/金额/订单ID等）是查询条件而非必填参数，
         // 若一律要求代码做参数校验，会把大量一致对（queryById/getDailyCount/导出等）误判为缺陷。
-        if (!(req.contains("校验") || req.contains("验证") || req.contains("必须")
+        // A4 域中性化（2026-09-03）：裸"必须"触发词收敛——"必须依次完成/必须为"等流程性表述
+        // 不构成参数校验要求（validation FP：CL-201），仅"必须校验/必须验证/必须非空"等复合词触发；
+        // 并增加校验委托豁免：方法体存在 validate*/check*/verify* 调用即视为校验由协作者承担
+        // （入口委托对 CL-140/201/215 的 FP 根因），委托不豁免"连校验调用都没有"的真缺失。
+        boolean explicitCheck = req.contains("校验") || req.contains("验证")
                 || req.contains("不能为空") || req.contains("非空") || req.contains("必填")
-                || req.contains("合法性") || req.contains("无效") || req.contains("合法"))) {
+                || req.contains("合法性") || req.contains("无效") || req.contains("合法");
+        if (!explicitCheck && req.contains("必须")) {
+            java.util.regex.Matcher must = java.util.regex.Pattern.compile("必须.{0,6}(校验|验证|非空|合法|不能为空)").matcher(req);
+            explicitCheck = must.find();
+        }
+        if (!explicitCheck) {
+            return 0.0;
+        }
+        if (java.util.regex.Pattern.compile("\\b(validate|check|verify)\\w*\\s*\\(", java.util.regex.Pattern.CASE_INSENSITIVE)
+                .matcher(code).find()) {
             return 0.0;
         }
         int validated = 0;
@@ -249,25 +311,35 @@ public class CodeDefectPatternDetector {
      * 逻辑方向反转风险：需求中的比较方向与代码相反。
      * 例如需求说"elapsed > duration"，代码写"elapsed < duration"。
      */
-    private static double logicInversionRisk(String req, String code) {
-        String reqLower = req.toLowerCase(Locale.ROOT);
-        String codeLower = code.toLowerCase(Locale.ROOT);
+    /**
+     * logicInversion v2（A4 域中性化 2026-09-03）：v1 的"需求含'超过' + 代码含'<'"与裸"为"匹配
+     * 跨域误报严重（'不超过'也含'超过'子串、代码普遍存在 '<'，validation FP：CL-114/115/110/113/203）。
+     * v2 改为「正向极性短语 + 同数值反向比较」：
+     *   - 仅当需求表达正向下界要求（必须大于/必须超过/不低于/大于…才/高于…才/至少）时才检查方向；
+     *     "不超过/不得超过"等否定式约束的正确实现（<=N 通过）不再误判；
+     *   - 需求数值 N 必须在代码中以字面量出现在反向比较位置（"<N" 或 "N<"）才计风险；
+     *     代码无数值可比（常量/委托承载）则跳过。
+     */
+    private static double logicInversionRisk(String req, String rawCode) {
+        String code = stripCodeComments(rawCode);
+        boolean positiveBound = req.contains("必须大于") || req.contains("必须超过") || req.contains("不低于")
+                || req.contains("至少") || java.util.regex.Pattern.compile("大于[^，。；]{0,8}才|高于[^，。；]{0,8}才|超过[^，。；]{0,8}才")
+                .matcher(req).find();
+        if (!positiveBound) return 0.0;
+        List<Integer> reqNumbers = extractNumbers(req.replaceAll("\\d+\\.\\d+", " "));
+        if (reqNumbers.isEmpty()) return 0.0;
         double risk = 0.0;
-
-        // 需求：大于/超过/高于；代码：小于/低于
-        if ((reqLower.contains("大于") || reqLower.contains("超过") || reqLower.contains("高于"))
-                && (codeLower.contains("<") || codeLower.contains("<= "))) {
-            risk += 0.35;
-        }
-        // 需求：小于/低于；代码：大于
-        if ((reqLower.contains("小于") || reqLower.contains("低于"))
-                && (codeLower.contains(">") || codeLower.contains(">= "))) {
-            risk += 0.35;
-        }
-        // 需求：等于/为；代码：!=
-        if ((reqLower.contains("等于") || reqLower.contains("为"))
-                && codeLower.contains("!=") && !reqLower.contains("不等于")) {
-            risk += 0.25;
+        for (Integer n : reqNumbers) {
+            if (n <= 0) continue;
+            String nStr = String.valueOf(n);
+            boolean inverted = java.util.regex.Pattern.compile("<\\s*" + nStr + "\\b")
+                    .matcher(code).find()
+                    || java.util.regex.Pattern.compile("\\b" + nStr + "\\s*<(?!=)")
+                    .matcher(code).find();
+            if (inverted) {
+                risk += 0.35;
+                break;
+            }
         }
         return risk;
     }

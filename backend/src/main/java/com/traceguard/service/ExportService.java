@@ -582,7 +582,15 @@ public class ExportService {
         List<Defect> defects = resultService.getDefects(projectId, null, null);
         List<CodeDefect> codeDefects = resultService.getCodeDefects(projectId, null);
         List<Map<String, Object>> matrix = resultService.getTraceabilityMatrix(projectId);
-        return new ReportContext(project, stats, defects, codeDefects, matrix);
+        // A1 判定溯源：引擎决策分布（judge-provenance 章节数据源；失败不阻塞报告主链路）
+        Map<String, Object> judgeStats;
+        try {
+            judgeStats = resultService.getJudgeStats(null, projectId);
+        } catch (Exception e) {
+            LOGGER.warn("判定溯源统计查询失败，报告章节按规则口径渲染: {}", e.getMessage());
+            judgeStats = null;
+        }
+        return new ReportContext(project, stats, defects, codeDefects, matrix, judgeStats);
     }
 
     /**
@@ -594,7 +602,7 @@ public class ExportService {
             case FULL:
                 config.setCode("FULL");
                 config.setTemplateName("完整报告");
-                config.setSections("[{\"key\":\"project-overview\",\"title\":\"\"},{\"key\":\"stats-summary\",\"title\":\"\"},{\"key\":\"defect-type-distribution\",\"title\":\"\"},{\"key\":\"defect-detail\",\"title\":\"\"},{\"key\":\"code-quality\",\"title\":\"\"},{\"key\":\"traceability-matrix\",\"title\":\"\"}]");
+                config.setSections("[{\"key\":\"project-overview\",\"title\":\"\"},{\"key\":\"stats-summary\",\"title\":\"\"},{\"key\":\"judge-provenance\",\"title\":\"\"},{\"key\":\"defect-type-distribution\",\"title\":\"\"},{\"key\":\"defect-detail\",\"title\":\"\"},{\"key\":\"code-quality\",\"title\":\"\"},{\"key\":\"traceability-matrix\",\"title\":\"\"}]");
                 break;
             case DEFECT_ONLY:
                 config.setCode("DEFECT_ONLY");

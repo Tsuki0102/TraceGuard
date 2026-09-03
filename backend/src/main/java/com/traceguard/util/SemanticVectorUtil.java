@@ -64,6 +64,24 @@ public final class SemanticVectorUtil {
         return sb.toString();
     }
 
+    /**
+     * B3 增量量化（2026-09-03）：判断 semanticVector JSON 是否已含稠密向量。
+     * 增量分析复用的存量代码/需求单元已带向量 -> embedSemantics 跳过重算，
+     * 使"端到端二次分析"的向量化阶段只重算变更单元（v2 修复：此前每次全量重算，
+     * 占规则模式端到端 90%+ 耗时，把增量解析的收益完全淹没）。
+     */
+    public static boolean hasDenseVector(String semanticVectorJson) {
+        if (semanticVectorJson == null || semanticVectorJson.isEmpty()
+                || !semanticVectorJson.contains("\"vector\"")) {
+            return false;
+        }
+        try {
+            return parse(semanticVectorJson).hasVector();
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     /** 解析语义向量JSON，兼容新旧格式：无 vector 键 -> terms-only（vector=null） */
     public static SemanticVector parse(String json) {
         SemanticVector result = new SemanticVector();

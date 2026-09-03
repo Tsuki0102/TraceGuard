@@ -140,6 +140,8 @@ CREATE TABLE IF NOT EXISTS tg_consistency_result (
     total_similarity DOUBLE DEFAULT 0 COMMENT '综合相似度',
     consistency_status VARCHAR(20) COMMENT '一致性状态：consistent/general_inconsistent/serious_inconsistent',
     defect_type VARCHAR(50) COMMENT '缺陷类型',
+    judge_path VARCHAR(64) COMMENT 'A1判定溯源：决策路径（RULE/NOT_REVIEWED/LLM_CONSENSUS_CONSISTENT/LLM_CONSENSUS_DEFECT/LLM_ARBITRATION_DEFECT/LLM_ARBITRATION_KEEP/RULE_QUANTIFY_VETO/LLM_OWNER_OVERRIDE/LLM_SINGLE/LLM_SIM_GATE）',
+    judge_detail VARCHAR(1000) COMMENT 'A1判定溯源明细 JSON（variantA/variantB/ruleRisk/pairRisk/selectedReason/detail）',
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     deleted INT DEFAULT 0 COMMENT '删除标记',
@@ -236,6 +238,11 @@ CREATE TABLE IF NOT EXISTS tg_audit_log (
 -- 插入默认管理员用户 (密码: admin123，BCrypt加密存储；INSERT IGNORE保证幂等，重启不报主键冲突)
 INSERT IGNORE INTO sys_user (id, username, password, real_name, role) VALUES
 (1, 'admin', '$2a$10$YnbH4zcV4EHjm.Hp4nelPOlZUBf9JfPW6LvP/oUsIbNxGsPSLd6kq', '系统管理员', 'admin');
+
+-- B6：评审演示账号（密码: demo12345，BCrypt 加密；must_change_password 走列默认 0，免强制改密）
+-- 仅用于演示环境：接入真实业务时请通过「用户管理」停用或改密
+INSERT IGNORE INTO sys_user (id, username, password, real_name, role) VALUES
+(2, 'demo', '$2a$10$okv2/sJLn2sQ1rxacjmE8uEa/V8Wtu7dtviJG4SyLJVCdBZCHLYMW', '演示账号', 'user');
 
 -- ==================== 迭代一（P0）新增 ====================
 
@@ -353,7 +360,7 @@ PREPARE stmt FROM @s; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 -- 初始数据：三条系统模板（幂等插入）
 INSERT IGNORE INTO tg_report_template_config (code, template_name, sections, title, sort, is_default, is_system) VALUES
 ('FULL', '完整报告',
- '[{"key":"project-overview","title":""},{"key":"stats-summary","title":""},{"key":"defect-type-distribution","title":""},{"key":"defect-detail","title":""},{"key":"code-quality","title":""},{"key":"traceability-matrix","title":""}]',
+ '[{"key":"project-overview","title":""},{"key":"stats-summary","title":""},{"key":"judge-provenance","title":""},{"key":"defect-type-distribution","title":""},{"key":"defect-detail","title":""},{"key":"code-quality","title":""},{"key":"traceability-matrix","title":""}]',
  '', 1, 1, 1),
 ('DEFECT_ONLY', '缺陷聚焦报告',
  '[{"key":"project-overview","title":""},{"key":"stats-summary","title":""},{"key":"defect-detail","title":""},{"key":"code-quality","title":""}]',
@@ -361,6 +368,13 @@ INSERT IGNORE INTO tg_report_template_config (code, template_name, sections, tit
 ('BRIEF', '简要报告',
  '[{"key":"project-overview","title":""},{"key":"stats-summary","title":""}]',
  '', 3, 0, 1);
+
+-- A1 判定溯源：存量库的 FULL 系统模板补 judge-provenance 章节（幂等：已含则跳过；新库由上方种子直接含该章节，REPLACE 不命中）
+UPDATE tg_report_template_config
+SET sections = REPLACE(sections,
+    '{"key":"stats-summary","title":""}',
+    '{"key":"stats-summary","title":""},{"key":"judge-provenance","title":""}')
+WHERE code = 'FULL' AND is_system = 1 AND sections NOT LIKE '%judge-provenance%';
 
 -- GAP-026（2.6 整改）：tg_defect 增列 defect_line（缺陷命中代码行号，绝对行号；NULL=未定位，回退方法起始行）
 SET @defectline_col := (SELECT COUNT(*) FROM information_schema.COLUMNS
@@ -605,3 +619,24 @@ CREATE TABLE IF NOT EXISTS tg_user_preference (
   PRIMARY KEY (id),
   UNIQUE KEY uk_pref_user (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='用户界面偏好';
+
+-- ==================== 参赛优化 B1/A1：GAP-046 候选复核 + 判定溯源 ====================
+-- tg_consistency_result 增列 judge_path / judge_detail（A1 判定溯源；规则模式下为 NULL）
+SET @jp_col := (SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tg_consistency_result' AND COLUMN_NAME = 'judge_path');
+SET @ddl_jp := IF(@jp_col = 0,
+    'ALTER TABLE tg_consistency_result ADD COLUMN judge_path VARCHAR(64) COMMENT ''A1判定溯源：决策路径（RULE/NOT_REVIEWED/LLM_CONSENSUS_CONSISTENT/LLM_CONSENSUS_DEFECT/LLM_ARBITRATION_DEFECT/LLM_ARBITRATION_KEEP/RULE_QUANTIFY_VETO/LLM_OWNER_OVERRIDE/LLM_SINGLE/LLM_SIM_GATE）'', ADD COLUMN judge_detail VARCHAR(1000) COMMENT ''A1判定溯源明细 JSON（variantA/variantB/ruleRisk/pairRisk/selectedReason/detail）''',
+    'SELECT 1');
+PREPARE stmt_jp FROM @ddl_jp;
+EXECUTE stmt_jp;
+DEALLOCATE PREPARE stmt_jp;
+
+-- tg_defect 增列 judge_path / judge_detail（继承自关联一致性结果，Defects.vue 溯源面板数据源）
+SET @dj_col := (SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tg_defect' AND COLUMN_NAME = 'judge_path');
+SET @ddl_dj := IF(@dj_col = 0,
+    'ALTER TABLE tg_defect ADD COLUMN judge_path VARCHAR(64) COMMENT ''A1判定溯源：决策路径（继承自关联一致性结果）'', ADD COLUMN judge_detail VARCHAR(1000) COMMENT ''A1判定溯源明细 JSON（继承自关联一致性结果）''',
+    'SELECT 1');
+PREPARE stmt_dj FROM @ddl_dj;
+EXECUTE stmt_dj;
+DEALLOCATE PREPARE stmt_dj;

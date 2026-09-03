@@ -178,10 +178,12 @@ public class AnalysisService {
         task.setStatus("pending");
         task.setProgress(0);
         task.setStartTime(LocalDateTime.now());
-        task.setWeightAlpha(alpha != null ? alpha : 0.4);
-        task.setWeightBeta(beta != null ? beta : 0.35);
-        task.setWeightGamma(gamma != null ? gamma : 0.25);
-        task.setThresholdT1(t1 != null ? t1 : 0.8);
+        // B2 标定统一（2026-09-03）：α/β/γ=0.5/0.2/0.3、t1=0.52（A2 去共线性 + 风险门控双通道标定，
+        // 规则链 acc 80.0%/fpr 6.9%）；t2 仅影响一般/严重分级
+        task.setWeightAlpha(alpha != null ? alpha : 0.5);
+        task.setWeightBeta(beta != null ? beta : 0.2);
+        task.setWeightGamma(gamma != null ? gamma : 0.3);
+        task.setThresholdT1(t1 != null ? t1 : 0.52);
         task.setThresholdT2(t2 != null ? t2 : 0.5);
         validateWeights(task);
         taskMapper.insert(task);
@@ -641,14 +643,39 @@ public class AnalysisService {
             return;
         }
         log.append("[").append(LocalDateTime.now()).append("] [embedding] 开始批量向量化...\n");
+        // B3（2026-09-03）：跳过已有稠密向量的单元（增量复用行），向量化只重算新增/变更单元。
+        // 修复前：增量任务里 embedSemantics 每次全量重算（tenk 220s，占端到端 90%+），
+        // 把增量解析的收益完全淹没。
+        java.util.List<Requirement> pendingReqs = new java.util.ArrayList<>();
+        int reqVecReused = 0;
+        for (Requirement req : requirements) {
+            if (com.traceguard.util.SemanticVectorUtil.hasDenseVector(req.getSemanticVector())) {
+                reqVecReused++;
+            } else {
+                pendingReqs.add(req);
+            }
+        }
+        java.util.List<CodeUnit> pendingUnits = new java.util.ArrayList<>();
+        int codeVecReused = 0;
+        for (CodeUnit u : codeUnits) {
+            if (com.traceguard.util.SemanticVectorUtil.hasDenseVector(u.getSemanticVector())) {
+                codeVecReused++;
+            } else {
+                pendingUnits.add(u);
+            }
+        }
+        log.append("[").append(LocalDateTime.now()).append("] [embedding] 增量复用：需求 ")
+                .append(reqVecReused).append("/").append(requirements.size())
+                .append("，代码单元 ").append(codeVecReused).append("/").append(codeUnits.size())
+                .append("（已有稠密向量，跳过重算）' + NL + '");
         int reqBatches = 0, reqSuccess = 0, reqFail = 0;
         int codeBatches = 0, codeSuccess = 0, codeFail = 0;
         int circuitFailCount = 0;
         int batchSize = 16;
-        // 需求侧向量化
-        for (int start = 0; start < requirements.size(); start += batchSize) {
-            int end = Math.min(requirements.size(), start + batchSize);
-            List<Requirement> batch = requirements.subList(start, end);
+        // 需求侧向量化（仅无稠密向量单元）
+        for (int start = 0; start < pendingReqs.size(); start += batchSize) {
+            int end = Math.min(pendingReqs.size(), start + batchSize);
+            List<Requirement> batch = pendingReqs.subList(start, end);
             reqBatches++;
             try {
                 List<String> texts = new java.util.ArrayList<>();
@@ -685,7 +712,7 @@ public class AnalysisService {
         if (circuitFailCount < 3) {
             circuitFailCount = 0;
             // FR-CODE-001 规则3（2.4 整改项）：字段清单单元仅展示，不参与语义向量化
-            codeUnits = codeUnits.stream()
+            codeUnits = pendingUnits.stream()
                     .filter(u -> !com.traceguard.util.JavaCodeParserUtil.isFieldListUnit(u))
                     .collect(java.util.stream.Collectors.toList());
             for (int start = 0; start < codeUnits.size(); start += batchSize) {
@@ -1712,67 +1739,128 @@ public class AnalysisService {
                 task.getWeightAlpha(), task.getWeightBeta(), task.getWeightGamma(),
                 task.getThresholdT1(), task.getThresholdT2()
         );
-        // AUD-02：LLM 语义判定二审（启用后对每个需求-代码对做语义级判定，纠正规则漏检；失败保留规则结果）
+        // AUD-02 + GAP-046：LLM 语义判定二审（候选复核架构——仅评审规则可疑/灰色带/高风险/一致池探针对，
+        // 硬上限 candidate-review.max-candidates（万行 × ≈2.1s/对 ≈ 7min 二审预算）；探针缺陷率超阈值
+        // 自动升级补审（小数据集趋近全量保指标，大数据集恒定有界）。未入选/失败对保留规则判定）
         if (llmService.isEnabled()) {
             Map<Long, Requirement> reqById = new HashMap<>();
             for (Requirement r : requirements) reqById.put(r.getId(), r);
             Map<Long, CodeUnit> codeById = new HashMap<>();
             for (CodeUnit c : codeUnits) codeById.put(c.getId(), c);
+            Map<Integer, ConsistencyResult> byIndex = new HashMap<>();
+            for (int i = 0; i < results.size(); i++) byIndex.put(i, results.get(i));
+            com.traceguard.config.LlmProperties.CandidateReview cr = llmService.getCandidateReview();
+
+            // 预计算规则风险分（纯 CPU 无 LLM 调用），候选规划与分歧仲裁共用同一份
+            Map<Integer, Double> riskByIndex = new HashMap<>();
+            List<com.traceguard.core.CandidateReviewPlanner.PairInput> pairInputs = new ArrayList<>();
+            for (int i = 0; i < results.size(); i++) {
+                ConsistencyResult r = results.get(i);
+                double risk = computePairRisk(reqById, codeById, classEvidenceByClass, r);
+                riskByIndex.put(i, risk);
+                pairInputs.add(new com.traceguard.core.CandidateReviewPlanner.PairInput(
+                        (long) i, r.getConsistencyStatus(),
+                        r.getTotalSimilarity() == null ? 0.0 : r.getTotalSimilarity(), risk));
+            }
+            // GAP-046：候选规划（enabled=false 退回全量逐条，仅评测对比使用；键=results 下标，入库前实体无 ID）
+            com.traceguard.core.CandidateReviewPlanner.Plan plan = cr.isEnabled()
+                    ? com.traceguard.core.CandidateReviewPlanner.plan(pairInputs, task.getThresholdT1(),
+                            task.getThresholdT2(), cr.getHighRiskThreshold(),
+                            cr.getConsistentSampleRate(), cr.getMaxCandidates())
+                    : null;
+            List<Integer> reviewOrder = new ArrayList<>();
+            if (plan != null) {
+                for (Long id : plan.getReviewOrder()) {
+                    reviewOrder.add(id.intValue());
+                }
+            } else {
+                for (int i = 0; i < results.size(); i++) {
+                    reviewOrder.add(i);
+                }
+            }
+            // 未入选候选的对：显式标记"候选模式未复核"（区别于规则模式的 NULL），判定溯源面板可见
+            if (plan != null) {
+                java.util.Set<Integer> selected = new java.util.HashSet<>(reviewOrder);
+                for (int i = 0; i < results.size(); i++) {
+                    if (!selected.contains(i)) {
+                        results.get(i).setJudgePath("NOT_REVIEWED");
+                    }
+                }
+            }
+
             int llmOk = 0, llmFail = 0;
+            int probeJudged = 0, probeDefects = 0, escalatedCount = 0;
             int quota = llmService.getMaxCallsPerStage();
-            for (ConsistencyResult r : results) {
+            for (Integer idx : reviewOrder) {
                 // 4.5 整改：在每个 LLM 批次项之间插入控制检查点，缩短暂停/终止的协作式响应延迟
                 checkControl(task);
                 if (llmOk + llmFail >= quota) {
                     log.append("[").append(LocalDateTime.now())
-                            .append("] [llm-stage-quota] 一致性判定环节已达调用上限，剩余对保留规则判定\n");
+                            .append("] [llm-stage-quota] 一致性判定环节已达调用上限，剩余候选保留规则判定\n");
                     break;
                 }
-                Requirement req = reqById.get(r.getRequirementId());
-                CodeUnit code = codeById.get(r.getCodeUnitId());
-                if (req == null || code == null) {
+                ConsistencyResult r = byIndex.get(idx);
+                Requirement req = r == null ? null : reqById.get(r.getRequirementId());
+                CodeUnit code = r == null ? null : codeById.get(r.getCodeUnitId());
+                if (r == null || req == null || code == null) {
                     llmFail++;
                     continue;
                 }
-                try {
-                    // FUN-04b：构造类级判定证据（分工清单+常量定义）与规则风险分，走双判定管线
-                    String cls = code.getClassName() == null ? "" : code.getClassName();
-                    String simpleCls = cls.substring(cls.lastIndexOf('.') + 1);
-                    ConsistencyJudge.JudgeContext ctx = ConsistencyJudge.JudgeContext.fromEvidence(
-                            classEvidenceByClass.get(simpleCls), code.getMethodName());
-                    double pairRisk = com.traceguard.util.CodeDefectPatternDetector.detectDefectRisk(
-                            req.getOriginalText(), code.getCodeContent(),
-                            classEvidenceByClass.getOrDefault(simpleCls, java.util.Collections.emptyList()));
-                    ConsistencyJudge.Judgement j = llmService.judgeConsistency(
-                            req.getOriginalText(), code.getCodeContent(),
-                            r.getSemanticSimilarity(), r.getConstraintMatchDegree(),
-                            r.getInvariantSatisfaction(), r.getTotalSimilarity(), r.getDefectType(),
-                            ctx, pairRisk);
-                    if (j == null) {
+                String selectedReason = plan != null
+                        ? plan.getSelectedReasons().getOrDefault((long) idx, "CANDIDATE")
+                        : "FULL_REVIEW";
+                Boolean verdict = reviewOnePair(task, r, req, code, classEvidenceByClass,
+                        riskByIndex.getOrDefault(idx, 0.0), selectedReason, log);
+                if (verdict == null) {
+                    llmFail++;
+                    continue;
+                }
+                llmOk++;
+                if (com.traceguard.core.CandidateReviewPlanner.REASON_PROBE_SAMPLE.equals(selectedReason)) {
+                    probeJudged++;
+                    if (!verdict) {
+                        probeDefects++;
+                    }
+                }
+            }
+            // GAP-046 升级补审：探针缺陷率超阈值 -> "明确一致池"并不干净，按确定性顺序补审剩余（受上限与配额约束）
+            if (plan != null && com.traceguard.core.CandidateReviewPlanner.shouldEscalate(
+                    probeDefects, probeJudged, cr.getEscalateDefectRate())) {
+                int budget = Math.min(Math.max(cr.getMaxCandidates() - plan.getReviewOrder().size(), 0),
+                        Math.max(quota - llmOk - llmFail, 0));
+                for (Long id : com.traceguard.core.CandidateReviewPlanner.escalate(plan, budget)) {
+                    if (llmOk + llmFail >= quota) {
+                        break;
+                    }
+                    Integer idx = id.intValue();
+                    ConsistencyResult r = byIndex.get(idx);
+                    Requirement req = r == null ? null : reqById.get(r.getRequirementId());
+                    CodeUnit code = r == null ? null : codeById.get(r.getCodeUnitId());
+                    if (r == null || req == null || code == null) {
+                        llmFail++;
+                        continue;
+                    }
+                    Boolean verdict = reviewOnePair(task, r, req, code, classEvidenceByClass,
+                            riskByIndex.getOrDefault(idx, 0.0),
+                            com.traceguard.core.CandidateReviewPlanner.REASON_ESCALATED, log);
+                    if (verdict == null) {
                         llmFail++;
                         continue;
                     }
                     llmOk++;
-                    if (j.isConsistent()) {
-                        r.setConsistencyStatus("consistent");
-                        r.setDefectType(null);
-                        r.setDefectSubType(null);
-                    } else {
-                        r.setConsistencyStatus(r.getTotalSimilarity() < task.getThresholdT2()
-                                ? "serious_inconsistent" : "general_inconsistent");
-                        r.setDefectType(j.getDefectType());
-                        r.setDefectSubType(j.getDefectType());
-                    }
-                } catch (Exception e) {
-                    llmFail++;
-                    log.append("[").append(LocalDateTime.now()).append("] [llm] 对 ")
-                            .append(reqById.get(r.getRequirementId()) != null
-                                    ? reqById.get(r.getRequirementId()).getRequirementId() : r.getRequirementId())
-                            .append(" 一致性判定失败：").append(e.getMessage()).append("，保留规则判定\n");
+                    escalatedCount++;
                 }
+                log.append("[").append(LocalDateTime.now()).append("] [llm-candidate-escalate] 探针缺陷率 ")
+                        .append(probeJudged > 0
+                                ? String.format(java.util.Locale.ROOT, "%.1f%%", 100.0 * probeDefects / probeJudged)
+                                : "N/A")
+                        .append(" 超阈值，升级补审一致池 ").append(escalatedCount).append(" 对\n");
             }
-            log.append("[").append(LocalDateTime.now()).append("] [llm] 语义判定二审完成：成功 ")
-                    .append(llmOk).append("，失败 ").append(llmFail).append("\n");
+            log.append("[").append(LocalDateTime.now()).append("] [llm] 语义判定二审完成（GAP-046 候选复核")
+                    .append(plan != null ? "开启" : "关闭=全量逐条").append("）：全量 ")
+                    .append(results.size()).append(" 对，LLM 复核 ").append(llmOk)
+                    .append("（探针 ").append(probeJudged).append("），失败 ").append(llmFail)
+                    .append("，规则判定保留 ").append(results.size() - llmOk).append(" 对\n");
         }
         // GAP-025：分批写库（默认每批500行），避免 R×C 结果逐条单写
         batchInsertConsistency(results);
@@ -1782,6 +1870,85 @@ public class AnalysisService {
         task.setExecutionLog(log.toString());
         taskMapper.updateById(task);
         return results;
+    }
+
+    /** GAP-046：单对规则风险分（CodeDefectPatternDetector，纯 CPU），需求/代码缺失时 0.0 */
+    private double computePairRisk(Map<Long, Requirement> reqById, Map<Long, CodeUnit> codeById,
+                                   Map<String, List<String>> classEvidenceByClass, ConsistencyResult r) {
+        Requirement req = r.getRequirementId() == null ? null : reqById.get(r.getRequirementId());
+        CodeUnit code = r.getCodeUnitId() == null ? null : codeById.get(r.getCodeUnitId());
+        if (req == null || code == null) {
+            return 0.0;
+        }
+        String cls = code.getClassName() == null ? "" : code.getClassName();
+        String simpleCls = cls.substring(cls.lastIndexOf('.') + 1);
+        return com.traceguard.util.CodeDefectPatternDetector.detectDefectRisk(
+                req.getOriginalText(), code.getCodeContent(),
+                classEvidenceByClass.getOrDefault(simpleCls, java.util.Collections.emptyList()));
+    }
+
+    /**
+     * GAP-046：复核单个匹配对（FUN-04b 双判定管线 + A1 判定溯源落库）。
+     *
+     * @return Boolean.TRUE=判定一致 / FALSE=判定缺陷 / null=LLM 失败（保留规则判定）
+     */
+    private Boolean reviewOnePair(AnalysisTask task, ConsistencyResult r, Requirement req, CodeUnit code,
+                                  Map<String, List<String>> classEvidenceByClass, double pairRisk,
+                                  String selectedReason, StringBuilder log) {
+        try {
+            String cls = code.getClassName() == null ? "" : code.getClassName();
+            String simpleCls = cls.substring(cls.lastIndexOf('.') + 1);
+            ConsistencyJudge.JudgeContext ctx = ConsistencyJudge.JudgeContext.fromEvidence(
+                    classEvidenceByClass.get(simpleCls), code.getMethodName());
+            ConsistencyJudge.Judgement j = llmService.judgeConsistency(
+                    req.getOriginalText(), code.getCodeContent(),
+                    r.getSemanticSimilarity(), r.getConstraintMatchDegree(),
+                    r.getInvariantSatisfaction(), r.getTotalSimilarity(), r.getDefectType(),
+                    ctx, pairRisk);
+            if (j == null) {
+                r.setJudgePath("RULE_FALLBACK");
+                r.setJudgeDetail(judgeDetailJson(null, pairRisk, selectedReason, "LLM调用失败，保留规则判定"));
+                return null;
+            }
+            if (j.isConsistent()) {
+                r.setConsistencyStatus("consistent");
+                r.setDefectType(null);
+                r.setDefectSubType(null);
+            } else {
+                r.setConsistencyStatus(r.getTotalSimilarity() != null
+                                && r.getTotalSimilarity() < task.getThresholdT2()
+                        ? "serious_inconsistent" : "general_inconsistent");
+                r.setDefectType(j.getDefectType());
+                r.setDefectSubType(j.getDefectType());
+            }
+            r.setJudgePath(j.getDecisionPath() == null ? "LLM" : j.getDecisionPath());
+            r.setJudgeDetail(judgeDetailJson(j, pairRisk, selectedReason, j.getReason()));
+            return j.isConsistent();
+        } catch (Exception e) {
+            log.append("[").append(LocalDateTime.now()).append("] [llm] 对 ")
+                    .append(req.getRequirementId()).append(" 一致性判定失败：").append(e.getMessage())
+                    .append("，保留规则判定\n");
+            r.setJudgePath("RULE_FALLBACK");
+            r.setJudgeDetail(judgeDetailJson(null, pairRisk, selectedReason, "LLM调用异常：" + e.getMessage()));
+            return null;
+        }
+    }
+
+    /** A1：判定溯源明细 JSON（变体A/B 结论、规则风险分、候选选取原因、判定摘要） */
+    private String judgeDetailJson(ConsistencyJudge.Judgement j, double pairRisk,
+                                   String selectedReason, String detail) {
+        com.alibaba.fastjson2.JSONObject o = new com.alibaba.fastjson2.JSONObject();
+        o.put("pairRisk", pairRisk);
+        o.put("selectedReason", selectedReason);
+        o.put("detail", detail == null ? "" : detail);
+        if (j != null) {
+            o.put("variantA", j.getVariantA());
+            o.put("variantB", j.getVariantB());
+            if (!Double.isNaN(j.getRuleRisk())) {
+                o.put("ruleRisk", j.getRuleRisk());
+            }
+        }
+        return o.toJSONString();
     }
 
     private void generateDefects(AnalysisTask task, Project project, List<ConsistencyResult> results,

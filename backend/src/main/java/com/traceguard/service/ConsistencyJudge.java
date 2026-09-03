@@ -121,17 +121,56 @@ public class ConsistencyJudge {
         private final String reason;
         private final Engine engine;       // 实际生效的引擎（langchain 回退后记为 SELF）
 
+        // ===== A1 判定溯源 =====
+        /** 决策路径：LLM_CONSENSUS_CONSISTENT/LLM_CONSENSUS_DEFECT（双评委共识）、
+         * LLM_ARBITRATION_DEFECT/LLM_ARBITRATION_KEEP（分歧规则风险仲裁）、
+         * RULE_QUANTIFY_VETO（规则量化边界否决）、LLM_OWNER_OVERRIDE（数值归属修正）、
+         * LLM_SIM_GATE（相似度兜底）、LLM_SINGLE（单阶段判定）、LLM（未细分） */
+        private final String decisionPath;
+        /** FUN-04b 变体 A/B 各自结论（null=未走双判定管线） */
+        private final Boolean variantA;
+        private final Boolean variantB;
+        /** 分歧仲裁使用的规则风险分（NaN=不可用/未走双判定） */
+        private final double ruleRisk;
+
+        /** 兼容旧口径构造器（评测工具沿用）：决策路径记为泛化 LLM */
         public Judgement(boolean consistent, String defectType, String reason, Engine engine) {
+            this(consistent, defectType, reason, engine, "LLM", null, null, Double.NaN);
+        }
+
+        public Judgement(boolean consistent, String defectType, String reason, Engine engine,
+                         String decisionPath, Boolean variantA, Boolean variantB, double ruleRisk) {
             this.consistent = consistent;
             this.defectType = defectType;
             this.reason = reason;
             this.engine = engine;
+            this.decisionPath = decisionPath;
+            this.variantA = variantA;
+            this.variantB = variantB;
+            this.ruleRisk = ruleRisk;
+        }
+
+        /** 以指定决策路径复制（其余溯源字段保持） */
+        static Judgement withPath(Judgement src, String path) {
+            return new Judgement(src.consistent, src.defectType, src.reason, src.engine,
+                    path, src.variantA, src.variantB, src.ruleRisk);
+        }
+
+        /** 以新的结论字段复制（ownerOverride/否决改判场景：保留变体与风险溯源） */
+        static Judgement copy(Judgement src, boolean consistent, String defectType,
+                              String reason, String path) {
+            return new Judgement(consistent, defectType, reason, src.engine,
+                    path, src.variantA, src.variantB, src.ruleRisk);
         }
 
         public boolean isConsistent() { return consistent; }
         public String getDefectType() { return defectType; }
         public String getReason() { return reason; }
         public Engine getEngine() { return engine; }
+        public String getDecisionPath() { return decisionPath; }
+        public Boolean getVariantA() { return variantA; }
+        public Boolean getVariantB() { return variantB; }
+        public double getRuleRisk() { return ruleRisk; }
     }
 
     private final LlmCallExecutor executor;
@@ -177,11 +216,12 @@ public class ConsistencyJudge {
                     // 路径B（GAP-043/044 小模型兜底）：LLM 判不一致仅当规则相似度偏低才覆盖，
                     // 否则用规则相似度为小模型兜底，抑制 7B "默认一致守不住"的误报。
                     if (!j.isConsistent() || totalSimilarity < LLM_OVERRIDE_MAX_SIM) {
-                        return new Judgement(j.isConsistent(), j.getDefectType(), j.getReason(), Engine.LANGCHAIN);
+                        return Judgement.withPath(j, "LLM_SINGLE");
                     }
                     log.warn("GAP-043：LangChain 判不一致但 totalSimilarity={}≥{}，规则兜底判一致（抑制小模型误报）",
                             String.format("%.2f", totalSimilarity), LLM_OVERRIDE_MAX_SIM);
-                    return new Judgement(true, "", j.getReason() + "(相似度兜底)", Engine.LANGCHAIN);
+                    return Judgement.withPath(new Judgement(true, "", j.getReason() + "(相似度兜底)", Engine.LANGCHAIN),
+                            "LLM_SIM_GATE");
                 }
                 log.warn("GAP-044：langchain 返回解析失败，回退 self 引擎。");
             } catch (Exception e) {
@@ -212,9 +252,10 @@ public class ConsistencyJudge {
         if (!parsed.isConsistent() && totalSimilarity >= LLM_OVERRIDE_MAX_SIM) {
             log.warn("GAP-043：self 引擎判不一致但 totalSimilarity={}≥{}，规则兜底判一致",
                     String.format("%.2f", totalSimilarity), LLM_OVERRIDE_MAX_SIM);
-            return new Judgement(true, "", parsed.getReason() + "(相似度兜底)", Engine.SELF);
+            return Judgement.withPath(new Judgement(true, "", parsed.getReason() + "(相似度兜底)", Engine.SELF),
+                    "LLM_SIM_GATE");
         }
-        return new Judgement(parsed.isConsistent(), parsed.getDefectType(), parsed.getReason(), Engine.SELF);
+        return Judgement.withPath(parsed, "LLM_SINGLE");
     }
 
     /**
@@ -319,15 +360,19 @@ public class ConsistencyJudge {
             return null;
         }
         if (a == null || b == null) {
-            return finalizeOne(a != null ? a : b, requirementText, codeSnippet, ctx);
+            Judgement single = a != null ? a : b;
+            single = Judgement.withPath(single, "LLM_SINGLE");
+            return finalizeOne(single, requirementText, codeSnippet, ctx);
         }
         boolean detected;
         String type;
         String reason;
+        String path;
         if (a.isConsistent() == b.isConsistent()) {
             detected = !a.isConsistent();
             type = detected ? pickType(a.getDefectType(), b.getDefectType()) : "";
             reason = pickReason(a, b);
+            path = detected ? "LLM_CONSENSUS_DEFECT" : "LLM_CONSENSUS_CONSISTENT";
         } else {
             Judgement dissent = a.isConsistent() ? b : a;   // 判"不一致"的一侧
             detected = ruleRisk >= JUDGE_ARBITER_RISK_THRESHOLD;
@@ -335,17 +380,19 @@ public class ConsistencyJudge {
             reason = detected
                     ? dissent.getReason() + "(分歧仲裁:risk=" + fmt2(ruleRisk) + ")"
                     : "(双判定分歧按一致保留)";
+            path = detected ? "LLM_ARBITRATION_DEFECT" : "LLM_ARBITRATION_KEEP";
         }
         Judgement merged = new Judgement(!detected, type, reason,
-                a.getEngine() != null ? a.getEngine() : Engine.SELF);
+                a.getEngine() != null ? a.getEngine() : Engine.SELF,
+                path, a.isConsistent(), b.isConsistent(), ruleRisk);
         // 规则否决权（FUN-04b）：模型共识判"一致"，但量化边界错配的确定性证据成立
         // （如需求 500 字符上限而方法内 length()>1000），以规则证据推翻一致结论。
         if (merged.isConsistent()) {
             double qRisk = com.traceguard.util.CodeDefectPatternDetector.quantitativeBoundRiskSignal(
                     requirementText, codeSnippet, ctx.classConstants);
             if (qRisk >= QUANTIFY_VETO_THRESHOLD) {
-                merged = new Judgement(false, "业务逻辑不一致",
-                        "(规则量化边界否决:risk=" + fmt2(qRisk) + ")", Engine.SELF);
+                merged = Judgement.copy(merged, false, "业务逻辑不一致",
+                        "(规则量化边界否决:risk=" + fmt2(qRisk) + ")", "RULE_QUANTIFY_VETO");
             }
         }
         return finalizeOne(merged, requirementText, codeSnippet, ctx);
@@ -398,8 +445,8 @@ public class ConsistencyJudge {
                     int bound = Integer.parseInt(gs);
                     int lo = Math.min(bound, declared), hi = Math.max(bound, declared);
                     if (bound != declared && hi <= 5L * lo) {
-                        return new Judgement(true, "", "(数值归属修正:" + name + ")",
-                                j.getEngine());
+                        return Judgement.copy(j, true, "", "(数值归属修正:" + name + ")",
+                                "LLM_OWNER_OVERRIDE");
                     }
                 } catch (NumberFormatException ignored) {
                     // 忽略异常数值
@@ -418,19 +465,19 @@ public class ConsistencyJudge {
                     + "(?:最多|不低于|至少|不超过|上限|窗口)[^\\d]{0,6}(\\d{1,6})",
                     Pattern.CASE_INSENSITIVE);
 
-    /** 统一出口：数值归属过滤 + 引擎标注 */
+    /** 统一出口：数值归属过滤 + 引擎标注（保留判定溯源字段） */
     private static Judgement finalizeOne(Judgement j, String requirementText, String codeBody, JudgeContext ctx) {
         if (j == null) {
             return null;
         }
         if (codeBody == null || ctx == null || ctx.isEmpty()) {
-            return new Judgement(j.isConsistent(), j.getDefectType(), j.getReason(), Engine.SELF);
+            return Judgement.withPath(j, j.getDecisionPath() == null ? "LLM" : j.getDecisionPath());
         }
         // 直接逐条迭代常量清单（不能拼接成单串再交正则：首个 name=value 命中会吞掉后续常量的检查机会）
         JudgeContext constOnly = new JudgeContext(List.of(), ctx.classConstants);
         Judgement filtered = ownerOverride(j, requirementText, codeBody, constOnly);
-        return new Judgement(filtered.isConsistent(), filtered.getDefectType(),
-                filtered.getReason(), Engine.SELF);
+        return Judgement.withPath(filtered,
+                filtered.getDecisionPath() == null ? "LLM" : filtered.getDecisionPath());
     }
 
     /** 组装变体A消息：基础提示词 + 锚定准则 + 分工/常量证据区 */

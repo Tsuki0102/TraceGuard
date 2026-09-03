@@ -93,6 +93,13 @@ public class LlmService {
         return properties != null ? properties.getMaxCallsPerStage() : 200;
     }
 
+    /** GAP-046：候选复核配置（一致性二审候选规划参数），properties 缺失时返回默认值 */
+    public com.traceguard.config.LlmProperties.CandidateReview getCandidateReview() {
+        return properties != null && properties.getCandidateReview() != null
+                ? properties.getCandidateReview()
+                : new com.traceguard.config.LlmProperties.CandidateReview();
+    }
+
     // ==================== GAP-021 四业务方法（GAP-001 接入） ====================
 
     /** 需求语义提取：需求文本 -> Kripke 结构（states/transitions/constraints/invariants），失败返回 null */

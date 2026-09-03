@@ -73,11 +73,13 @@ traceguard:
     # 批量写库每批行数
     batch-size: 500
   analysis:
-    default-threshold-t1: 0.8
+    # B2 标定统一（2026-09-03，A2 去共线性 + 风险门控双通道网格标定，tune 集 55 对）：
+    # α/β/γ=0.5/0.2/0.3、t1=0.52、risk-gate=0.35 -> 规则链 acc 80.0%/fpr 6.9%（旧链 65.5%/24.1%）
+    default-threshold-t1: 0.52
     default-threshold-t2: 0.5
-    default-weight-alpha: 0.4
-    default-weight-beta: 0.35
-    default-weight-gamma: 0.25
+    default-weight-alpha: 0.5
+    default-weight-beta: 0.2
+    default-weight-gamma: 0.3
     # FR-REQ-004：形式化规约校验失败是否阻断后续分析流程（GAP-013：默认开启）
     strict-spec-verify: true
     # FUN-04：代码超范围实现的负例抑制下限——未匹配代码单元与需求最大相似度 ≥ 该值时不判超范围（降低误报）
@@ -89,6 +91,8 @@ traceguard:
     defect-thresholds:
       con-match: ${DEFECT_CON_MATCH:0.6}
       inv-sat: ${DEFECT_INV_SAT:0.7}
+      # B2 风险门控（独立风险通道）：defectRisk >= 0.35 判不一致（分数通道之外的 OR 门），一致对零命中标定
+      risk-gate: ${DEFECT_RISK_GATE:0.35}
       cos-sim: ${DEFECT_COS_SIM:0.2}
     # AUD-10：可扩展语言选择（默认 java/alloy，与改造前行为一致；扩展 C#/Python/TLA+ 时在此切换）
     code-language: java
@@ -146,6 +150,15 @@ traceguard:
       consistency-check: qwen-max
     max-concurrent-calls: 4
     max-calls-per-stage: 200
+    # GAP-046 候选复核：LLM 二审只评审候选对（规则可疑/灰色带/高风险/一致池抽检），硬上限 200 对
+    # （万行 × ≈2.1s/对 ≈ 7min 二审预算，见性能基准报告 §5.2）。抽检缺陷率超阈值自动升级补审
+    # （小数据集趋近全量保指标，大数据集恒定有界）；enabled=false 退回全量逐条（仅评测对比用）。
+    candidate-review:
+      enabled: ${LLM_CANDIDATE_REVIEW:true}
+      max-candidates: 200
+      consistent-sample-rate: 0.10
+      escalate-defect-rate: 0.10
+      high-risk-threshold: 0.30
     # tg_llm_config 表 api_key 加密密钥（GAP-021，生产请通过环境变量注入）
     config-encrypt-key: ${LLM_CONFIG_KEY:TraceGuard#2026!LlmConfigSecret}
     embedding:          # GAP-004

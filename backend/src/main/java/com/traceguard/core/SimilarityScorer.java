@@ -360,13 +360,14 @@ public final class SimilarityScorer {
                                                                  RequirementConstraintExtractor.CodeProfile codeProfile) {
         try {
             if (specModel == null || specModel.getInvariants().isEmpty() || StrUtil.isBlank(cfgData)) {
-                return calculateSimplifiedInvariantSatisfaction(req, code, codeProfile);
+                // A2：回退结构不变量满足度（独立通道，不读 codeProfile，消除与 Con 的共线）
+                return calculateStructuralInvariantSatisfaction(req, code);
             }
             // GAP-025：从缓存获取 CFG 特征（避免重复解析 JSON）
             CfgFeatures cf = cfgFeaturesCache.computeIfAbsent(code.getId(),
                     cid -> extractCfgFeatures(cfgData));
             if (cf == null) {
-                return calculateSimplifiedInvariantSatisfaction(req, code, codeProfile);
+                return calculateStructuralInvariantSatisfaction(req, code);
             }
             // 规约侧结构要求：状态转移谓词/多状态 -> 需要分支结构；转移(all =>) -> 需要循环；异常约束 -> 需要异常路径
             boolean specRequiresBranch = specModel.getInvariants().stream()
@@ -386,8 +387,8 @@ public final class SimilarityScorer {
             // 作为 Inv 维度额外信号，使"需求显式声明可判真伪命题"与代码实现对齐。
             double apSat = calculateAtomicPropositionSatisfaction(req, code, codeProfile);
             if (items == 0) {
-                // 规格无结构项可判时，优先以 AP 满足度作为 Inv（AP 缺失则回退 simplified）
-                return apSat >= 0 ? clamp01(apSat) : calculateSimplifiedInvariantSatisfaction(req, code, codeProfile);
+                // 规格无结构项可判时，优先以 AP 满足度作为 Inv（AP 缺失则回退 A2 结构不变量）
+                return apSat >= 0 ? clamp01(apSat) : calculateStructuralInvariantSatisfaction(req, code);
             }
             if (apSat >= 0) { sum += apSat; items++; }
             return clamp01(sum / items);
@@ -401,7 +402,12 @@ public final class SimilarityScorer {
     /**
      * GAP-046：简化的不变量满足度（回退逻辑）——由「需求约束点 × 代码实现证据」覆盖度驱动。
      * 需求含约束点时代码未实现对应证据则 Inv 下降；无约束点回退结构启发式。
+     *
+     * @deprecated A2 去共线性重构（2026-09-03）：本实现与 Con 维度共用
+     * RequirementConstraintExtractor 证据源，实测 corr(con,inv)=0.807（阈值标定报告 §5.1），
+     * 已由 {@link #calculateStructuralInvariantSatisfaction(Requirement, CodeUnit)} 替代，保留仅供历史对照。
      */
+    @Deprecated
     public static double calculateSimplifiedInvariantSatisfaction(Requirement req, CodeUnit code,
                                                                   RequirementConstraintExtractor.CodeProfile codeProfile) {
         try {
@@ -416,6 +422,96 @@ public final class SimilarityScorer {
         }
         // FUN-13：无约束点需求不变量满足度取中性 0.5。
         return 0.5;
+    }
+
+    // ==================== A2：结构不变量满足度（去共线性回退路径 v2） ====================
+
+    /** 需求行为结构期望（A2）：从需求文本词表独立提取，与 Con 的约束点词表无共享机制 */
+    static class StructuralExpectation {
+        boolean expectsBranch;      // 状态流转/条件判断/权限校验 → 期望分支结构
+        boolean expectsLoop;        // 批量/遍历/逐条 → 期望循环结构
+        boolean expectsException;   // 异常/回滚/抛出 → 期望异常路径
+        boolean expectsMultiStep;   // 多步流程（连接词≥2 或 显式步骤）→ 期望环复杂度≥3
+        int expectationCount() {
+            return (expectsBranch ? 1 : 0) + (expectsLoop ? 1 : 0)
+                    + (expectsException ? 1 : 0) + (expectsMultiStep ? 1 : 0);
+        }
+    }
+
+    private static final Pattern RE_BRANCH_WORDS = Pattern.compile(
+            "状态|流转|切换|根据|判断|如果|否则|校验|验证|权限|角色|越权|资格|审核|区分");
+    private static final Pattern RE_LOOP_WORDS = Pattern.compile(
+            "批量|遍历|所有|全部|循环|逐条|每一个|每个|依次|多个|逐个");
+    private static final Pattern RE_EXCEPTION_WORDS = Pattern.compile(
+            "异常|回滚|抛出|失败时|出错|中断|终止并");
+    private static final Pattern RE_STEP_CONNECTORS = Pattern.compile("并且|然后|随后|接着|以及|同时|再|之后");
+    // 代码侧控制流结构检测（文本级，独立于 Soot/AST 解析成败）
+    private static final Pattern CODE_BRANCH = Pattern.compile("\\b(if\\s*\\(|switch\\s*\\(|\\?:)");
+    private static final Pattern CODE_LOOP = Pattern.compile("\\b(for\\s*\\(|while\\s*\\()");
+    private static final Pattern CODE_EXCEPTION = Pattern.compile("\\b(try\\s*(\\{|\\s)|throw\\s+new)");
+    private static final Pattern CODE_DECISION_POINTS = Pattern.compile("\\b(if\\s*\\(|for\\s*\\(|while\\s*\\(|case\\s+)");
+
+    /**
+     * A2 去共线性重构（2026-09-03）：结构不变量满足度（回退路径 v2）。
+     *
+     * 旧实现（0.5 + 0.5·coverage）与 Con 共用同一约束证据源，实测 corr(con,inv)=0.807、
+     * 72% 一致对落在 inv=0.5 中性地板（阈值标定报告 §5.1）。
+     * 新实现改用独立通道——「需求行为结构期望 × 代码控制流结构证据」：
+     *   - 需求侧词表判断行为类别（状态流转/批量遍历/异常路径/多步流程），与 Con 的约束点抽取无共享机制；
+     *   - 代码侧对方法体做文本级结构检测（if/switch、for/while、try/throw），不依赖 cfgData 与 Soot 成败；
+     *   - 期望命中计 1.0、期望未满足计 0.3（"要求但缺失"扣减，与严格路径口径一致）；
+     *     无任何结构期望时回退中性 0.5（FUN-13 口径保留，但触发词表与 Con 的约束点判定不同源）。
+     * 判别定位：Inv 度量"结构性不变量是否被满足"（需求声明多步/状态机行为而方法无对应结构 → 下降），
+     * 逻辑正确性判别交由 Sem/Con/LLM 层，维度职责更单一。
+     */
+    public static double calculateStructuralInvariantSatisfaction(Requirement req, CodeUnit code) {
+        String reqText = req == null || req.getOriginalText() == null ? "" : req.getOriginalText();
+        String codeText = code == null || code.getCodeContent() == null ? "" : code.getCodeContent();
+        if (reqText.isEmpty() || codeText.isEmpty()) {
+            return 0.5;
+        }
+        StructuralExpectation exp = extractStructuralExpectation(reqText);
+        if (exp.expectationCount() == 0) {
+            // 无行为结构期望的需求（纯查询/展示类）无法评估结构不变量——中性 0.5
+            return 0.5;
+        }
+        double sum = 0;
+        int items = 0;
+        if (exp.expectsBranch) {
+            sum += CODE_BRANCH.matcher(codeText).find() ? 1.0 : 0.3;
+            items++;
+        }
+        if (exp.expectsLoop) {
+            sum += CODE_LOOP.matcher(codeText).find() ? 1.0 : 0.3;
+            items++;
+        }
+        if (exp.expectsException) {
+            sum += CODE_EXCEPTION.matcher(codeText).find() ? 1.0 : 0.3;
+            items++;
+        }
+        if (exp.expectsMultiStep) {
+            int decisionPoints = 0;
+            Matcher m = CODE_DECISION_POINTS.matcher(codeText);
+            while (m.find()) decisionPoints++;
+            sum += decisionPoints >= 2 ? 1.0 : 0.3;
+            items++;
+        }
+        return clamp01(sum / items);
+    }
+
+    /** 从需求文本提取行为结构期望（词表独立于 Con 的约束点抽取） */
+    static StructuralExpectation extractStructuralExpectation(String reqText) {
+        StructuralExpectation exp = new StructuralExpectation();
+        exp.expectsBranch = RE_BRANCH_WORDS.matcher(reqText).find();
+        exp.expectsLoop = RE_LOOP_WORDS.matcher(reqText).find();
+        exp.expectsException = RE_EXCEPTION_WORDS.matcher(reqText).find();
+        // 多步流程：连接词出现 ≥2 次，或含"先…再/首先…然后"式显式步骤叙述
+        Matcher step = RE_STEP_CONNECTORS.matcher(reqText);
+        int connectors = 0;
+        while (step.find()) connectors++;
+        exp.expectsMultiStep = connectors >= 2
+                || Pattern.compile("先[^，。；]{2,20}再|首先[^，。；]{2,20}然后|步骤").matcher(reqText).find();
+        return exp;
     }
 
     /**

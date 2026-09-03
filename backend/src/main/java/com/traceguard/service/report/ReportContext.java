@@ -14,14 +14,24 @@ public class ReportContext {
     public final List<Defect> defects;
     public final List<CodeDefect> codeDefects;
     public final List<Map<String, Object>> traceabilityMatrix;
+    /** A1 判定溯源：引擎决策分布（getJudgeStats 产出），规则模式/无匹配对时 total=0 */
+    public final Map<String, Object> judgeStats;
 
     public ReportContext(Project project, Map<String, Object> stats,
                          List<Defect> defects, List<CodeDefect> codeDefects,
                          List<Map<String, Object>> traceabilityMatrix) {
+        this(project, stats, defects, codeDefects, traceabilityMatrix, null);
+    }
+
+    public ReportContext(Project project, Map<String, Object> stats,
+                         List<Defect> defects, List<CodeDefect> codeDefects,
+                         List<Map<String, Object>> traceabilityMatrix,
+                         Map<String, Object> judgeStats) {
         this.project = project;
         this.stats = stats;
         this.defects = defects;
         this.codeDefects = codeDefects;
         this.traceabilityMatrix = traceabilityMatrix;
+        this.judgeStats = judgeStats;
     }
 }

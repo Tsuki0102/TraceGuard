@@ -300,8 +300,12 @@ public class ConsistencyChecker {
             result.setConstraintMatchDegree(conMatch);
             result.setInvariantSatisfaction(invSat);
             result.setTotalSimilarity(adjustedSim);
-            result.setConsistencyStatus(DefectMatcher.determineStatus(adjustedSim, t1, t2));
-            String[] defectTypePair = DefectMatcher.determineDefectType(adjustedSim, cosSim, conMatch, invSat, t1, t2);
+            // B2 风险门控双通道：分数通道（adjustedSim < t1）OR 风险通道（defectRisk >= risk-gate）。
+            // 去共线性重标定（A2）后，风险信号是独立高置信通道（P1-4 去噪一致对零命中），补足线性分数漏检。
+            boolean riskDetected = defectRisk >= com.traceguard.config.ThresholdConfigHolder.riskGateMin();
+            result.setConsistencyStatus(DefectMatcher.determineStatus(adjustedSim, t1, t2, riskDetected));
+            String[] defectTypePair = DefectMatcher.determineDefectType(adjustedSim, cosSim, conMatch, invSat,
+                    t1, t2, riskDetected);
             result.setDefectType(defectTypePair[0]);
             result.setDefectSubType(defectTypePair[1]);
             reqResults.add(result);

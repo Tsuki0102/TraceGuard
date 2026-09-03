@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -73,47 +74,230 @@ public final class DefectLocator {
         return locate(sub != null ? sub : DefectSubType.LOGIC_DEVIATION, reqText, codeContent, startLine);
     }
 
-    /** 按枚举子类型定位（推荐入口） */
+    /** 按枚举子类型定位（推荐入口，等价 locateTopK(...,1) 的首个候选） */
     public static Integer locate(DefectSubType subType, String reqText, String codeContent, Integer startLine) {
+        List<Integer> top = locateTopK(subType, reqText, codeContent, startLine, 1);
+        return top.isEmpty() ? null : top.get(0);
+    }
+
+    /**
+     * A5（参赛优化批次 2026-09-03）：候选行生成 + 评分排序，返回按置信度降序的 top-k 绝对行号。
+     *
+     * v2 的单行定位在"业务逻辑不一致/约束缺失"类上实际退化为方法起始行（首语句常与方法声明重合），
+     * 与基线无异（实测 52.9% vs 47.1%）。v3 候选池按证据强度评分：
+     *   +3.0 数值冲突行（AST 比较表达式内字面量与需求数值冲突，NUMERIC 策略主证据）
+     *   +2.5 状态赋值行（setStatus/状态字段赋值，STATE 策略主证据）
+     *   +2.2 需求数值词面锚点行
+     *   +2.0 比较表达式行（含数值字面量）/ +1.0 无字面量
+     *   +1.6 需求词→代码标识符对齐行（中文分词 + 双语词典 + camelCase 切分，每命中词 0.8，上限 2.4）
+     *   +1.2 校验/拒绝行（validate、check、require、assert 前缀调用）
+     *   +1.0 关键词启发式命中（降级链保留）
+     *   +0.5 方法体首条语句（兜底）/ +0.2 方法声明行（最终兜底）
+     * 同分行靠后者优先（缺陷语义多位于方法体深处）。
+     */
+    public static List<Integer> locateTopK(DefectSubType subType, String reqText, String codeContent,
+                                           Integer startLine, int k) {
         String code = codeContent == null ? "" : codeContent;
-        if (code.isEmpty()) {
-            return base(startLine) ? startLine : null;
+        List<Integer> emptyOut = new ArrayList<>();
+        if (code.isEmpty() || k <= 0) {
+            if (base(startLine)) {
+                emptyOut.add(startLine);
+            }
+            return emptyOut;
         }
         LocatorStrategy strategy = subType == null ? LocatorStrategy.FIRST_STATEMENT : subType.locator();
         String[] lines = code.split("\n", -1);
-
-        // P2-2（实测修正）：CodeUnit.codeContent = 方法 toString()，含方法前导 javadoc/注解。
-        // 若直接 startLine + 内容行号会把 javadoc 行数重复计入（实测系统性 +N 偏移）。
-        // 统一锚定到"方法声明行"：目标绝对行号 = startLine + (目标内容行号 - 方法声明内容行号)。
         MethodDeclaration method = parseMethod(code);
         int methodIdx = method != null ? methodContentIndex(method) : estimateMethodIndex(lines);
 
-        Integer target = method == null ? null : locateByAst(strategy, reqText, method);
-        if (target == null) {
-            target = locateByKeyword(strategy, reqText, lines);
+        // 候选打分表：内容行号（0-based） -> 分数
+        java.util.TreeMap<Integer, Double> score = new java.util.TreeMap<>();
+
+        // A) AST 候选
+        if (method != null) {
+            Integer numeric = numericLiteralLine(method, reqText);
+            if (numeric != null && numeric >= methodIdx) {
+                score.merge(numeric, 3.0, Double::sum);
+            }
+            for (BinaryExpr be : method.findAll(BinaryExpr.class)) {
+                if (!COMPARISON_OPS.contains(be.getOperator())) {
+                    continue;
+                }
+                Integer line = offsetOf(be);
+                if (line == null || line < methodIdx) {
+                    continue;
+                }
+                boolean hasLiteral = !be.findAll(IntegerLiteralExpr.class).isEmpty()
+                        || !be.findAll(LongLiteralExpr.class).isEmpty();
+                score.merge(line, hasLiteral ? 2.0 : 1.0, Double::sum);
+            }
+            for (MethodCallExpr call : method.findAll(MethodCallExpr.class)) {
+                String name = call.getNameAsString();
+                if (name.length() > 3 && name.startsWith("set") && containsStateToken(name.substring(3))) {
+                    Integer line = offsetOf(call);
+                    if (line != null && line >= methodIdx) {
+                        score.merge(line, 2.5, Double::sum);
+                    }
+                }
+            }
+            for (AssignExpr assign : method.findAll(AssignExpr.class)) {
+                Expression tgt = assign.getTarget();
+                String name = tgt instanceof NameExpr ? ((NameExpr) tgt).getNameAsString()
+                        : tgt instanceof FieldAccessExpr ? ((FieldAccessExpr) tgt).getNameAsString() : "";
+                if (containsStateToken(name)) {
+                    Integer line = offsetOf(assign);
+                    if (line != null && line >= methodIdx) {
+                        score.merge(line, 2.5, Double::sum);
+                    }
+                }
+            }
+            for (MethodCallExpr call : method.findAll(MethodCallExpr.class)) {
+                String name = call.getNameAsString().toLowerCase(Locale.ROOT);
+                if (name.startsWith("validate") || name.startsWith("check") || name.startsWith("require")
+                        || name.startsWith("assert")) {
+                    Integer line = offsetOf(call);
+                    if (line != null && line >= methodIdx) {
+                        score.merge(line, 1.2, Double::sum);
+                    }
+                }
+            }
+            // A5：约束缺失类（MISSING_VALIDATION）对"最后一条校验/throw 行"加权——
+            // 参数校验不完整通常缺在末尾（遗漏最后一项检查/最后一个参数）
+            for (com.github.javaparser.ast.stmt.ThrowStmt ts : method.findAll(
+                    com.github.javaparser.ast.stmt.ThrowStmt.class)) {
+                Integer tLine = offsetOf(ts);
+                if (tLine != null && tLine >= methodIdx) {
+                    score.merge(tLine, 1.2, Double::sum);
+                }
+            }
+            if (strategy == LocatorStrategy.MISSING_VALIDATION) {
+                Integer lastGuard = null;
+                for (MethodCallExpr call : method.findAll(MethodCallExpr.class)) {
+                    String nm = call.getNameAsString().toLowerCase(java.util.Locale.ROOT);
+                    if (nm.startsWith("validate") || nm.startsWith("check") || nm.startsWith("require")
+                            || nm.startsWith("assert")) {
+                        Integer l2 = offsetOf(call);
+                        if (l2 != null && l2 >= methodIdx && (lastGuard == null || l2 > lastGuard)) {
+                            lastGuard = l2;
+                        }
+                    }
+                }
+                for (com.github.javaparser.ast.stmt.ThrowStmt ts : method.findAll(
+                        com.github.javaparser.ast.stmt.ThrowStmt.class)) {
+                    Integer l3 = offsetOf(ts);
+                    if (l3 != null && l3 >= methodIdx && (lastGuard == null || l3 > lastGuard)) {
+                        lastGuard = l3;
+                    }
+                }
+                if (lastGuard != null) {
+                    score.merge(lastGuard, 1.5, Double::sum);
+                }
+            }
+            Integer first = bodyFirstStatementLine(method);
+            if (first != null && first >= methodIdx) {
+                score.merge(first, 0.5, Double::sum);
+            }
         }
-        // 关键词启发式可能命中前导 javadoc/注释区（如注释含 REQ-004 数字、状态词），
-        // 其行号位于方法声明之前（target < methodIdx），属噪声，丢弃后走下一级兜底
-        if (target != null && target < methodIdx) {
-            target = null;
+
+        // B) 需求数值词面锚点
+        Integer numericKw = findNumericLine(lines, reqText);
+        if (numericKw != null && numericKw >= methodIdx) {
+            score.merge(numericKw, 2.2, Double::sum);
         }
-        if (target == null) {
-            target = findFirstStatementLine(lines);
+
+        // C) 需求词 -> 代码标识符对齐（中文分词 + 双语词典 + camelCase）
+        Map<Integer, Integer> termHits = termAlignmentLines(reqText, lines, methodIdx);
+        for (Map.Entry<Integer, Integer> e : termHits.entrySet()) {
+            score.merge(e.getKey(), Math.min(2.4, 0.8 * e.getValue()), Double::sum);
         }
-        if (target != null && target < methodIdx) {
-            target = methodIdx; // 首条语句仍在方法声明前（纯 javadoc 无方法体）时锚定方法声明行
+
+        // D) 关键词启发式（降级链保留）
+        Integer kw = locateByKeyword(strategy, reqText, lines);
+        if (kw != null && kw >= methodIdx) {
+            score.merge(kw, 1.0, Double::sum);
         }
-        if (target == null) {
-            target = methodIdx;
+
+
+        // 方法声明行兜底
+        score.merge(methodIdx, 0.2, Double::sum);
+
+        // 排序：分数降序，同分行号靠后优先（缺陷语义多位于方法体深处）
+        List<Integer> ranked = new ArrayList<>(score.entrySet()).stream()
+                .sorted((a, b) -> {
+                    int c = Double.compare(b.getValue(), a.getValue());
+                    return c != 0 ? c : Integer.compare(b.getKey(), a.getKey());
+                })
+                .limit(Math.max(k, 0))
+                .map(java.util.Map.Entry::getKey)
+                .collect(java.util.stream.Collectors.toList());
+
+        // 绝对行号换算
+        List<Integer> out = new ArrayList<>();
+        for (Integer t : ranked) {
+            if (t < 0) {
+                t = 0;
+            }
+            out.add(base(startLine) ? startLine + (t - methodIdx) : t + 1);
         }
-        if (target < 0) {
-            target = 0;
-        }
-        if (base(startLine)) {
-            return startLine + (target - methodIdx);
-        }
-        return target + 1;
+        return out;
     }
+
+    /**
+     * A5：需求词 -> 代码行对齐。中文分词后经双语词典映射英文等价词，
+     * 与代码行的 camelCase/下划线切分词（英文）或词面（中文）比对，返回 行号 -> 命中词数。
+     */
+    private static Map<Integer, Integer> termAlignmentLines(String reqText, String[] lines, int methodIdx) {
+        Map<Integer, Integer> hits = new java.util.HashMap<>();
+        if (reqText == null || reqText.isEmpty()) {
+            return hits;
+        }
+        Set<String> want = new java.util.HashSet<>();
+        for (String zh : SimilarityScorer.tokenize(reqText).keySet()) {
+            want.add(zh);
+            List<String> en = ZH_EN_DICT.get(zh);
+            if (en != null) {
+                for (String e : en) {
+                    want.add(e.toLowerCase(Locale.ROOT));
+                }
+            }
+        }
+        if (want.isEmpty()) {
+            return hits;
+        }
+        for (int i = Math.max(methodIdx, 0); i < lines.length; i++) {
+            String raw = lines[i];
+            String lineLower = raw.toLowerCase(Locale.ROOT);
+            int count = 0;
+            for (String w : want) {
+                if (w.length() < 2) {
+                    continue;
+                }
+                boolean hit;
+                if (w.matches("[a-z0-9_]+")) {
+                    hit = false;
+                    for (String tok : SimilarityScorer.splitCamelCase(raw)) {
+                        if (tok.equals(w)) {
+                            hit = true;
+                            break;
+                        }
+                    }
+                } else {
+                    hit = lineLower.contains(w);
+                }
+                if (hit) {
+                    count++;
+                }
+            }
+            if (count > 0) {
+                hits.merge(i, count, Integer::sum);
+            }
+        }
+        return hits;
+    }
+
+    /** A5：中英语义词典（与 SimilarityScorer 同源加载，供需求词→代码标识符对齐） */
+    private static final Map<String, List<String>> ZH_EN_DICT =
+            com.traceguard.util.BilingualDictLoader.loadDictionary();
 
     private static boolean base(Integer startLine) {
         return startLine != null && startLine > 0;

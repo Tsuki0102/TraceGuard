@@ -46,6 +46,37 @@ public class LlmProperties {
     /** Embedding 配置段（GAP-004） */
     private EmbeddingConfig embedding = new EmbeddingConfig();
 
+    /** GAP-046 候选复核配置段：LLM 二审不逐条全量执行，按候选规划收敛（性能基准报告 §5.2） */
+    private CandidateReview candidateReview = new CandidateReview();
+
+    public CandidateReview getCandidateReview() { return candidateReview; }
+    public void setCandidateReview(CandidateReview candidateReview) { this.candidateReview = candidateReview; }
+
+    /** GAP-046：候选复核参数（热配置经 SystemConfigController 同名键覆盖时以此为准） */
+    public static class CandidateReview {
+        /** 是否启用候选复核（false=退回全量逐条二审，仅评测对比时使用） */
+        private boolean enabled = true;
+        /** 复核硬上限（万行保守上限 200 对 × ≈2.1s/对 ≈ 7min 二审预算） */
+        private int maxCandidates = 200;
+        /** 明确一致池抽检比例（质量探针，0-1；0=关闭探针） */
+        private double consistentSampleRate = 0.10;
+        /** 探针缺陷率 >= 该值时升级补审剩余一致池（仍受 maxCandidates 约束） */
+        private double escalateDefectRate = 0.10;
+        /** 高风险对复核阈值（与 ConsistencyJudge.JUDGE_ARBITER_RISK_THRESHOLD 对齐） */
+        private double highRiskThreshold = 0.30;
+
+        public boolean isEnabled() { return enabled; }
+        public void setEnabled(boolean enabled) { this.enabled = enabled; }
+        public int getMaxCandidates() { return maxCandidates; }
+        public void setMaxCandidates(int maxCandidates) { this.maxCandidates = maxCandidates; }
+        public double getConsistentSampleRate() { return consistentSampleRate; }
+        public void setConsistentSampleRate(double consistentSampleRate) { this.consistentSampleRate = consistentSampleRate; }
+        public double getEscalateDefectRate() { return escalateDefectRate; }
+        public void setEscalateDefectRate(double escalateDefectRate) { this.escalateDefectRate = escalateDefectRate; }
+        public double getHighRiskThreshold() { return highRiskThreshold; }
+        public void setHighRiskThreshold(double highRiskThreshold) { this.highRiskThreshold = highRiskThreshold; }
+    }
+
     public boolean isEnabled() { return enabled; }
     public void setEnabled(boolean enabled) { this.enabled = enabled; }
     public Map<String, ProviderConfig> getProviders() { return providers; }

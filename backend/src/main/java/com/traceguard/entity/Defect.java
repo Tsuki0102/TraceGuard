@@ -37,4 +37,8 @@ public class Defect extends BaseEntity {
      * 供 Defects.vue 展示"命中规则 + 各信号贡献"；空/为 NULL 表示无规则证据（规则链路未命中）。
      */
     private String riskSignals;
+    /** A1 判定溯源：最终结论的决策路径（继承自关联 ConsistencyResult.judgePath），规则模式为 NULL */
+    private String judgePath;
+    /** A1 判定溯源明细 JSON（继承自关联 ConsistencyResult.judgeDetail），规则模式为 NULL */
+    private String judgeDetail;
 }

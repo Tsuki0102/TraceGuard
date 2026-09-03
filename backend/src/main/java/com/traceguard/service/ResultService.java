@@ -128,6 +128,36 @@ public class ResultService {
         return consistencyMapper.selectList(wrapper);
     }
 
+    /**
+     * A1 判定溯源：任务级引擎决策分布统计（判定溯源面板顶部数据源）。
+     * 按 judge_path 分桶计数；judge_path 为 NULL 视为 RULE（纯规则模式产出）。
+     */
+    public Map<String, Object> getJudgeStats(Long taskId, Long projectId) {
+        LambdaQueryWrapper<ConsistencyResult> wrapper = new LambdaQueryWrapper<>();
+        if (taskId != null) {
+            wrapper.eq(ConsistencyResult::getTaskId, taskId);
+        }
+        if (projectId != null) {
+            wrapper.eq(ConsistencyResult::getProjectId, projectId);
+        }
+        List<ConsistencyResult> all = consistencyMapper.selectList(wrapper);
+        Map<String, Long> byPath = all.stream().collect(Collectors.groupingBy(
+                r -> r.getJudgePath() == null || r.getJudgePath().isEmpty() ? "RULE" : r.getJudgePath(),
+                Collectors.counting()));
+        long llmReviewed = byPath.entrySet().stream()
+                .filter(e -> e.getKey().startsWith("LLM"))
+                .mapToLong(Map.Entry::getValue).sum();
+        long ruleRetained = byPath.getOrDefault("RULE", 0L)
+                + byPath.getOrDefault("NOT_REVIEWED", 0L)
+                + byPath.getOrDefault("RULE_FALLBACK", 0L);
+        Map<String, Object> stats = new LinkedHashMap<>();
+        stats.put("total", all.size());
+        stats.put("byPath", byPath);
+        stats.put("llmReviewed", llmReviewed);
+        stats.put("ruleRetained", ruleRetained);
+        return stats;
+    }
+
     public List<Defect> getDefects(Long projectId, Long taskId, String level) {
         return getDefects(projectId, taskId, level, null, null);
     }

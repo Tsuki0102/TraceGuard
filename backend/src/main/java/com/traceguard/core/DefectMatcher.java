@@ -44,7 +44,16 @@ public final class DefectMatcher {
      * Sim &gt; T1 → 完全一致；T2 ≤ Sim ≤ T1 → 一般不一致；Sim &lt; T2 → 严重不一致。
      */
     public static String determineStatus(double sim, double t1, double t2) {
-        if (isConsistent(sim, t1)) return "consistent";
+        return determineStatus(sim, t1, t2, false);
+    }
+
+    /**
+     * B2 风险门控双通道判定（2026-09-03）：风险通道检出（defectRisk >= risk-gate）时，
+     * 即使综合分仍在一致区（sim > t1）也判 general_inconsistent——独立风险信号覆盖
+     * 线性分数通道的漏检；严重度分级仍由 sim 与 t2 决定。
+     */
+    public static String determineStatus(double sim, double t1, double t2, boolean riskDetected) {
+        if (!riskDetected && isConsistent(sim, t1)) return "consistent";
         if (sim >= t2) return "general_inconsistent";
         return "serious_inconsistent";
     }
@@ -55,7 +64,13 @@ public final class DefectMatcher {
      */
     public static String[] determineDefectType(double totalSim, double cosSim, double conMatch,
                                                double invSat, double t1, double t2) {
-        if (isConsistent(totalSim, t1)) return new String[]{"", ""};
+        return determineDefectType(totalSim, cosSim, conMatch, invSat, t1, t2, false);
+    }
+
+    /** B2 双通道重载：riskDetected=true 时分数通道判一致的对也进入子类型分流（风险信号解释见 risk_signals） */
+    public static String[] determineDefectType(double totalSim, double cosSim, double conMatch,
+                                               double invSat, double t1, double t2, boolean riskDetected) {
+        if (!riskDetected && isConsistent(totalSim, t1)) return new String[]{"", ""};
         // GAP-046：约束覆盖率（需求约束点×代码证据）是强判别信号，优先于语义相关性。
         // 需求要求约束而代码未实现 -> 约束条件不满足；语义弱相关（词面不重叠）但在约束满足前提下 -> 逻辑偏离。
         // CQ-06：子阈值经 ThresholdConfigHolder 配置化（默认 0.6/0.7/0.2，与历史行为一致）
@@ -119,6 +134,9 @@ public final class DefectMatcher {
                 // P2-2：AST 定位（按子类型枚举映射策略，AST 失败降级关键词启发式）
                 defect.setDefectLine(DefectLocator.locate(res.getDefectSubType(), req.getOriginalText(),
                         code.getCodeContent(), code.getStartLine()));
+                // A1 判定溯源：继承关联一致性结果的决策路径与明细，供 Defects.vue 溯源面板展示
+                defect.setJudgePath(res.getJudgePath());
+                defect.setJudgeDetail(res.getJudgeDetail());
                 defects.add(defect);
                 matchedReqs.add(res.getRequirementId());
                 matchedCodes.add(res.getCodeUnitId());

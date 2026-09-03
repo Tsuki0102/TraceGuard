@@ -24,19 +24,24 @@ public class ThresholdConfigHolder {
     private double invSatMin = 0.7;
     /** 子类型判定：cosSim < 该值 -> 逻辑偏离 */
     private double cosSimMin = 0.2;
+    /** B2 风险门控：defectRisk >= 该值时，即使综合分在一致区也判不一致（独立风险通道，去噪后一致对零命中） */
+    private double riskGateMin = 0.35;
 
     private static volatile double CON_MATCH = 0.6;
     private static volatile double INV_SAT = 0.7;
     private static volatile double COS_SIM = 0.2;
+    private static volatile double RISK_GATE = 0.35;
 
     @PostConstruct
     public void applyToStatic() {
         CON_MATCH = conMatchMin;
         INV_SAT = invSatMin;
         COS_SIM = cosSimMin;
+        RISK_GATE = riskGateMin;
     }
 
     public static double conMatchMin() { return CON_MATCH; }
     public static double invSatMin() { return INV_SAT; }
     public static double cosSimMin() { return COS_SIM; }
+    public static double riskGateMin() { return RISK_GATE; }
 }

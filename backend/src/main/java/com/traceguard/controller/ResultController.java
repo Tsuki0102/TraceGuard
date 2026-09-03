@@ -208,6 +208,15 @@ public class ResultController {
         return Result.success(resultService.getConsistencyResults(projectId, taskId));
     }
 
+    @ApiOperation(value = "判定溯源引擎分布统计", notes = "A1：按决策路径（RULE/LLM_CONSENSUS_*/LLM_ARBITRATION_*/RULE_QUANTIFY_VETO 等）分桶计数；校验项目归属权限")
+    @GetMapping("/judge-stats/{projectId}")
+    public Result<Map<String, Object>> getJudgeStats(
+            @PathVariable Long projectId,
+            @RequestParam(required = false) Long taskId) {
+        projectService.checkOwnership(projectId);
+        return Result.success(resultService.getJudgeStats(taskId, projectId));
+    }
+
     @ApiOperation(value = "分页查询一致性校验结果", notes = "可按 taskId 过滤；pageNum 默认 1、pageSize 默认 10；校验项目归属权限")
     @GetMapping("/consistency/page/{projectId}")
     public Result<IPage<ConsistencyResult>> getConsistencyResultsPage(
