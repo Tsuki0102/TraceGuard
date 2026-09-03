@@ -55,7 +55,7 @@
           </el-form-item>
         </el-form>
       </section>
-      <p class="login-pane__copyright">© 2026 TraceGuard · 郑州轻工业大学</p>
+      <p class="login-pane__copyright">© 2026 TraceGuard</p>
     </main>
   </div>
 </template>

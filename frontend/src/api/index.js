@@ -213,6 +213,10 @@ export const resultApi = {
   getConsistencyResultsPage(projectId, pageNum, pageSize) {
     return request({ url: `/result/consistency/page/${projectId}`, method: 'get', params: { pageNum, pageSize } })
   },
+  /** A1 判定溯源：引擎决策分布统计（按决策路径分桶） */
+  getJudgeStats(projectId, taskId) {
+    return request({ url: `/result/judge-stats/${projectId}`, method: 'get', params: { taskId } })
+  },
   /** FUN-11：分页查询代码质量缺陷 */
   getCodeDefectsPage(projectId, pageNum, pageSize) {
     return request({ url: `/result/code-defects/page/${projectId}`, method: 'get', params: { pageNum, pageSize } })

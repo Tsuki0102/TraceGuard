@@ -191,6 +191,30 @@
       </div>
     </div>
 
+    <!-- A1 判定溯源：引擎决策分布（GAP-046 候选复核 + FUN-04b 双评审的统计出口） -->
+    <div v-if="judgeStats && judgeStats.total > 0" class="batches-strip">
+      <div class="batches-strip__head">
+        <span><el-icon :size="15"><Cpu /></el-icon>引擎决策分布</span>
+        <small>共 {{ judgeStats.total }} 个匹配对 · LLM 复核 {{ judgeStats.llmReviewed }} · 规则保留 {{ judgeStats.ruleRetained }}</small>
+      </div>
+      <div class="batches-strip__list" style="gap: 8px; flex-wrap: wrap">
+        <el-tag v-for="(count, path) in judgeStats.byPath" :key="path" effect="plain" size="small"
+                :type="String(path).startsWith('LLM') ? 'primary' : (String(path) === 'RULE_QUANTIFY_VETO' ? 'danger' : 'info')">
+          {{ judgePathLabel(path) }} × {{ count }}
+        </el-tag>
+      </div>
+    </div>
+
+    <!-- B2：离线降级模式标识（规则引擎口径诚实声明，延续 FUN-08 原则） -->
+    <el-alert v-if="judgeStats && judgeStats.total > 0 && judgeStats.llmReviewed === 0"
+              type="info" :closable="false" style="margin-bottom: 12px">
+      <template #title>
+        当前为<b>规则引擎（离线降级）口径</b>：判定由三维相似度 + 风险门控双通道独立产出
+        （标定集实测 acc 80.0% / fpr 6.9%）。启用 LLM 增强后切换为主口径（实测 acc 94.5% / fpr 3.4%），
+        详见 ThresholdLab 与评测报告。
+      </template>
+    </el-alert>
+
     <!-- W2-10/O3：Quality Gate 质量门槛判定 -->
     <div v-if="gatePass != null" class="gate-banner" :class="gatePass ? 'is-pass' : 'is-fail'">
       <div class="gate-banner__icon">
@@ -461,6 +485,7 @@ const templateForm = ref({ templateName: '', title: '', subtitle: '', headerText
 const allSectionKeys = [
   { key: 'project-overview', label: '项目概况' },
   { key: 'stats-summary', label: '需求覆盖率与缺陷统计' },
+  { key: 'judge-provenance', label: '判定溯源与引擎决策分布' },
   { key: 'defect-type-distribution', label: '缺陷类型分布' },
   { key: 'defect-detail', label: '需求-代码不一致缺陷明细' },
   { key: 'code-quality', label: '代码质量分析' },
@@ -735,6 +760,13 @@ const loadData = async () => {
     if (stats.value.parseFailures) {
       try { parseFailures.value = JSON.parse(stats.value.parseFailures) } catch { parseFailures.value = [] }
     }
+    // A1：引擎决策分布（判定溯源统计；接口失败不阻塞主统计）
+    try {
+      judgeStats.value = await resultApi.getJudgeStats(projectId)
+    } catch (e) {
+      console.warn('加载引擎决策分布失败', e)
+      judgeStats.value = null
+    }
     await Promise.all([loadRequirements(1), loadCodeUnits(1), loadDefects(1)])
     try {
       qualityTrend.value = await resultApi.getQualityTrend(projectId)
@@ -754,6 +786,26 @@ const loadData = async () => {
 const gateConfig = ref({})
 const gatePass = ref(null)
 const gateFailedDims = ref('')
+
+// ===== A1 判定溯源：引擎决策分布 =====
+const judgeStats = ref(null)
+const JUDGE_PATH_LABELS = {
+  RULE: '规则引擎',
+  NOT_REVIEWED: '候选未复核',
+  RULE_FALLBACK: '规则兜底',
+  LLM_CONSENSUS_CONSISTENT: 'LLM共识·一致',
+  LLM_CONSENSUS_DEFECT: 'LLM共识·缺陷',
+  LLM_ARBITRATION_DEFECT: '仲裁·判缺陷',
+  LLM_ARBITRATION_KEEP: '仲裁·保一致',
+  RULE_QUANTIFY_VETO: '规则否决',
+  LLM_OWNER_OVERRIDE: '归属修正',
+  LLM_SINGLE: 'LLM单评',
+  LLM_SIM_GATE: '相似度兜底',
+  LLM: 'LLM'
+}
+function judgePathLabel(path) {
+  return JUDGE_PATH_LABELS[path] || path
+}
 
 const loadGate = async () => {
   try {

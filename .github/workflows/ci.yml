@@ -11,6 +11,16 @@ on:
   pull_request:
 
 jobs:
+  # E1 公平性合规门禁：作品材料（含代码包）不得出现学校名称/Logo/指导教师等标识信息
+  compliance:
+    name: Compliance Scan (公平性)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Run compliance check
+        run: bash scripts/compliance-check.sh
+
   # SEC-01 防复发：gitleaks 密钥扫描（任何提交一旦携带密钥/令牌即阻断 CI）
   # 注：直接用 gitleaks CLI，避免 gitleaks-action 在首次 push/单分支仓库上的 baseline 解析错误
   secret-scan:

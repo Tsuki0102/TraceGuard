@@ -71,7 +71,7 @@
           <el-link :underline="false" @click="router.push('/home')">返回首页</el-link>
         </div>
       </section>
-      <p class="login-pane__copyright">© 2026 TraceGuard · 郑州轻工业大学</p>
+      <p class="login-pane__copyright">© 2026 TraceGuard</p>
     </main>
   </div>
 </template>

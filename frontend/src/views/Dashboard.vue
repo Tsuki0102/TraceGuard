@@ -52,8 +52,27 @@
         <el-button type="primary" size="large" round @click="showCreateDialog = true">
           <el-icon style="margin-right: 6px"><Plus /></el-icon>新建项目
         </el-button>
+        <!-- B7 演示导览：评审 5 分钟体验路径（demo 账号自动弹出，可随时重开） -->
+        <el-button size="large" round class="page-header__btn-ghost" @click="showTour = true">
+          <el-icon style="margin-right: 6px"><Guide /></el-icon>演示导览
+        </el-button>
       </div>
     </div>
+
+    <!-- B7 演示导览弹窗 -->
+    <el-dialog v-model="showTour" title="TraceGuard · 5 分钟演示导览" width="640px" top="8vh">
+      <p style="color: var(--tg-text-secondary); margin: 0 0 16px">
+        跟随以下步骤体验核心闭环：把一份需求文档和一个 Java 工程交给 TraceGuard，
+        它会完成形式化建模、三维一致性判定、缺陷定位与报告产出。
+      </p>
+      <el-steps direction="vertical" :active="5" style="height: 330px">
+        <el-step v-for="s in tourSteps" :key="s.title" :title="s.title" :description="s.desc" />
+      </el-steps>
+      <template #footer>
+        <el-button round @click="dismissTour">跳过，不再提示</el-button>
+        <el-button type="primary" round @click="startTour">开始体验</el-button>
+      </template>
+    </el-dialog>
 
     <!-- ===== KPI 统计行（首屏骨架 → 数据就绪后入场） ===== -->
     <div v-if="pageLoading" class="kpi-row">
@@ -1151,10 +1170,34 @@ const onDashDrop = (targetKey) => {
 // ===== 个性化增强 BATCH-1：首屏骨架屏（KPI 行 + 底部动态行） =====
 const pageLoading = ref(true)
 
+// ===== B7 演示导览：5 分钟体验路径（demo 账号首次进入自动弹出） =====
+const showTour = ref(false)
+const TOUR_DISMISS_KEY = 'tg-demo-tour-dismissed'
+const tourSteps = [
+  { title: '上传资料', desc: '项目详情页上传需求文档（Word/PDF/MD/TXT）与 Java 代码工程 ZIP（演示项目已预置，可直接查看）' },
+  { title: '智能分析', desc: '一键启动分析：需求形式化（Kripke/Alloy）+ 代码静态解析（AST/CFG）+ 本地语义向量化' },
+  { title: '一致性判定', desc: '三维相似度评分（语义/约束/不变量）+ LLM 双评审共识-仲裁（分析结果页可见引擎决策分布）' },
+  { title: '缺陷定位', desc: '缺陷列表查看类型/行级定位/风险信号分解/判定溯源，支持一键生成工单' },
+  { title: '报告输出', desc: '报告中心导出 Word/PDF/Excel 与双向追溯矩阵' }
+]
+function dismissTour() {
+  showTour.value = false
+  localStorage.setItem(TOUR_DISMISS_KEY, '1')
+}
+function startTour() {
+  showTour.value = false
+  localStorage.setItem(TOUR_DISMISS_KEY, '1')
+  router.push('/projects')
+}
+
 onMounted(() => {
   const userStr = localStorage.getItem('userInfo')
   if (userStr) {
     try { userInfo.value = JSON.parse(userStr) } catch (e) { /* ignore */ }
+  }
+  // B7：演示账号且未跳过过导览时自动弹出
+  if (userInfo.value?.username === 'demo' && !localStorage.getItem(TOUR_DISMISS_KEY)) {
+    showTour.value = true
   }
   Promise.allSettled([loadProjects(), loadOverview(), loadActivities(), loadTodos(), loadTrend()])
     .finally(() => { pageLoading.value = false })

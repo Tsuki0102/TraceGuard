@@ -144,6 +144,14 @@
             <span v-else style="color: var(--tg-text-secondary); font-size: 12px">-</span>
           </template>
         </el-table-column>
+        <!-- A1 判定溯源：本条结论由哪个引擎/决策路径产出（规则 / LLM 共识 / 仲裁 / 否决） -->
+        <el-table-column label="判定来源" width="110">
+          <template #default="{ row }">
+            <el-tag :type="judgePathInfo(row).type" size="small" effect="plain">
+              {{ judgePathInfo(row).label }}
+            </el-tag>
+          </template>
+        </el-table-column>
         <el-table-column label="操作" width="320" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click="viewDetail(row)">详情</el-button>
@@ -267,6 +275,46 @@
             <div style="white-space: pre-wrap; color: var(--tg-success)">{{ currentDefect.repairSuggestion }}</div>
           </el-descriptions-item>
         </el-descriptions>
+
+        <!-- A1 判定溯源面板：引擎决策路径 + 双评委结论 + 风险分 + 候选选取原因 -->
+        <div class="signal-panel judge-panel">
+          <div class="signal-panel__head">
+            <span class="signal-panel__title"><el-icon :size="14"><Guide /></el-icon> 判定溯源</span>
+            <el-tag size="small" :type="judgePathInfo(currentDefect).type" effect="plain">
+              {{ judgePathInfo(currentDefect).label }}
+            </el-tag>
+          </div>
+          <div class="signal-panel__body" v-if="judgeDetailObj(currentDefect) || judgePathInfo(currentDefect).llm">
+            <el-descriptions :column="2" border size="small">
+              <el-descriptions-item label="评审变体A（锚定准则）">
+                <el-tag v-if="judgeDetailObj(currentDefect)?.variantA != null"
+                        :type="judgeDetailObj(currentDefect).variantA ? 'success' : 'danger'" size="small">
+                  {{ judgeDetailObj(currentDefect).variantA ? '判一致' : '判缺陷' }}
+                </el-tag>
+                <span v-else style="color: var(--tg-text-secondary)">未走双评审</span>
+              </el-descriptions-item>
+              <el-descriptions-item label="评审变体B（精简准则）">
+                <el-tag v-if="judgeDetailObj(currentDefect)?.variantB != null"
+                        :type="judgeDetailObj(currentDefect).variantB ? 'success' : 'danger'" size="small">
+                  {{ judgeDetailObj(currentDefect).variantB ? '判一致' : '判缺陷' }}
+                </el-tag>
+                <span v-else style="color: var(--tg-text-secondary)">未走双评审</span>
+              </el-descriptions-item>
+              <el-descriptions-item label="规则风险分（仲裁用）">
+                {{ judgeDetailObj(currentDefect)?.ruleRisk != null ? judgeDetailObj(currentDefect).ruleRisk.toFixed(2) : '—' }}
+              </el-descriptions-item>
+              <el-descriptions-item label="候选选取原因">
+                {{ selectedReasonLabel(judgeDetailObj(currentDefect)?.selectedReason) }}
+              </el-descriptions-item>
+              <el-descriptions-item label="判定摘要" :span="2">
+                {{ judgeDetailObj(currentDefect)?.detail || '—' }}
+              </el-descriptions-item>
+            </el-descriptions>
+          </div>
+          <div class="signal-panel__body" v-else>
+            <p class="signal-panel__empty">{{ judgePathInfo(currentDefect).hint }}</p>
+          </div>
+        </div>
 
         <!-- P1-4：命中规则 / 信号贡献面板（explainSignals 分解，规则链路判定的可解释性出口） -->
         <div v-if="signalEntries.length" class="signal-panel">
@@ -460,6 +508,47 @@ const loadDefects = async () => {
   defects.value = await resultApi.getDefects(projectId, null, filterLevel.value, filterType.value || null, filterSubType.value || null, filterStatus.value || null)
   await nextTick()
   renderCharts()
+}
+
+// ===== A1 判定溯源：决策路径中文标签 + 溯源明细 JSON 解析（来自 Defect.judgePath/judgeDetail） =====
+const JUDGE_PATH_LABELS = {
+  RULE: { label: '规则引擎', type: 'info', llm: false, hint: '本次分析未启用 LLM，结论由规则引擎（三维相似度 + 风险信号）独立产出。' },
+  NOT_REVIEWED: { label: '规则判定', type: 'info', llm: false, hint: 'LLM 候选复核未选中该对（非可疑/灰带/高风险/探针），保留规则判定。' },
+  RULE_FALLBACK: { label: '规则兜底', type: 'warning', llm: false, hint: 'LLM 评审该对时失败或超配额，自动保留规则判定（安全降级）。' },
+  LLM_CONSENSUS_CONSISTENT: { label: 'LLM共识·一致', type: 'success', llm: true },
+  LLM_CONSENSUS_DEFECT: { label: 'LLM共识·缺陷', type: 'danger', llm: true },
+  LLM_ARBITRATION_DEFECT: { label: '仲裁·判缺陷', type: 'danger', llm: true },
+  LLM_ARBITRATION_KEEP: { label: '仲裁·保一致', type: 'success', llm: true },
+  RULE_QUANTIFY_VETO: { label: '规则否决', type: 'danger', llm: true },
+  LLM_OWNER_OVERRIDE: { label: '归属修正', type: 'warning', llm: true },
+  LLM_SINGLE: { label: 'LLM单评', type: 'primary', llm: true },
+  LLM_SIM_GATE: { label: '相似度兜底', type: 'warning', llm: true },
+  LLM: { label: 'LLM', type: 'primary', llm: true }
+}
+const SELECTED_REASON_LABELS = {
+  RULE_SUSPECT: '规则判为可疑',
+  GRAY_BAND: '灰色带（阈值摇摆区）',
+  HIGH_RISK: '高风险信号',
+  PROBE_SAMPLE: '一致池抽检探针',
+  ESCALATED: '探针触发升级补审',
+  FULL_REVIEW: '全量复核（候选复核关闭）',
+  CANDIDATE: '候选对'
+}
+
+/** 决策路径 -> 中文标签/颜色/是否 LLM 链路 */
+function judgePathInfo(row) {
+  const key = row?.judgePath || 'RULE'
+  return JUDGE_PATH_LABELS[key] || { label: key, type: 'info', llm: key.startsWith('LLM'), hint: '' }
+}
+
+/** 解析 judgeDetail JSON（容错空值/非法 JSON） */
+function judgeDetailObj(row) {
+  if (!row?.judgeDetail) return null
+  try { return JSON.parse(row.judgeDetail) } catch { return null }
+}
+
+function selectedReasonLabel(reason) {
+  return reason ? (SELECTED_REASON_LABELS[reason] || reason) : '—'
 }
 
 // ===== P1-4：规则命中 / 信号贡献（explainSignals 分解，来自后端 Defect.riskSignals JSON） =====
