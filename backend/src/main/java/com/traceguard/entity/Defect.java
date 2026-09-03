@@ -32,4 +32,9 @@ public class Defect extends BaseEntity {
     private Long handlerId;
     /** GAP-009：第三方平台issue标识（Jira ISSUE-KEY / 禅道 bug ID），未推送为NULL */
     private String remoteIssueKey;
+    /**
+     * P1-4：规则信号分解 JSON（explainSignals 结果：{"risk":总风险,"signals":{"numericMismatch":0.21,...}}），
+     * 供 Defects.vue 展示"命中规则 + 各信号贡献"；空/为 NULL 表示无规则证据（规则链路未命中）。
+     */
+    private String riskSignals;
 }

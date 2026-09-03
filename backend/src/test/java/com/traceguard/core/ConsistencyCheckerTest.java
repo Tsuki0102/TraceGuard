@@ -495,37 +495,28 @@ class ConsistencyCheckerTest {
 
     @Test
     @DisplayName("4.1：Sim 恰好等于 T1 时判定为一般不一致（SRS 边界为 > T1）")
-    void boundaryStatusUsesStrictGreaterThan() throws Exception {
-        java.lang.reflect.Method m = ConsistencyChecker.class.getDeclaredMethod(
-                "determineStatus", double.class, double.class, double.class);
-        m.setAccessible(true);
+    void boundaryStatusUsesStrictGreaterThan() {
+        // P2-3：判定已抽到 DefectMatcher（ConsistencyChecker 仅作门面）
         // T1=0.8：sim=0.8 应判一般不一致（非一致）；sim=0.8001 才一致
-        assertThat(m.invoke(checker, 0.8, 0.8, 0.5)).isEqualTo("general_inconsistent");
-        assertThat(m.invoke(checker, 0.8001, 0.8, 0.5)).isEqualTo("consistent");
+        assertThat(DefectMatcher.determineStatus(0.8, 0.8, 0.5)).isEqualTo("general_inconsistent");
+        assertThat(DefectMatcher.determineStatus(0.8001, 0.8, 0.5)).isEqualTo("consistent");
         // sim=0.5 (=T2) 一般不一致；sim=0.4999 严重不一致
-        assertThat(m.invoke(checker, 0.5, 0.8, 0.5)).isEqualTo("general_inconsistent");
-        assertThat(m.invoke(checker, 0.4999, 0.8, 0.5)).isEqualTo("serious_inconsistent");
+        assertThat(DefectMatcher.determineStatus(0.5, 0.8, 0.5)).isEqualTo("general_inconsistent");
+        assertThat(DefectMatcher.determineStatus(0.4999, 0.8, 0.5)).isEqualTo("serious_inconsistent");
     }
 
     @Test
     @DisplayName("P0-3：sim==T1 边界处 determineDefectType 与 determineStatus 口径一致（不得产出空类型缺陷）")
-    void boundaryDefectTypeConsistentWithStatusAtT1() throws Exception {
-        java.lang.reflect.Method statusM = ConsistencyChecker.class.getDeclaredMethod(
-                "determineStatus", double.class, double.class, double.class);
-        statusM.setAccessible(true);
-        java.lang.reflect.Method typeM = ConsistencyChecker.class.getDeclaredMethod(
-                "determineDefectType", double.class, double.class, double.class,
-                double.class, double.class, double.class);
-        typeM.setAccessible(true);
+    void boundaryDefectTypeConsistentWithStatusAtT1() {
         // sim == T1 = 0.8：状态必须为非一致（general），缺陷类型必须非空（否则 generateDefects 会产出空类型缺陷）
-        Object status = statusM.invoke(checker, 0.8, 0.8, 0.5);
-        String[] types = (String[]) typeM.invoke(checker, 0.8, 0.9, 0.4, 0.9, 0.8, 0.5);
+        String status = DefectMatcher.determineStatus(0.8, 0.8, 0.5);
+        String[] types = DefectMatcher.determineDefectType(0.8, 0.9, 0.4, 0.9, 0.8, 0.5);
         assertThat(status).isEqualTo("general_inconsistent");
         assertThat(types[0]).as("sim==T1 时主类型不得为空").isNotEmpty();
         assertThat(types[1]).as("sim==T1 时子类型不得为空").isNotEmpty();
         // 略微高于 T1 才一致且无缺陷类型
-        assertThat(statusM.invoke(checker, 0.8001, 0.8, 0.5)).isEqualTo("consistent");
-        String[] consistentTypes = (String[]) typeM.invoke(checker, 0.8001, 0.9, 0.4, 0.9, 0.8, 0.5);
+        assertThat(DefectMatcher.determineStatus(0.8001, 0.8, 0.5)).isEqualTo("consistent");
+        String[] consistentTypes = DefectMatcher.determineDefectType(0.8001, 0.9, 0.4, 0.9, 0.8, 0.5);
         assertThat(consistentTypes[0]).isEmpty();
         assertThat(consistentTypes[1]).isEmpty();
     }
@@ -550,7 +541,8 @@ class ConsistencyCheckerTest {
                 + "{\"from\":2,\"to\":3,\"label\":\"loop_exit\"},"
                 + "{\"from\":3,\"to\":4,\"label\":\"seq\"},"
                 + "{\"from\":1,\"to\":5,\"label\":\"catch\"}]}";
-        ConsistencyChecker.CfgFeatures f = ConsistencyChecker.extractCfgFeatures(astJson);
+        // P2-3：CFG 特征抽取已抽到 SimilarityScorer
+        SimilarityScorer.CfgFeatures f = SimilarityScorer.extractCfgFeatures(astJson);
         assertThat(f).isNotNull();
         assertThat(f.nodeCount).isEqualTo(7);
         assertThat(f.edgeCount).isEqualTo(7);
@@ -576,14 +568,14 @@ class ConsistencyCheckerTest {
                 + "{\"from\":1,\"to\":2,\"label\":\"\"},"
                 + "{\"from\":2,\"to\":1,\"label\":\"\"},"
                 + "{\"from\":2,\"to\":3,\"label\":\"\"}]}";
-        ConsistencyChecker.CfgFeatures g = ConsistencyChecker.extractCfgFeatures(sootJson);
+        SimilarityScorer.CfgFeatures g = SimilarityScorer.extractCfgFeatures(sootJson);
         assertThat(g).isNotNull();
         assertThat(g.loopPresent).isTrue();
         assertThat(g.loopCount).isEqualTo(1);   // 回边 ti(1) <= fi(2)
         assertThat(g.cyclomaticComplexity).isEqualTo(1); // E(4) - N(5) + 2 = 1（下界 1）
 
         // null/非法 JSON：hutool parseObj 在异常路径返回 null 触发降级；能解析出对象但缺 nodes/edges 时退化为全零特征（与历史行为一致）
-        ConsistencyChecker.CfgFeatures empty = ConsistencyChecker.extractCfgFeatures("{\"other\":1}");
+        SimilarityScorer.CfgFeatures empty = SimilarityScorer.extractCfgFeatures("{\"other\":1}");
         assertThat(empty).isNotNull();
         assertThat(empty.nodeCount).isEqualTo(0);
         assertThat(empty.edgeCount).isEqualTo(0);

@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 系统配置服务（AUD-07，GAP-002）。
@@ -30,13 +31,17 @@ public class SystemConfigService {
     /** FR-CODE-001 规则3/4（2.4 整改项）：代码解析范围配置 KEY */
     public static final String CODE_PARSE_SCOPE_KEY = "code_parse_scope";
 
+    /** P1-4：规则缺陷信号权重配置 KEY（JSON：{信号名: 权重}，全量信号，热生效） */
+    public static final String RISK_WEIGHTS_KEY = "risk_weights";
+
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     @Autowired
     private SystemConfigMapper systemConfigMapper;
 
-    /** 启动加载：读取 req_parse_rules / code_parse_scope 并应用到对应运行期持有者（无记录则用默认值） */
+    /** 启动加载：读取 req_parse_rules / code_parse_scope / risk_weights 并应用到对应运行期持有者（无记录则用默认值） */
     public void loadOnStartup() {
+        loadRiskWeightsOnStartup();
         SystemConfig cfg = systemConfigMapper.selectById(REQ_PARSE_RULES_KEY);
         if (cfg == null || cfg.getConfigValue() == null || cfg.getConfigValue().isEmpty()) {
             RuleConfigHolder.apply(RuleConfigHolder.defaultConfig());
@@ -113,8 +118,56 @@ public class SystemConfigService {
             } catch (Exception e) {
                 throw new IllegalArgumentException("代码解析范围 JSON 解析失败：" + e.getMessage());
             }
+        } else if (RISK_WEIGHTS_KEY.equals(key)) {
+            applyRiskWeightsValue(value);
         }
         return cfg;
+    }
+
+    /** P1-4：解析并应用规则信号权重 JSON（{信号名: 权重}）；非法 JSON / 负权重直接抛业务异常 */
+    private void applyRiskWeightsValue(String value) {
+        try {
+            Map<String, Double> parsed = MAPPER.readValue(value,
+                    new com.fasterxml.jackson.core.type.TypeReference<Map<String, Double>>() {});
+            if (parsed == null) {
+                throw new IllegalArgumentException("规则信号权重 JSON 不能为空");
+            }
+            for (Map.Entry<String, Double> e : parsed.entrySet()) {
+                if (e.getValue() == null || e.getValue() < 0) {
+                    throw new IllegalArgumentException("信号 " + e.getKey() + " 权重必须 >= 0");
+                }
+            }
+            // 未配置信号按 weightOf 默认 1.0 计；缺失的既有噪声信号默认 0 需显式写入，故保存时前端应提交全量
+            com.traceguard.util.CodeDefectPatternDetector.configureRiskWeights(parsed);
+            log.info("[SystemConfig] 已应用规则信号权重：{} 个信号", parsed.size());
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalArgumentException("规则信号权重 JSON 解析失败：" + e.getMessage());
+        }
+    }
+
+    /** P1-4：启动加载规则信号权重（无配置则落库当前基线并应用默认） */
+    private void loadRiskWeightsOnStartup() {
+        SystemConfig cfg = systemConfigMapper.selectById(RISK_WEIGHTS_KEY);
+        if (cfg == null || cfg.getConfigValue() == null || cfg.getConfigValue().isEmpty()) {
+            com.traceguard.util.CodeDefectPatternDetector.configureRiskWeights(
+                    com.traceguard.util.CodeDefectPatternDetector.baselineRiskWeights());
+            log.info("[SystemConfig] 未配置 {}，使用内置规则信号权重（P1-4 去噪 + 温和升权基线）", RISK_WEIGHTS_KEY);
+            return;
+        }
+        try {
+            applyRiskWeightsValue(cfg.getConfigValue());
+        } catch (Exception e) {
+            com.traceguard.util.CodeDefectPatternDetector.configureRiskWeights(
+                    com.traceguard.util.CodeDefectPatternDetector.baselineRiskWeights());
+            log.warn("[SystemConfig] 规则信号权重配置解析失败，回退内置默认：{}", e.getMessage());
+        }
+    }
+
+    /** P1-4：读取当前生效的规则信号权重（全量信号 -> 权重），供 ThresholdLab 权重调参台 */
+    public Map<String, Double> getRiskWeights() {
+        return com.traceguard.util.CodeDefectPatternDetector.riskSignalWeights();
     }
 
     /** 读取并解析代码解析范围（FR-CODE-001 2.4，供前端编辑/校验） */

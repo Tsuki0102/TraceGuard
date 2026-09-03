@@ -15,6 +15,7 @@ import com.traceguard.util.AlloySpecVerifierUtil;
 import com.traceguard.util.CodeLogicDescriber;
 import com.traceguard.util.DocumentParserUtil;
 import com.traceguard.util.FileStorageUtil;
+import com.traceguard.util.IncrementalDiff;
 import com.traceguard.util.JavaCodeParserUtil;
 import com.traceguard.util.RequirementAnalyzerUtil;
 import com.traceguard.util.SemanticVectorUtil;
@@ -37,9 +38,11 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -161,6 +164,10 @@ public class AnalysisService {
     /** FR-REQ-004：形式化规约校验失败是否阻断主分析流程（GAP-013：默认开启） */
     @Value("${traceguard.analysis.strict-spec-verify:true}")
     private boolean strictSpecVerify;
+
+    /** P2-5：代码增量解析开关（默认开启；关闭时回退"已有结果即断点续跑复用"历史行为） */
+    @Value("${traceguard.analysis.incremental-code:true}")
+    private boolean incrementalCodeEnabled = true;
 
     public AnalysisTask createTask(Long projectId, String taskName,
                                     Double alpha, Double beta, Double gamma,
@@ -365,10 +372,13 @@ public class AnalysisService {
                 .eq(FormalSpecification::getProjectId, projectId));
     }
 
-    /** 代码工程变更时失效旧解析产物及全部下游结果（代码单元/静态缺陷/一致性/缺陷） */
+    /**
+     * 代码工程变更时失效下游结果（基础缺陷/一致性/缺陷）。
+     * P2-5（2026-09-02）：不再删除 code_unit 行——保留旧解析结果作为"增量解析哈希快照"，
+     * 由 parseCode 在下次分析时按文件内容哈希 diff，仅重解析变更/新增文件、清理已移除文件；
+     * 这样重复上传小改动代码时二次分析只重算受影响文件，避免全量 Soot/AST/向量化重跑。
+     */
     private void invalidateCodeArtifacts(Long projectId) {
-        codeUnitMapper.delete(new LambdaQueryWrapper<CodeUnit>()
-                .eq(CodeUnit::getProjectId, projectId));
         codeDefectMapper.delete(new LambdaQueryWrapper<CodeDefect>()
                 .eq(CodeDefect::getProjectId, projectId));
         consistencyMapper.delete(new LambdaQueryWrapper<ConsistencyResult>()
@@ -1265,20 +1275,30 @@ public class AnalysisService {
         if (codePath == null || !new File(codePath).exists()) {
             throw new Exception("代码项目不存在，请先上传代码工程");
         }
-        // 断点续跑：代码单元已入库则直接复用（服务重启/中断后重新分析时跳过解析阶段）
+        // P2-5：已有解析结果（含上传新代码后保留的旧行）时，按文件内容哈希做增量解析；
+        // 关闭增量开关时回退历史"断点续跑：直接复用"行为
         List<CodeUnit> existing = codeUnitMapper.selectList(
                 new LambdaQueryWrapper<CodeUnit>().eq(CodeUnit::getProjectId, project.getId()));
         if (!existing.isEmpty()) {
-            log.append("[").append(LocalDateTime.now()).append("] 检测到已有代码解析结果（").append(existing.size())
-                    .append("个方法单元），断点续跑：跳过代码解析\n");
-            // 与一致性结果同口径：清理项目旧的基础缺陷后按本次任务重测，
-            // 避免重新分析时残留旧taskId数据导致项目统计与追溯矩阵口径错乱
+            if (!incrementalCodeEnabled) {
+                log.append("[").append(LocalDateTime.now()).append("] 检测到已有代码解析结果（").append(existing.size())
+                        .append("个方法单元），断点续跑：跳过代码解析（incremental-code=off）\n");
+                refreshCodeDefects(task, project, codePath, log);
+                task.setExecutionLog(log.toString());
+                taskMapper.updateById(task);
+                return existing;
+            }
+            List<CodeUnit> merged = incrementalParseCode(task, project, existing, codePath, log, usage);
+            if (merged != null) {
+                return merged;
+            }
+            // 存量行缺 contentHash（老数据）无法增量 -> 清理旧行后走全量重解析
+            log.append("[").append(LocalDateTime.now())
+                    .append("] 存量代码单元缺少内容哈希，改为全量重解析\n");
+            codeUnitMapper.delete(new LambdaQueryWrapper<CodeUnit>()
+                    .eq(CodeUnit::getProjectId, project.getId()));
             codeDefectMapper.delete(new LambdaQueryWrapper<CodeDefect>()
                     .eq(CodeDefect::getProjectId, project.getId()));
-            detectCodeDefects(task, project, codePath, log);
-            task.setExecutionLog(log.toString());
-            taskMapper.updateById(task);
-            return existing;
         }
         log.append("[").append(LocalDateTime.now()).append("] 开始解析Java代码...\n");
         // GAP-003：任务级 Soot 源码编译一次并缓存，供 parseFile 判定（避免每个文件重复编译）
@@ -1291,79 +1311,8 @@ public class AnalysisService {
             if (!parseResult.failures.isEmpty()) {
                 appendCodeParseFailures(project, parseResult.failures, log);
             }
-            // GAP-001：LLM 增强代码逻辑描述，失败则保留现有 extractLogicDescription() 结果
-            if (llmService.isEnabled()) {
-                log.append("[").append(LocalDateTime.now()).append("] [llm] 开始增强代码逻辑描述...\n");
-                for (CodeUnit unit : codeUnits) {
-                    // 4.5 整改：在每个 LLM 批次项之间插入控制检查点，缩短暂停/终止的协作式响应延迟
-                    checkControl(task);
-                    if (usage.isQuotaReached("code-explain", llmService.getMaxCallsPerStage())) {
-                        log.append("[").append(LocalDateTime.now()).append("] [llm-stage-quota] 代码逻辑描述环节已达调用上限，剩余方法走规则实现\n");
-                        break;
-                    }
-                    try {
-                        String cfgSummary = buildCfgSummary(unit.getCfgData());
-                        // GAP-006：CodeLogicDescriber.describe（LLM 中文逻辑还原），失败返回 null 保留规则结果
-                        String llmDesc = codeLogicDescriber.describe(unit.getCodeContent(), cfgSummary);
-                        if (llmDesc != null && !llmDesc.trim().isEmpty()) {
-                            unit.setLogicDescription(llmDesc);
-                            usage.record("code-explain", true);
-                            log.append("[").append(LocalDateTime.now()).append("] [llm] 方法 ")
-                                    .append(unit.getClassName()).append(".").append(unit.getMethodName())
-                                    .append(" 逻辑描述增强成功\n");
-                        } else {
-                            usage.record("code-explain", false);
-                        }
-                    } catch (Exception e) {
-                        usage.record("code-explain", false);
-                        log.append("[").append(LocalDateTime.now()).append("] [llm] 方法 ")
-                                .append(unit.getClassName()).append(".").append(unit.getMethodName())
-                                .append(" 逻辑描述增强失败：").append(e.getMessage()).append("，保留规则提取结果\n");
-                    }
-                }
-            }
-            
-            // GAP-006：CodeLogicDescriber 结构化分析
-            log.append("[").append(LocalDateTime.now()).append("] [logic-describer] 开始结构化代码逻辑分析...\n");
-            for (CodeUnit unit : codeUnits) {
-                try {
-                    CodeLogicDescriber.LogicAnalysis logicAnalysis = codeLogicDescriber.analyzeCodeLogic(
-                            unit.getClassName(), unit.getMethodName(), unit.getCodeContent());
-                    
-                    if (logicAnalysis.isSuccess()) {
-                        // 将分析结果存储到数据库
-                        String logicAnalysisJson = codeLogicDescriber.toJson(logicAnalysis);
-                        unit.setLogicAnalysis(logicAnalysisJson);
-                        
-                        // 如果 LLM 描述为空或置信度较低，使用结构化描述作为补充
-                        if (unit.getLogicDescription() == null || unit.getLogicDescription().trim().isEmpty() ||
-                            logicAnalysis.getConfidence() > 0.7) {
-                            String structuredDesc = buildStructuredDescription(logicAnalysis);
-                            if (!structuredDesc.isEmpty()) {
-                                if (unit.getLogicDescription() == null || unit.getLogicDescription().trim().isEmpty()) {
-                                    unit.setLogicDescription(structuredDesc);
-                                } else {
-                                    // 结合 LLM 描述和结构化描述
-                                    unit.setLogicDescription(unit.getLogicDescription() + "\n\n" + structuredDesc);
-                                }
-                            }
-                        }
-                        
-                        log.append("[").append(LocalDateTime.now()).append("] [logic-describer] 方法 ")
-                                .append(unit.getClassName()).append(".").append(unit.getMethodName())
-                                .append(" 逻辑分析成功（置信度: ").append(String.format("%.2f", logicAnalysis.getConfidence()))
-                                .append("）\n");
-                    } else {
-                        log.append("[").append(LocalDateTime.now()).append("] [logic-describer] 方法 ")
-                                .append(unit.getClassName()).append(".").append(unit.getMethodName())
-                                .append(" 逻辑分析失败：").append(logicAnalysis.getError()).append("\n");
-                    }
-                } catch (Exception e) {
-                    log.append("[").append(LocalDateTime.now()).append("] [logic-describer] 方法 ")
-                            .append(unit.getClassName()).append(".").append(unit.getMethodName())
-                            .append(" 逻辑分析异常：").append(e.getMessage()).append("\n");
-                }
-            }
+            // GAP-001 + GAP-006：LLM 逻辑描述增强 + 结构化代码逻辑分析（P2-5：抽为可复用 helper，增量解析只作用于变更单元）
+            applyLogicEnrichment(task, codeUnits, log, usage);
             for (CodeUnit unit : codeUnits) {
                 unit.setProjectId(project.getId());
                 codeUnitMapper.insert(unit);
@@ -1377,6 +1326,188 @@ public class AnalysisService {
             // GAP-003：编译产物与临时目录在任务结束（finally）递归删除
             if (sootCompile != null && sootCompile.getTempRoot() != null) {
                 SootCfgBuilderUtil.deleteRecursively(sootCompile.getTempRoot());
+            }
+        }
+    }
+
+    /**
+     * P2-5：增量解析代码——按文件内容哈希比对（code_unit.content_hash vs 当前 .java 文件全文），
+     * 仅重解析变更/新增文件（含 Soot/AST/向量化/LLM 描述），未变更文件整体复用存量行，清理已删除文件的行。
+     *
+     * @return 合并后的全部代码单元；返回 null 表示存在缺 contentHash 的存量行（老数据），需回退全量重解析
+     */
+    private List<CodeUnit> incrementalParseCode(AnalysisTask task, Project project,
+                                                List<CodeUnit> existing, String codePath,
+                                                StringBuilder log, LlmUsage usage) throws Exception {
+        // 老数据兼容：任一存量行无 contentHash -> 全量重解析（回退由调用方处理）
+        for (CodeUnit u : existing) {
+            if (u.getFilePath() == null || u.getContentHash() == null || u.getContentHash().isEmpty()) {
+                return null;
+            }
+        }
+        // filePath -> 内容哈希（同文件各方法单元 hash 一致，取首个即可）
+        Map<String, String> oldHashByFile = new HashMap<>();
+        for (CodeUnit u : existing) {
+            if (!oldHashByFile.containsKey(u.getFilePath())) {
+                oldHashByFile.put(u.getFilePath(), u.getContentHash());
+            }
+        }
+        Map<String, String> curHashByFile = javaCodeParserUtil.scanContentHashes(codePath);
+        // P2-5：diff 决策抽为可单测纯函数（IncrementalDiff），此处仅消费其计划
+        IncrementalDiff.Plan plan = IncrementalDiff.plan(oldHashByFile, curHashByFile);
+        List<String> changed = plan.changed;   // 变更/新增文件
+        List<String> removed = plan.removed;   // 本地已删除文件
+        if (plan.isEmpty()) {
+            log.append("[").append(LocalDateTime.now()).append("] 增量比对：全部 ")
+                    .append(existing.size()).append(" 个方法单元内容未变更，跳过代码解析（复用存量结果）\n");
+            refreshCodeDefects(task, project, codePath, log);
+            task.setExecutionLog(log.toString());
+            taskMapper.updateById(task);
+            return existing;
+        }
+        log.append("[").append(LocalDateTime.now()).append("] 开始增量代码解析：变更/新增文件 ")
+                .append(changed.size()).append(" 个，移除 ").append(removed.size())
+                .append(" 个，未变更复用 ").append(plan.unchangedCount(curHashByFile.size())).append(" 个文件\n");
+        // GAP-003：任务级 Soot 编译一次，供变更文件构建字节码级 CFG
+        SootCfgBuilderUtil.CompileResult sootCompile = prepareSootCompile(task, codePath, log);
+        try {
+            Map<String, File> fileByRel = indexCodeFiles(codePath);
+            List<CodeUnit> parsed = new ArrayList<>();
+            for (String rel : changed) {
+                File f = fileByRel.get(rel);
+                if (f == null) {
+                    continue;
+                }
+                parsed.addAll(javaCodeParserUtil.parseFileForAnalysis(f, codePath, sootCompile));
+            }
+            if (!parsed.isEmpty()) {
+                applyLogicEnrichment(task, parsed, log, usage);
+            }
+            Set<String> invalid = new HashSet<>(changed);
+            invalid.addAll(removed);
+            if (!invalid.isEmpty()) {
+                codeUnitMapper.delete(new LambdaQueryWrapper<CodeUnit>()
+                        .eq(CodeUnit::getProjectId, project.getId())
+                        .in(CodeUnit::getFilePath, invalid));
+            }
+            long deletedOld = existing.stream()
+                    .filter(u -> u.getFilePath() != null && invalid.contains(u.getFilePath())).count();
+            List<CodeUnit> merged = new ArrayList<>(existing.size() - (int) deletedOld + parsed.size());
+            for (CodeUnit u : existing) {
+                if (u.getFilePath() == null || !invalid.contains(u.getFilePath())) {
+                    merged.add(u);
+                }
+            }
+            for (CodeUnit unit : parsed) {
+                unit.setProjectId(project.getId());
+                codeUnitMapper.insert(unit);
+                merged.add(unit);
+            }
+            log.append("[").append(LocalDateTime.now()).append("] 增量解析完成：复用 ")
+                    .append(existing.size() - deletedOld).append(" 个、新解析/替换 ").append(parsed.size())
+                    .append(" 个方法单元，共 ").append(merged.size()).append(" 个\n");
+            refreshCodeDefects(task, project, codePath, log);
+            task.setExecutionLog(log.toString());
+            taskMapper.updateById(task);
+            return merged;
+        } finally {
+            if (sootCompile != null && sootCompile.getTempRoot() != null) {
+                SootCfgBuilderUtil.deleteRecursively(sootCompile.getTempRoot());
+            }
+        }
+    }
+
+    /** P2-5：按相对工程路径索引当前代码文件（与 JavaCodeParserUtil.relativePath 同口径） */
+    private Map<String, File> indexCodeFiles(String codePath) {
+        Map<String, File> map = new HashMap<>();
+        List<File> files = new ArrayList<>();
+        collectJavaFiles(new File(codePath), files);
+        String base = codePath.replace("\\", "/");
+        if (!base.endsWith("/")) base = base + "/";
+        for (File f : files) {
+            String abs = f.getAbsolutePath().replace("\\", "/");
+            String rel = abs.startsWith(base) ? abs.substring(base.length()) : f.getName();
+            map.put(rel, f);
+        }
+        return map;
+    }
+
+    /** P2-5：清理项目旧基础缺陷并按本次任务重新检测（与一致性/缺陷同 taskId 口径，避免统计错乱） */
+    private void refreshCodeDefects(AnalysisTask task, Project project, String codePath, StringBuilder log) {
+        codeDefectMapper.delete(new LambdaQueryWrapper<CodeDefect>()
+                .eq(CodeDefect::getProjectId, project.getId()));
+        detectCodeDefects(task, project, codePath, log);
+    }
+
+    /** GAP-001 + GAP-006：对方法单元执行 LLM 逻辑描述增强 + CodeLogicDescriber 结构化分析（全量/增量共用） */
+    private void applyLogicEnrichment(AnalysisTask task, List<CodeUnit> codeUnits, StringBuilder log,
+                                      LlmUsage usage) {
+        if (llmService.isEnabled()) {
+            log.append("[").append(LocalDateTime.now()).append("] [llm] 开始增强代码逻辑描述...\n");
+            for (CodeUnit unit : codeUnits) {
+                // 4.5 整改：在每个 LLM 批次项之间插入控制检查点，缩短暂停/终止的协作式响应延迟
+                checkControl(task);
+                if (usage.isQuotaReached("code-explain", llmService.getMaxCallsPerStage())) {
+                    log.append("[").append(LocalDateTime.now()).append("] [llm-stage-quota] 代码逻辑描述环节已达调用上限，剩余方法走规则实现\n");
+                    break;
+                }
+                try {
+                    String cfgSummary = buildCfgSummary(unit.getCfgData());
+                    // GAP-006：CodeLogicDescriber.describe（LLM 中文逻辑还原），失败返回 null 保留规则结果
+                    String llmDesc = codeLogicDescriber.describe(unit.getCodeContent(), cfgSummary);
+                    if (llmDesc != null && !llmDesc.trim().isEmpty()) {
+                        unit.setLogicDescription(llmDesc);
+                        usage.record("code-explain", true);
+                        log.append("[").append(LocalDateTime.now()).append("] [llm] 方法 ")
+                                .append(unit.getClassName()).append(".").append(unit.getMethodName())
+                                .append(" 逻辑描述增强成功\n");
+                    } else {
+                        usage.record("code-explain", false);
+                    }
+                } catch (Exception e) {
+                    usage.record("code-explain", false);
+                    log.append("[").append(LocalDateTime.now()).append("] [llm] 方法 ")
+                            .append(unit.getClassName()).append(".").append(unit.getMethodName())
+                            .append(" 逻辑描述增强失败：").append(e.getMessage()).append("，保留规则提取结果\n");
+                }
+            }
+        }
+        // GAP-006：CodeLogicDescriber 结构化分析
+        log.append("[").append(LocalDateTime.now()).append("] [logic-describer] 开始结构化代码逻辑分析...\n");
+        for (CodeUnit unit : codeUnits) {
+            try {
+                CodeLogicDescriber.LogicAnalysis logicAnalysis = codeLogicDescriber.analyzeCodeLogic(
+                        unit.getClassName(), unit.getMethodName(), unit.getCodeContent());
+                if (logicAnalysis.isSuccess()) {
+                    // 将分析结果存储到数据库
+                    String logicAnalysisJson = codeLogicDescriber.toJson(logicAnalysis);
+                    unit.setLogicAnalysis(logicAnalysisJson);
+                    // 如果 LLM 描述为空或置信度较低，使用结构化描述作为补充
+                    if (unit.getLogicDescription() == null || unit.getLogicDescription().trim().isEmpty()
+                            || logicAnalysis.getConfidence() > 0.7) {
+                        String structuredDesc = buildStructuredDescription(logicAnalysis);
+                        if (!structuredDesc.isEmpty()) {
+                            if (unit.getLogicDescription() == null || unit.getLogicDescription().trim().isEmpty()) {
+                                unit.setLogicDescription(structuredDesc);
+                            } else {
+                                // 结合 LLM 描述和结构化描述
+                                unit.setLogicDescription(unit.getLogicDescription() + "\n\n" + structuredDesc);
+                            }
+                        }
+                    }
+                    log.append("[").append(LocalDateTime.now()).append("] [logic-describer] 方法 ")
+                            .append(unit.getClassName()).append(".").append(unit.getMethodName())
+                            .append(" 逻辑分析成功（置信度: ").append(String.format("%.2f", logicAnalysis.getConfidence()))
+                            .append("）\n");
+                } else {
+                    log.append("[").append(LocalDateTime.now()).append("] [logic-describer] 方法 ")
+                            .append(unit.getClassName()).append(".").append(unit.getMethodName())
+                            .append(" 逻辑分析失败：").append(logicAnalysis.getError()).append("\n");
+                }
+            } catch (Exception e) {
+                log.append("[").append(LocalDateTime.now()).append("] [logic-describer] 方法 ")
+                        .append(unit.getClassName()).append(".").append(unit.getMethodName())
+                        .append(" 逻辑分析异常：").append(e.getMessage()).append("\n");
             }
         }
     }
@@ -1711,6 +1842,50 @@ public class AnalysisService {
                             .append(" 解释增强失败：").append(e.getMessage()).append("，保留规则生成结果\n");
                 }
             }
+        }
+        // P1-4：为缺陷写入规则信号分解（explainSignals）——供 Defects.vue「命中规则/信号贡献」面板展示
+        try {
+            com.fasterxml.jackson.databind.ObjectMapper signalMapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            Map<Long, Requirement> reqById = new HashMap<>();
+            for (Requirement r : requirements) reqById.put(r.getId(), r);
+            Map<Long, CodeUnit> codeById = new HashMap<>();
+            for (CodeUnit u : codeUnits) codeById.put(u.getId(), u);
+            String codePath = project.getCodeProjectPath();
+            Map<String, List<String>> classEvidenceByClass = (codePath != null && new File(codePath).exists())
+                    ? com.traceguard.util.ClassEvidenceScanner.scanConstants(codePath) : Collections.emptyMap();
+            int withSignals = 0;
+            for (Defect d : defects) {
+                try {
+                    if (d.getRequirementId() == null || d.getCodeUnitId() == null) continue;
+                    Requirement req = reqById.get(d.getRequirementId());
+                    CodeUnit code = codeById.get(d.getCodeUnitId());
+                    if (req == null || code == null) continue;
+                    // 需求文本与一致性打分同口径（原文+类型+约束规则），保证面板数值与 adjustedSim 扣分可对账
+                    String reqText = com.traceguard.core.SimilarityScorer.reqDoc(req);
+                    String codeText = code.getCodeContent();
+                    String cls = code.getClassName() == null ? "" : code.getClassName();
+                    String simpleCls = cls.contains(".") ? cls.substring(cls.lastIndexOf('.') + 1) : cls;
+                    List<String> classEvidence = classEvidenceByClass == null ? null : classEvidenceByClass.get(simpleCls);
+                    Map<String, Double> signals = com.traceguard.util.CodeDefectPatternDetector
+                            .explainSignals(reqText, codeText, classEvidence);
+                    double risk = com.traceguard.util.CodeDefectPatternDetector
+                            .detectDefectRisk(reqText, codeText, classEvidence);
+                    Map<String, Object> box = new LinkedHashMap<>();
+                    box.put("risk", risk);
+                    box.put("signals", signals);
+                    d.setRiskSignals(signalMapper.writeValueAsString(box));
+                    withSignals++;
+                } catch (Exception ignored) {
+                    // 信号分解失败不影响缺陷主数据落库
+                }
+            }
+            if (withSignals > 0) {
+                log.append("[").append(LocalDateTime.now()).append("] [risk-signals] ").append(withSignals)
+                        .append(" 个缺陷已写入规则信号分解（供前端信号面板）\n");
+            }
+        } catch (Exception e) {
+            log.append("[").append(LocalDateTime.now()).append("] [risk-signals] 信号分解失败：")
+                    .append(e.getMessage()).append("\n");
         }
         // GAP-025：分批写库（默认每批500行），避免逐条单写
         batchInsertDefects(defects);

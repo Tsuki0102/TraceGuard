@@ -382,6 +382,16 @@ PREPARE stmt_ri_defect FROM @ddl_ri_defect;
 EXECUTE stmt_ri_defect;
 DEALLOCATE PREPARE stmt_ri_defect;
 
+-- P1-4：tg_defect 增列 risk_signals（explainSignals 规则信号分解 JSON，供前端"命中规则/信号贡献"面板）
+SET @rs_defect := (SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tg_defect' AND COLUMN_NAME = 'risk_signals');
+SET @ddl_rs_defect := IF(@rs_defect = 0,
+    'ALTER TABLE tg_defect ADD COLUMN risk_signals TEXT COMMENT ''规则信号分解JSON（explainSignals：{"risk":..,"signals":{..}}）''',
+    'SELECT 1');
+PREPARE stmt_rs_defect FROM @ddl_rs_defect;
+EXECUTE stmt_rs_defect;
+DEALLOCATE PREPARE stmt_rs_defect;
+
 -- GAP-009：tg_requirement 增列 remote_issue_key（第三方工单关联标识）
 SET @ri_req := (SELECT COUNT(*) FROM information_schema.COLUMNS
     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tg_requirement' AND COLUMN_NAME = 'remote_issue_key');
@@ -503,6 +513,26 @@ DEALLOCATE PREPARE stmt_cc;
 
 -- GAP-016：存量迁移——历史代码单元复杂度默认 1
 UPDATE tg_code_unit SET cyclomatic_complexity = 1 WHERE cyclomatic_complexity IS NULL OR cyclomatic_complexity < 1;
+
+-- P2-5：tg_code_unit 增列 content_hash（源文件内容 sha256，增量分析用；每文件内各方法单元一致）
+SET @chash_col := (SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tg_code_unit' AND COLUMN_NAME = 'content_hash');
+SET @ddl_chash := IF(@chash_col = 0,
+    'ALTER TABLE tg_code_unit ADD COLUMN content_hash VARCHAR(64) NULL COMMENT ''源文件内容 sha256（P2-5 增量分析）''',
+    'SELECT 1');
+PREPARE stmt_chash FROM @ddl_chash;
+EXECUTE stmt_chash;
+DEALLOCATE PREPARE stmt_chash;
+
+-- P2-5：tg_code_unit (project_id, file_path) 增量比对索引（老库补充，幂等）
+SET @chash_idx := (SELECT COUNT(*) FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tg_code_unit' AND INDEX_NAME = 'idx_project_file');
+SET @ddl_chash_idx := IF(@chash_idx = 0,
+    'ALTER TABLE tg_code_unit ADD INDEX idx_project_file (project_id, file_path)',
+    'SELECT 1');
+PREPARE stmt_chash_idx FROM @ddl_chash_idx;
+EXECUTE stmt_chash_idx;
+DEALLOCATE PREPARE stmt_chash_idx;
 
 -- ==================== 迭代四（P0 收尾）新增 ====================
 -- GAP-045：Kripke 语义模型补全——原子命题(AP)与状态标签函数(L)

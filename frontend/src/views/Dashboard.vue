@@ -666,7 +666,7 @@ const renderCompareChart = () => {
     xAxis: {
       type: 'category',
       data: names,
-      axisLabel: { interval: 0, rotate: names.length > 3 ? 15 : 0, color: chartText() },
+      axisLabel: { interval: 0, rotate: names.length > 2 ? 15 : 0, color: chartText() },
       axisLine: { lineStyle: { color: chartAxisLine() } },
       axisTick: { show: false }
     },
@@ -962,6 +962,13 @@ const loadProjects = async () => {
       ? Math.round(analyzed.reduce((sum, p) => sum + (p.coverageRate || 0) * 100, 0) / analyzed.length)
       : 0
     totalDefects.value = data.reduce((sum, p) => sum + (p.defectCount || 0), 0)
+    // 默认随机选 2 个项目直接生成对比（优先从已分析项目中选择，保证有数据可看）
+    if (compareIds.value.length === 0 && data.length >= 2) {
+      const pool = analyzed.length >= 2 ? analyzed : data
+      const shuffled = [...pool].sort(() => Math.random() - 0.5)
+      compareIds.value = shuffled.slice(0, 2).map(p => p.id)
+      doCompare()
+    }
     await nextTick()
     renderCoverageChart()
     renderStatusChart()

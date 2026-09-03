@@ -23,4 +23,6 @@ public class CodeUnit extends BaseEntity {
     private String semanticVector;
     private String cfgData;
     private String constraints;
+    /** P2-5：源文件内容 sha256 摘要（增量分析：文件级变更判定，每文件内各方法单元一致） */
+    private String contentHash;
 }

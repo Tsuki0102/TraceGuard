@@ -6,6 +6,9 @@ import java.util.Map;
 /**
  * GAP-020：缺陷类型统一为 FR-CHECK-003 的 4 类主类型口径。
  * 原细分类型降级为子类型（subType）保留，支撑二级筛选与详情展示。
+ *
+ * P2-4：子类型已枚举化为 {@link DefectSubType}，本类保留字符串入口作为
+ * 「存量数据 + LLM 输出 + 未枚举历史值」的兼容层，主类型映射优先委托枚举完成。
  */
 public final class DefectTypes {
 
@@ -21,8 +24,9 @@ public final class DefectTypes {
     };
 
     /**
-     * 子类型 -> 主类型映射表。
-     * 包含原 determineDefectType 产出的所有细分类型以及 generateDefects 中直接使用的类型。
+     * 子类型 -> 主类型映射表（P2-4：仅兜底使用）。
+     * 已知子类型的映射以 {@link DefectSubType} 为准；本表保留用于未枚举的历史值，
+     * 保证存量数据（如旧版本写入的自定义子类型）仍能归入 4 类主类型之一。
      */
     private static final Map<String, String> SUB_TO_MAIN = new LinkedHashMap<>();
     static {
@@ -39,10 +43,9 @@ public final class DefectTypes {
         SUB_TO_MAIN.put("异常处理缺失", CONSTRAINT_VIOLATION);
         SUB_TO_MAIN.put("资源管理缺失", CONSTRAINT_VIOLATION);
         SUB_TO_MAIN.put("不变量不满足", CONSTRAINT_VIOLATION);
-        // GAP-046 修复：determineDefectType 直接产出的主类型子类型须保持主类型一致，
-        // 否则 toMainType 回退为「业务逻辑不一致」，导致约束类缺陷分类错误
+        // GAP-046 修复：determineDefectType 直接产出的主类型子类型须保持主类型一致
         SUB_TO_MAIN.put("约束条件不满足", CONSTRAINT_VIOLATION);
-        // 需求代码不匹配：按分项得分动态归入（见 ConsistencyChecker）
+        // 需求代码不匹配：按分项得分动态归入（见 DefectSubType#mainType）
         SUB_TO_MAIN.put("需求代码不匹配", LOGIC_MISMATCH);
     }
 
@@ -59,10 +62,10 @@ public final class DefectTypes {
         if (subType == null || subType.isEmpty()) {
             return "";
         }
-        // 已经是主类型且不在子类型表中（如"需求缺失""代码超范围实现"），直接返回
-        // "需求代码不匹配"需按分项得分动态归入
-        if ("需求代码不匹配".equals(subType)) {
-            return invariantScore < constraintScore ? CONSTRAINT_VIOLATION : LOGIC_MISMATCH;
+        // P2-4：优先走枚举（含动态归入规则），命中即返回
+        DefectSubType known = DefectSubType.fromLabel(subType);
+        if (known != null) {
+            return known.mainType(invariantScore, constraintScore);
         }
         String main = SUB_TO_MAIN.get(subType);
         return main != null ? main : LOGIC_MISMATCH; // 未命中的子类型默认归入"业务逻辑不一致"

@@ -34,9 +34,31 @@ public class CodeDefectPatternDetector {
         return m;
     }
 
-    /** 复位默认去噪权重；传入非空 Map 可覆盖（eval 调优用）。 */
+    /** 复位默认去噪权重；传入非空 Map 可覆盖（eval/管理台调优用）。 */
     public static void configureRiskWeights(Map<String, Double> weights) {
         riskWeights = weights == null || weights.isEmpty() ? defaultWeights() : new HashMap<>(weights);
+    }
+
+    /** P1-4：全部已知子信号名（管理台/报告全量展示；未配置信号权重按 1.0 计） */
+    public static List<String> riskSignalNames() {
+        return Arrays.asList(
+                "stateMismatch", "numericMismatch", "paramValidationMissing", "logicInversion",
+                "commonCodeBug", "impliedBusinessRuleMissing", "nullDereference", "stateFlowViolation",
+                "refundFactor", "quantitativeBoundMismatch");
+    }
+
+    /** P1-4：当前生效权重快照（全量信号 -> 权重），供管理台展示/持久化回读 */
+    public static Map<String, Double> riskSignalWeights() {
+        Map<String, Double> m = new LinkedHashMap<>();
+        for (String s : riskSignalNames()) {
+            m.put(s, weightOf(s));
+        }
+        return m;
+    }
+
+    /** P1-4：内置默认权重快照（新增配置未写入任何值时的落库默认） */
+    public static Map<String, Double> baselineRiskWeights() {
+        return defaultWeights();
     }
 
     private static double weightOf(String signal) {

@@ -166,10 +166,10 @@ class DefectStatusTest {
     class AllowedTargetsTests {
 
         @Test
-        @DisplayName("pending 可流转目标为 processing/ignored")
+        @DisplayName("pending 可流转目标为 processing/ignored/falsePositive（W5 误报治理）")
         void pendingAllowedTargets() {
             List<String> targets = DefectStatus.allowedTargets("pending");
-            assertThat(targets).containsExactlyInAnyOrder("processing", "ignored");
+            assertThat(targets).containsExactlyInAnyOrder("processing", "ignored", "falsePositive");
         }
 
         @Test

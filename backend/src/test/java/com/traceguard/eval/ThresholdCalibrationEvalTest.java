@@ -733,6 +733,105 @@ class ThresholdCalibrationEvalTest {
         assertTrue(totalDef > 0 && totalConsistent > 0, "评测集对齐失败");
     }
 
+    /**
+     * P2-2 行号定位准确率评测基线（-Ddefect.loc.eval=true）。
+     * 数据集：samples/dataset/defect-ground-truth.json（P2-2 已为语义型缺陷补 line）。
+     * 口径：对每条含行号的【语义型】缺陷（约束条件不满足 / 业务逻辑不一致）按其方法 CodeUnit，
+     *       用 DefectLocator（AST 优先）定位，命中 = |定位行 - 标注行| <= 2；
+     *       对照"方法起始行基线"（仅定位到方法级时的命中率），量化 AST 化改进是否带来行级收益。
+     * 说明：本评测隔离了 generateDefects 召回问题，只测定位器质量；非 CI 门禁，供持续追踪。
+     */
+    @Test
+    @EnabledIfSystemProperty(named = "defect.loc.eval", matches = "true")
+    @DisplayName("P2-2 缺陷行号定位准确率基线（DefectLocator vs ground-truth line）")
+    void defectLineLocEval() throws Exception {
+        System.setProperty("gap046.debug", "false");
+        LocalBgeEmbeddingClient bge = buildLocalBgeClient();
+        Path datasetDir = resolveDatasetDir();
+        JsonNode gtRoot = OM.readTree(Files.readString(datasetDir.resolve("defect-ground-truth.json")));
+
+        long total = 0, hitAst = 0, hitMethodStartBaseline = 0;
+        List<String> rows = new ArrayList<>();
+        rows.add("id | type | method | 标注行 | 定位行 | Δ | 方法起始行基线Δ | 命中(≤2)");
+        long idSeq = 1;
+        for (String source : SOURCES) {
+            Path sourceDir = datasetDir.getParent().resolve(source);
+            List<Requirement> reqs = parseRequirements(sourceDir.resolve("requirements.txt"), idSeq);
+            idSeq += reqs.size();
+            List<CodeUnit> codes = parseCode(sourceDir, idSeq);
+            idSeq += codes.size();
+            if (bge != null && bge.available()) {
+                applyBgeSemanticVectors(bge, reqs, codes);
+            }
+            Map<String, Long> methodCodeId = new HashMap<>();
+            for (CodeUnit c : codes) {
+                if (JavaCodeParserUtil.isFieldListUnit(c)) continue;
+                methodCodeId.put(c.getClassName() + "." + c.getMethodName(), c.getId());
+            }
+            Map<Long, CodeUnit> codeById = new HashMap<>();
+            codes.forEach(c -> codeById.put(c.getId(), c));
+            Map<String, Requirement> reqByCode = new HashMap<>();
+            reqs.forEach(r -> reqByCode.put(r.getRequirementId(), r));
+
+            for (JsonNode e : gtRoot.path("defects")) {
+                if (!source.equals(e.path("project").asText())) continue;
+                int gtLine = e.path("line").asInt(-1);
+                if (gtLine <= 0) continue;
+                String fileBase = e.path("file").asText("").replaceFirst("\\.java$", "");
+                String method = e.path("method").asText("");
+                Long cid = methodCodeId.get(fileBase + "." + method);
+                if (cid == null) continue;
+                // 语义型缺陷才参与行级定位评测（需求缺失/超范围/基础代码缺陷由其它链路产出）
+                String probe = probeSubTypeForLoc(e);
+                if (probe == null) continue;
+                CodeUnit code = codeById.get(cid);
+                Requirement req = reqByCode.get(e.path("relatedReq").asText(""));
+                String reqText = req == null || req.getOriginalText() == null ? "" : req.getOriginalText();
+                Integer located = com.traceguard.core.DefectLocator.locate(probe, reqText,
+                        code.getCodeContent(), code.getStartLine());
+                int startLine = code.getStartLine() != null ? code.getStartLine() : 0;
+                int delta = located == null ? Integer.MAX_VALUE : Math.abs(located - gtLine);
+                int startDelta = Math.abs(startLine - gtLine);
+                total++;
+                boolean hit = delta <= 2;
+                if (hit) hitAst++;
+                if (startDelta <= 2) hitMethodStartBaseline++;
+                rows.add(String.format("%s | %s | %s.%s | %d | %s | %d | %d | %s",
+                        e.path("id").asText(), e.path("type").asText(), fileBase, method, gtLine,
+                        located == null ? "-" : String.valueOf(located), delta, startDelta, hit ? "HIT" : ""));
+            }
+        }
+        System.out.println("\n[DEFECT-LOC] 缺陷行号定位准确率评测（M=" + total + "，命中=行差≤2）");
+        rows.forEach(r -> System.out.println("[DEFECT-LOC] " + r));
+        double astRate = total == 0 ? 0 : 100.0 * hitAst / total;
+        double startRate = total == 0 ? 0 : 100.0 * hitMethodStartBaseline / total;
+        System.out.println(String.format(
+                "[DEFECT-LOC] DefectLocator(AST优先) 命中 %d/%d (%.1f%%)；方法起始行基线 命中 %d/%d (%.1f%%)；行级增益 = %.1fpp",
+                hitAst, total, astRate, hitMethodStartBaseline, total, startRate, astRate - startRate));
+        assertTrue(total > 0, "ground-truth 行号评测集为空：请确认 defect-ground-truth.json 含 line 且与样例工程可对齐");
+    }
+
+    /** P2-2：把 ground-truth 语义型缺陷归类为 DefectLocator 探测子类型；非行级定位对象返回 null */
+    private static String probeSubTypeForLoc(JsonNode e) {
+        String type = e.path("type").asText("");
+        String sub = e.path("subType").asText("");
+        if ("业务逻辑不一致".equals(type)) {
+            // 阈值/窗口/限流/反转类多落在数值比较上，交给 NUMERIC_LITERAL；其余走逻辑偏离（首条语句）
+            if (sub.contains("阈值") || sub.contains("窗口") || sub.contains("限流")
+                    || sub.contains("反转") || sub.contains("越界") || sub.contains("边界")) {
+                return "数值越界";
+            }
+            return "逻辑偏离";
+        }
+        if ("约束条件不满足".equals(type)) {
+            if (sub.contains("状态") || sub.contains("流转")) {
+                return "不变量不满足";
+            }
+            return "约束条件不满足";
+        }
+        return null; // 需求缺失 / 代码超范围 / 基础代码缺陷不参与行级定位评测
+    }
+
     private static double sigmoidVal(double x, double center, double width) {
         double w = width <= 0 ? 0.05 : width;
         double z = (x - center) / w;

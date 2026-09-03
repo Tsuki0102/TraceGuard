@@ -268,8 +268,18 @@ public class JavaCodeParserUtil {
                                     TaskCircuitBreaker sootBreaker) {
         List<CodeUnit> codeUnits = new ArrayList<>();
         try {
+            // P2-5：文件内容只读一次，同时计算内容哈希（同一文件内各方法单元共享，供增量分析）
+            String source;
+            String fileHash;
+            try {
+                source = readUtf8(file);
+                fileHash = ContentHashUtil.sha256(source);
+            } catch (java.io.IOException e) {
+                LOGGER.warn("读取源码文件失败[{}]: {}", file.getName(), e.getMessage());
+                return codeUnits;
+            }
             JavaParser javaParser = new JavaParser();
-            ParseResult<CompilationUnit> result = javaParser.parse(readUtf8(file));
+            ParseResult<CompilationUnit> result = javaParser.parse(source);
             Optional<CompilationUnit> cuOpt = result.getResult();
             if (!cuOpt.isPresent()) {
                 return codeUnits;
@@ -308,6 +318,7 @@ public class JavaCodeParserUtil {
                         }
                         fieldUnit.setCodeContent(fieldSb.toString().trim());
                         fieldUnit.setLogicDescription("类字段/属性声明清单，共 " + fields.size() + " 个字段");
+                        fieldUnit.setContentHash(fileHash);
                         codeUnits.add(fieldUnit);
                     }
                     for (MethodDeclaration method : cls.getMethods()) {
@@ -333,6 +344,7 @@ public class JavaCodeParserUtil {
                         } catch (Exception ce) {
                             unit.setCyclomaticComplexity(1);
                         }
+                        unit.setContentHash(fileHash);
                         codeUnits.add(unit);
                     }
                 }
@@ -341,6 +353,36 @@ public class JavaCodeParserUtil {
             LOGGER.warn("解析Java文件失败[{}]: {}", file.getName(), e.getMessage());
         }
         return codeUnits;
+    }
+
+    /**
+     * P2-5：单文件解析（任务级 Soot 编译上下文复用 + 自建熔断器），供增量解析对变更文件单独重解析。
+     */
+    public List<CodeUnit> parseFileForAnalysis(File file, String projectPath,
+                                               SootCfgBuilderUtil.CompileResult compileResult) {
+        return parseFile(file, projectPath, compileResult, new TaskCircuitBreaker(SOOT_CIRCUIT_BREAK_THRESHOLD));
+    }
+
+    /**
+     * P2-5：扫描工程内全部 .java 文件（相对工程根目录路径 -> 内容 sha256）。
+     * 供 AnalysisService 增量解析比对（与 code_unit.content_hash 同口径：UTF-8 全文）。
+     */
+    public java.util.Map<String, String> scanContentHashes(String projectPath) {
+        java.util.Map<String, String> out = new java.util.LinkedHashMap<>();
+        File dir = new File(projectPath);
+        if (dir == null || !dir.exists()) {
+            return out;
+        }
+        List<File> files = new ArrayList<>();
+        collectJavaFiles(dir, files);
+        for (File f : files) {
+            try {
+                out.put(relativePath(f, projectPath), ContentHashUtil.sha256(readUtf8(f)));
+            } catch (Exception e) {
+                LOGGER.warn("计算内容哈希失败，跳过: {}", f.getName());
+            }
+        }
+        return out;
     }
 
     /** GAP-003：Soot 字节码 CFG 优先，单方法失败/熔断回退 AST 级 CfgBuilderUtil */

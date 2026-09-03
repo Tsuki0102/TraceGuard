@@ -323,6 +323,10 @@ export const systemConfigApi = {
   /** AUD-07：保存/更新配置（管理员） */
   save(key, value, description) {
     return request({ url: `/system/config/${key}`, method: 'put', params: { value, description } })
+  },
+  /** P1-4：规则信号权重（全量信号 -> 权重，阈值实验室调参台） */
+  getRiskWeights() {
+    return request({ url: '/system/config/risk-weights', method: 'get' })
   }
 }
 

@@ -137,6 +137,13 @@
         <el-table-column label="缺陷原因" min-width="250" show-overflow-tooltip>
           <template #default="{ row }">{{ row.defectReason }}</template>
         </el-table-column>
+        <!-- P1-4：规则命中（riskSignals 综合风险 > 0 时展示，可解释性提示） -->
+        <el-table-column label="规则命中" width="96">
+          <template #default="{ row }">
+            <el-tag v-if="riskOf(row) > 0" size="small" type="warning">信号 {{ riskOf(row).toFixed(2) }}</el-tag>
+            <span v-else style="color: var(--tg-text-secondary); font-size: 12px">-</span>
+          </template>
+        </el-table-column>
         <el-table-column label="操作" width="320" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click="viewDetail(row)">详情</el-button>
@@ -260,6 +267,26 @@
             <div style="white-space: pre-wrap; color: var(--tg-success)">{{ currentDefect.repairSuggestion }}</div>
           </el-descriptions-item>
         </el-descriptions>
+
+        <!-- P1-4：命中规则 / 信号贡献面板（explainSignals 分解，规则链路判定的可解释性出口） -->
+        <div v-if="signalEntries.length" class="signal-panel">
+          <div class="signal-panel__head">
+            <span class="signal-panel__title"><el-icon :size="14"><Aim /></el-icon> 规则信号分解</span>
+            <el-tag size="small" :type="currentSignals.risk > 0.3 ? 'danger' : 'warning'">
+              综合风险 {{ currentSignals.risk?.toFixed?.(2) ?? currentSignals.risk }}
+            </el-tag>
+          </div>
+          <div class="signal-panel__body">
+            <div v-for="s in signalEntries" :key="s.key" class="signal-row" :class="{ 'is-hot': s.value > 0.01 }">
+              <span class="signal-row__name" :title="s.key">{{ s.name }}</span>
+              <div class="signal-row__track">
+                <i :style="{ width: Math.min(100, s.value * 100) + '%' }"></i>
+              </div>
+              <b>{{ s.value.toFixed(2) }}</b>
+            </div>
+            <p v-if="!signalEntries.length" class="signal-panel__empty">规则链路未命中任何信号（该缺陷由语义/结构维度判定）</p>
+          </div>
+        </div>
 
         <!-- FUN-11：AI 智能解释入口（大模型分析缺陷原因与修复建议；未启用大模型时后端返回提示） -->
         <div style="margin-top: 12px; display: flex; align-items: center; gap: 8px">
@@ -434,6 +461,43 @@ const loadDefects = async () => {
   await nextTick()
   renderCharts()
 }
+
+// ===== P1-4：规则命中 / 信号贡献（explainSignals 分解，来自后端 Defect.riskSignals JSON） =====
+const SIGNAL_LABELS = {
+  stateMismatch: '状态不匹配',
+  numericMismatch: '数值阈值不匹配',
+  paramValidationMissing: '参数校验缺失',
+  logicInversion: '逻辑反转',
+  commonCodeBug: '通用代码坏味',
+  impliedBusinessRuleMissing: '隐含业务规则缺失',
+  nullDereference: '空指针风险',
+  stateFlowViolation: '状态流转违反',
+  refundFactor: '退款系数异常',
+  quantitativeBoundMismatch: '量化边界错配'
+}
+
+/** 解析某行缺陷的 riskSignals（容错空值/非法 JSON），返回 { risk, signals } */
+const parseSignals = (row) => {
+  if (!row || !row.riskSignals) return { risk: 0, signals: {} }
+  try {
+    return typeof row.riskSignals === 'string' ? JSON.parse(row.riskSignals) : row.riskSignals
+  } catch (e) {
+    return { risk: 0, signals: {} }
+  }
+}
+
+/** 规则综合风险（表格徽标用） */
+const riskOf = (row) => Number(parseSignals(row).risk) || 0
+
+/** 当前缺陷信号分解（详情面板渲染，仅展示 > 0.0001 的信号，按贡献降序） */
+const currentSignals = computed(() => parseSignals(currentDefect.value))
+const signalEntries = computed(() => {
+  const sig = currentSignals.value.signals || {}
+  return Object.keys(sig)
+    .filter((k) => (Number(sig[k]) || 0) > 0.0001)
+    .sort((a, b) => (Number(sig[b]) || 0) - (Number(sig[a]) || 0))
+    .map((k) => ({ key: k, name: SIGNAL_LABELS[k] || k, value: Number(sig[k]) || 0 }))
+})
 
 // ===== W1-03/R8：类型×等级堆叠 + 状态分布图表（随筛选联动） =====
 let typeStackChart = null
@@ -1034,6 +1098,66 @@ onUnmounted(() => {
 .line-hint.defect-hint {
   color: var(--tg-danger);
   font-weight: 600;
+}
+
+/* P1-4：规则信号分解面板 */
+.signal-panel {
+  margin-top: 12px;
+  border: 1px solid rgba(232, 155, 60, 0.25);
+  border-radius: 10px;
+  padding: 10px 14px;
+  background: rgba(255, 250, 240, 0.6);
+}
+.signal-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.signal-panel__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--tg-text-primary);
+}
+.signal-row {
+  display: grid;
+  grid-template-columns: 150px 1fr 52px;
+  align-items: center;
+  gap: 10px;
+  padding: 3px 0;
+}
+.signal-row__name {
+  font-size: 12px;
+  color: var(--tg-text-secondary);
+}
+.signal-row.is-hot .signal-row__name {
+  color: var(--tg-accent);
+  font-weight: 600;
+}
+.signal-row__track {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+}
+.signal-row__track i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #E8C877, var(--tg-warning));
+}
+.signal-row.is-hot .signal-row__track i {
+  background: linear-gradient(90deg, #e8a03c, var(--tg-danger));
+}
+.signal-row b {
+  text-align: right;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--tg-text-primary);
+  font-variant-numeric: tabular-nums;
 }
 
 .line-no {

@@ -95,6 +95,48 @@ class JavaCodeParserUtilTest {
     }
 
     @Test
+    @DisplayName("P2-5：parseFile 写入 contentHash 且与 scanContentHashes 同口径")
+    void contentHashSetOnParseMatchesScan() throws Exception {
+        File file = writeJavaFile(
+                "public class Sample {\n" +
+                "    public int add(int a, int b) {\n" +
+                "        return a + b;\n" +
+                "    }\n" +
+                "}\n");
+        List<CodeUnit> units = parserUtil.parseFileForAnalysis(file, tempDir.toString(), null);
+        assertThat(units).hasSize(1);
+        assertThat(units.get(0).getContentHash()).isNotBlank();
+        Map<String, String> scan = parserUtil.scanContentHashes(tempDir.toString());
+        assertThat(scan.get("Sample.java")).isEqualTo(units.get(0).getContentHash());
+    }
+
+    @Test
+    @DisplayName("P2-5：内容变更 -> 哈希变化（增量变更判定依据）")
+    void contentHashChangesOnEdit() throws Exception {
+        File file = writeJavaFile(
+                "public class Sample {\n" +
+                "    public int add(int a, int b) {\n" +
+                "        return a + b;\n" +
+                "    }\n" +
+                "}\n");
+        String before = parserUtil.scanContentHashes(tempDir.toString()).get("Sample.java");
+        try (FileOutputStream out = new FileOutputStream(file)) {
+            out.write(("public class Sample {\n" +
+                    "    public int add(int a, int b) {\n" +
+                    "        return a - b; // P2-5 变更\n" +
+                    "    }\n" +
+                    "}\n").getBytes(StandardCharsets.UTF_8));
+        }
+        String after = parserUtil.scanContentHashes(tempDir.toString()).get("Sample.java");
+        assertThat(before).isNotBlank();
+        assertThat(after).isNotBlank();
+        assertThat(after).isNotEqualTo(before);
+        // 内容不变重复扫描哈希稳定
+        String again = parserUtil.scanContentHashes(tempDir.toString()).get("Sample.java");
+        assertThat(again).isEqualTo(after);
+    }
+
+    @Test
     @DisplayName("检测字符串拼接SQL注入风险")
     void detectsSqlInjection() throws Exception {
         File file = writeJavaFile(

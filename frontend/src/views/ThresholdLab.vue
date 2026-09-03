@@ -45,6 +45,22 @@
             <el-slider v-model="sliders.t2" :min="20" :max="70" :show-tooltip="false" size="small" />
           </div>
         </div>
+        <!-- P1-4：规则信号权重调参（后端 configureRiskWeights 热生效，仅管理员可保存） -->
+        <div class="tl-console__block tl-console__block--signals">
+          <h3 class="tl-console__label">规则信号权重 <small>下次分析生效 · 网格实证默认</small></h3>
+          <div v-for="d in riskSignalDefs" :key="d.key" class="tl-slider">
+            <div class="tl-slider__head">
+              <span class="tl-slider__name" :title="'0 表示剔除该噪声信号'">{{ d.name }}</span>
+              <b>{{ (riskWeights[d.key] ?? 1).toFixed(2) }}</b>
+            </div>
+            <el-slider v-model="riskWeights[d.key]" :min="0" :max="3" :step="0.1" :show-tooltip="false" size="small" />
+          </div>
+          <div style="display: flex; gap: 8px">
+            <el-button type="primary" size="small" round :loading="savingWeights" @click="saveRiskWeights">保存权重</el-button>
+            <el-button size="small" round plain @click="restoreRiskWeights">恢复默认</el-button>
+          </div>
+          <p class="tl-console__hint">{{ weightsHint }}</p>
+        </div>
         <el-button round plain @click="resetDefaults">恢复默认参数</el-button>
         <p class="tl-console__hint">拖动滑块即时重放库内 {{ replay ? replay.count : '—' }} 条判定，不触发重新分析</p>
       </aside>
@@ -107,7 +123,7 @@ import { ref, reactive, computed, watch, onMounted, onBeforeUnmount, nextTick } 
 import * as echarts from 'echarts'
 import { chartThemeName, chartText, chartFaint, chartAxisLine, chartSplitLine, chartTooltipBg, chartTitleColor, onChartThemeChange } from '@/utils/echartsTheme'
 import { ElMessage } from 'element-plus'
-import { insightApi, projectApi } from '@/api'
+import { insightApi, projectApi, systemConfigApi } from '@/api'
 
 const projects = ref([])
 const projectId = ref(null)
@@ -123,6 +139,75 @@ const weightDefs = [
   { key: 'beta', name: 'β 约束匹配度' },
   { key: 'gamma', name: 'γ 不变量满足度' }
 ]
+
+// ===== P1-4：规则信号权重调参（后端 configureRiskWeights 热生效） =====
+const riskSignalDefs = [
+  { key: 'stateMismatch', name: '状态不匹配' },
+  { key: 'numericMismatch', name: '数值阈值不匹配' },
+  { key: 'paramValidationMissing', name: '参数校验缺失' },
+  { key: 'logicInversion', name: '逻辑反转' },
+  { key: 'commonCodeBug', name: '通用代码坏味' },
+  { key: 'impliedBusinessRuleMissing', name: '隐含业务规则缺失' },
+  { key: 'nullDereference', name: '空指针风险' },
+  { key: 'stateFlowViolation', name: '状态流转违反' },
+  { key: 'refundFactor', name: '退款系数异常' },
+  { key: 'quantitativeBoundMismatch', name: '量化边界错配' }
+]
+/** 后端 P1-4 网格实证基线（去噪 + 温和升权，2026-09-02）：stateMismatch/implied 剔除，num×2 / qBound×1.5 */
+const BASELINE_RISK_WEIGHTS = {
+  stateMismatch: 0,
+  numericMismatch: 2,
+  paramValidationMissing: 1,
+  logicInversion: 1,
+  commonCodeBug: 1,
+  impliedBusinessRuleMissing: 0,
+  nullDereference: 1,
+  stateFlowViolation: 1,
+  refundFactor: 1,
+  quantitativeBoundMismatch: 1.5
+}
+const riskWeights = reactive({ ...BASELINE_RISK_WEIGHTS })
+const savingWeights = ref(false)
+const weightsHint = ref('加载中...')
+
+/** 钳制到 [0,3] 并补全全部信号（未配置信号按 1.0 计，与后端 weightOf 兜底一致） */
+const normalizeWeights = (map) => {
+  const out = {}
+  riskSignalDefs.forEach((d) => {
+    const v = map ? map[d.key] : undefined
+    out[d.key] = typeof v === 'number' && isFinite(v) ? Math.max(0, Math.min(3, v)) : 1
+  })
+  return out
+}
+const loadRiskWeights = async () => {
+  try {
+    const map = await systemConfigApi.getRiskWeights()
+    Object.assign(riskWeights, normalizeWeights(map))
+    weightsHint.value = '已加载当前生效权重（数值×2/边界×1.5 为网格实证基线）'
+  } catch (e) {
+    weightsHint.value = e?.response?.status === 403
+      ? '仅管理员可调参，当前为只读展示'
+      : '权重加载失败：' + (e?.message || '')
+  }
+}
+const saveRiskWeights = async () => {
+  savingWeights.value = true
+  try {
+    const map = { ...riskWeights }
+    await systemConfigApi.save('risk_weights', JSON.stringify(map), '规则信号权重（P1-4 阈值实验室）')
+    weightsHint.value = '已保存并热更新，下次分析按新权重合成 risk'
+    ElMessage.success('规则信号权重已保存并生效')
+  } catch (e) {
+    weightsHint.value = '保存失败：' + (e?.message || '')
+    ElMessage.error(e?.message || '保存失败')
+  } finally {
+    savingWeights.value = false
+  }
+}
+const restoreRiskWeights = () => {
+  Object.assign(riskWeights, { ...BASELINE_RISK_WEIGHTS })
+  weightsHint.value = '已载入网格实证基线（去噪 + num×2/qBound×1.5），点击"保存权重"生效'
+}
 const bucketRows = [
   { name: '完全一致' },
   { name: '一般不一致' },
@@ -225,6 +310,7 @@ onMounted(async () => {
   } catch (e) {
     ElMessage.error(e?.message || '加载项目失败')
   }
+  loadRiskWeights()
   window.addEventListener('resize', () => sweepChart && sweepChart.resize())
 })
 
