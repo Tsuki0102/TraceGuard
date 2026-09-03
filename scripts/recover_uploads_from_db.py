@@ -73,7 +73,7 @@ for pid, pname in projects:
             lines.append("")
             lines.append(content)
         lines.append("}")
-        with io.open(target, "w", encoding="utf-8") as f:
+        with io.open(target, "w", encoding="utf-8", newline="") as f:  # newline="": 禁止平台转换，codeContent 自带 \r\n 不再叠成 \r\r\n
             f.write("\n".join(lines) + "\n")
         n_files += 1
 
@@ -81,7 +81,7 @@ for pid, pname in projects:
     n_reqs = 0
     if reqs:
         req_path = os.path.join(out_root, "requirements_recovered.txt")
-        with io.open(req_path, "w", encoding="utf-8") as f:
+        with io.open(req_path, "w", encoding="utf-8", newline="") as f:
             f.write(f"# [救援重建 2026-09-04] 项目 {pname} (id={pid}) 的需求条目（由 tg_requirement 重建）\n\n")
             for rid, text in reqs:
                 f.write(f"{rid}: {text}\n\n")
