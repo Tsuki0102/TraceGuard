@@ -1,79 +1,2059 @@
 {
-  "description": "GAP-007 需求-代码一致性标注集（M=60，一致:缺陷 ≈ 7:3）。label=consistent 表示该需求-代码对一致；label=defective 表示该对存在缺陷，defectType 为 GAP-020 四类口径，defectId 关联 defect-ground-truth.json。AUD-02 修正（2026-08-21）：(1) 仅含基础代码缺陷的对标记 scope=exclude，移出四类口径评测（CL-009/032/033/034/046）；(2) 按代码内【缺陷】注释修正误标对：CL-002/020/049→需求缺失、CL-038→业务逻辑不一致、CL-041→约束条件不满足；(3) 消除 createExam 重复矛盾（CL-041 与 CL-053 同判约束条件不满足）。AUD-02 二次修正（2026-08-22，LLM 语义判定复核）：按需求原文+代码注释将 9 个原标 consistent 但需求明确要求而代码确实缺失的对改判 defective——CL-021/025→约束条件不满足（与 CL-024/026 同方法同缺陷，defectId=API-005/API-006）、CL-001/019/029→约束条件不满足、CL-014/016→业务逻辑不一致（与 CL-013/006 同类）、CL-028/030→需求缺失；CL-036/039 因标注对挂载方法与缺陷位置错位保持 consistent。AUD-02 三次修正（2026-08-22，LLM 复核+代码核对）：CL-002 改回 consistent——createOrder 已校验 customerId 非空（原 defectId=D02 指向 grantPoints 属误映射，REQ-002 满足）。AUD-02 四次修正（2026-08-22）：CL-057 requirementCode 由 REQ-006 改为 REQ-009——reviewGrade 方法 javadoc 明确为成绩复核（REQ-009），原挂 REQ-006（人工阅卷）属映射错误。",
-  "pairs": [
-    { "id": "CL-001", "source": "ecommerce-order", "requirementCode": "REQ-001", "codeFile": "OrderValidator.java", "method": "validateAmount", "label": "defective", "defectType": "约束条件不满足" },
-    { "id": "CL-002", "source": "ecommerce-order", "requirementCode": "REQ-002", "codeFile": "OrderService.java", "method": "createOrder", "label": "consistent" },
-    { "id": "CL-003", "source": "ecommerce-order", "requirementCode": "REQ-003", "codeFile": "OrderService.java", "method": "completeOrder", "label": "defective", "defectType": "业务逻辑不一致", "defectId": "D04" },
-    { "id": "CL-004", "source": "ecommerce-order", "requirementCode": "REQ-004", "codeFile": "OrderService.java", "method": "payOrder", "label": "defective", "defectType": "约束条件不满足", "defectId": "D05" },
-    { "id": "CL-005", "source": "ecommerce-order", "requirementCode": "REQ-005", "codeFile": "InventoryManager.java", "method": "deduct", "label": "consistent" },
-    { "id": "CL-006", "source": "ecommerce-order", "requirementCode": "REQ-006", "codeFile": "OrderService.java", "method": "refundOrder", "label": "defective", "defectType": "业务逻辑不一致", "defectId": "D09" },
-    { "id": "CL-007", "source": "ecommerce-order", "requirementCode": "REQ-007", "codeFile": "OrderService.java", "method": "cancelOrder", "label": "consistent" },
-    { "id": "CL-008", "source": "ecommerce-order", "requirementCode": "REQ-008", "codeFile": "OrderService.java", "method": "queryById", "label": "consistent" },
-    { "id": "CL-009", "source": "ecommerce-order", "requirementCode": "REQ-009", "codeFile": "OrderService.java", "method": "queryByCustomer", "label": "consistent", "scope": "exclude" },
-    { "id": "CL-010", "source": "ecommerce-order", "requirementCode": "REQ-010", "codeFile": "OrderService.java", "method": "queryByStatus", "label": "consistent" },
-    { "id": "CL-011", "source": "ecommerce-order", "requirementCode": "REQ-011", "codeFile": "OrderService.java", "method": "getDailyCount", "label": "consistent" },
-    { "id": "CL-012", "source": "ecommerce-order", "requirementCode": "REQ-012", "codeFile": "OrderService.java", "method": "getTotalAmount", "label": "consistent" },
-    { "id": "CL-013", "source": "ecommerce-order", "requirementCode": "REQ-005", "codeFile": "InventoryManager.java", "method": "checkStock", "label": "defective", "defectType": "业务逻辑不一致", "defectId": "D11" },
-    { "id": "CL-014", "source": "ecommerce-order", "requirementCode": "REQ-005", "codeFile": "InventoryManager.java", "method": "reserveStock", "label": "defective", "defectType": "业务逻辑不一致" },
-    { "id": "CL-015", "source": "ecommerce-order", "requirementCode": "REQ-003", "codeFile": "OrderValidator.java", "method": "validateOrderParams", "label": "consistent" },
-    { "id": "CL-016", "source": "ecommerce-order", "requirementCode": "REQ-006", "codeFile": "PaymentService.java", "method": "processRefund", "label": "defective", "defectType": "业务逻辑不一致" },
-    { "id": "CL-017", "source": "ecommerce-order", "requirementCode": "REQ-004", "codeFile": "PaymentService.java", "method": "processPayment", "label": "consistent" },
-    { "id": "CL-018", "source": "ecommerce-order", "requirementCode": "REQ-003", "codeFile": "OrderService.java", "method": "autoConfirmReceipt", "label": "defective", "defectType": "约束条件不满足", "defectId": "D10" },
-    { "id": "CL-019", "source": "ecommerce-order", "requirementCode": "REQ-001", "codeFile": "OrderValidator.java", "method": "validateOrderParams", "label": "defective", "defectType": "约束条件不满足" },
-    { "id": "CL-020", "source": "ecommerce-order", "requirementCode": "REQ-009", "codeFile": "OrderService.java", "method": "getOrderCount", "label": "defective", "defectType": "需求缺失" },
-    { "id": "CL-021", "source": "api-service", "requirementCode": "REQ-001", "codeFile": "NotificationController.java", "method": "send", "label": "defective", "defectType": "约束条件不满足", "defectId": "API-005" },
-    { "id": "CL-022", "source": "api-service", "requirementCode": "REQ-002", "codeFile": "NotificationService.java", "method": "checkIdempotent", "label": "defective", "defectType": "业务逻辑不一致", "defectId": "API-004" },
-    { "id": "CL-023", "source": "api-service", "requirementCode": "REQ-003", "codeFile": "NotificationService.java", "method": "checkRateLimit", "label": "defective", "defectType": "业务逻辑不一致", "defectId": "API-003" },
-    { "id": "CL-024", "source": "api-service", "requirementCode": "REQ-001", "codeFile": "NotificationService.java", "method": "validateParams", "label": "defective", "defectType": "约束条件不满足", "defectId": "API-005" },
-    { "id": "CL-025", "source": "api-service", "requirementCode": "REQ-004", "codeFile": "TemplateManager.java", "method": "create", "label": "defective", "defectType": "约束条件不满足", "defectId": "API-006" },
-    { "id": "CL-026", "source": "api-service", "requirementCode": "REQ-004", "codeFile": "TemplateManager.java", "method": "validate", "label": "defective", "defectType": "约束条件不满足", "defectId": "API-006" },
-    { "id": "CL-027", "source": "api-service", "requirementCode": "REQ-001", "codeFile": "NotificationService.java", "method": "doSend", "label": "consistent" },
-    { "id": "CL-028", "source": "api-service", "requirementCode": "REQ-005", "codeFile": "NotificationService.java", "method": "queryHistory", "label": "defective", "defectType": "需求缺失" },
-    { "id": "CL-029", "source": "api-service", "requirementCode": "REQ-006", "codeFile": "NotificationService.java", "method": "batchProcess", "label": "defective", "defectType": "约束条件不满足" },
-    { "id": "CL-030", "source": "api-service", "requirementCode": "REQ-007", "codeFile": "NotificationService.java", "method": "updateDeliveryStatus", "label": "defective", "defectType": "需求缺失" },
-    { "id": "CL-031", "source": "api-service", "requirementCode": "REQ-008", "codeFile": "BlacklistManager.java", "method": "contains", "label": "consistent" },
-    { "id": "CL-032", "source": "api-service", "requirementCode": "REQ-009", "codeFile": "NotificationService.java", "method": "retryWithBackoff", "label": "consistent", "scope": "exclude" },
-    { "id": "CL-033", "source": "api-service", "requirementCode": "REQ-010", "codeFile": "NotificationService.java", "method": "getChannelDistribution", "label": "consistent", "scope": "exclude" },
-    { "id": "CL-034", "source": "api-service", "requirementCode": "REQ-004", "codeFile": "TemplateManager.java", "method": "render", "label": "consistent", "scope": "exclude" },
-    { "id": "CL-035", "source": "api-service", "requirementCode": "REQ-008", "codeFile": "BlacklistManager.java", "method": "add", "label": "consistent" },
-    { "id": "CL-036", "source": "api-service", "requirementCode": "REQ-006", "codeFile": "NotificationService.java", "method": "getBatchProgress", "label": "consistent" },
-    { "id": "CL-037", "source": "api-service", "requirementCode": "REQ-007", "codeFile": "NotificationController.java", "method": "handleCallback", "label": "consistent" },
-    { "id": "CL-038", "source": "api-service", "requirementCode": "REQ-010", "codeFile": "NotificationService.java", "method": "getSuccessRate", "label": "defective", "defectType": "业务逻辑不一致" },
-    { "id": "CL-039", "source": "api-service", "requirementCode": "REQ-002", "codeFile": "NotificationService.java", "method": "cleanIdempotentCache", "label": "consistent" },
-    { "id": "CL-040", "source": "api-service", "requirementCode": "REQ-008", "codeFile": "BlacklistManager.java", "method": "listAll", "label": "consistent" },
-    { "id": "CL-041", "source": "exam-system", "requirementCode": "REQ-001", "codeFile": "ExamService.java", "method": "createExam", "label": "defective", "defectType": "约束条件不满足", "defectId": "EX-006" },
-    { "id": "CL-042", "source": "exam-system", "requirementCode": "REQ-002", "codeFile": "QuestionBank.java", "method": "addQuestion", "label": "consistent" },
-    { "id": "CL-043", "source": "exam-system", "requirementCode": "REQ-003", "codeFile": "ExamService.java", "method": "generatePaper", "label": "consistent" },
-    { "id": "CL-044", "source": "exam-system", "requirementCode": "REQ-004", "codeFile": "ExamService.java", "method": "submitExam", "label": "defective", "defectType": "业务逻辑不一致", "defectId": "EX-004" },
-    { "id": "CL-045", "source": "exam-system", "requirementCode": "REQ-004", "codeFile": "ExamService.java", "method": "autoGrade", "label": "defective", "defectType": "约束条件不满足", "defectId": "EX-005" },
-    { "id": "CL-046", "source": "exam-system", "requirementCode": "REQ-005", "codeFile": "GradingService.java", "method": "gradeSingleChoice", "label": "consistent", "scope": "exclude" },
-    { "id": "CL-047", "source": "exam-system", "requirementCode": "REQ-006", "codeFile": "GradingService.java", "method": "gradeEssay", "label": "consistent" },
-    { "id": "CL-048", "source": "exam-system", "requirementCode": "REQ-007", "codeFile": "ExamService.java", "method": "getStatistics", "label": "defective", "defectType": "业务逻辑不一致", "defectId": "EX-003" },
-    { "id": "CL-049", "source": "exam-system", "requirementCode": "REQ-008", "codeFile": "ExamService.java", "method": "detectCheating", "label": "defective", "defectType": "需求缺失", "defectId": "EX-011" },
-    { "id": "CL-050", "source": "exam-system", "requirementCode": "REQ-009", "codeFile": "GradingService.java", "method": "appealGrade", "label": "consistent" },
-    { "id": "CL-051", "source": "exam-system", "requirementCode": "REQ-010", "codeFile": "ExamService.java", "method": "exportResults", "label": "consistent" },
-    { "id": "CL-052", "source": "exam-system", "requirementCode": "REQ-011", "codeFile": "QuestionBank.java", "method": "importQuestions", "label": "consistent" },
-    { "id": "CL-053", "source": "exam-system", "requirementCode": "REQ-001", "codeFile": "ExamService.java", "method": "createExam", "label": "defective", "defectType": "约束条件不满足", "defectId": "EX-006" },
-    { "id": "CL-054", "source": "exam-system", "requirementCode": "REQ-002", "codeFile": "QuestionBank.java", "method": "removeQuestion", "label": "consistent" },
-    { "id": "CL-055", "source": "exam-system", "requirementCode": "REQ-005", "codeFile": "ScoreCalculator.java", "method": "gradeExam", "label": "consistent" },
-    { "id": "CL-056", "source": "exam-system", "requirementCode": "REQ-007", "codeFile": "ScoreCalculator.java", "method": "calculateStatistics", "label": "consistent" },
-    { "id": "CL-057", "source": "exam-system", "requirementCode": "REQ-009", "codeFile": "GradingService.java", "method": "reviewGrade", "label": "consistent" },
-    { "id": "CL-058", "source": "exam-system", "requirementCode": "REQ-009", "codeFile": "GradingService.java", "method": "processAppeal", "label": "consistent" },
-    { "id": "CL-059", "source": "exam-system", "requirementCode": "REQ-003", "codeFile": "QuestionBank.java", "method": "getRandomQuestions", "label": "consistent" },
-    { "id": "CL-060", "source": "exam-system", "requirementCode": "REQ-008", "codeFile": "ExamService.java", "method": "recordTabSwitch", "label": "consistent" },
-    { "id": "CL-061", "source": "ecommerce-order", "requirementCode": "", "codeFile": "OrderService.java", "method": "grantPoints", "label": "defective", "defectType": "需求缺失", "defectId": "D02" },
-    { "id": "CL-062", "source": "ecommerce-order", "requirementCode": "", "codeFile": "OrderService.java", "method": "batchExportOrders", "label": "defective", "defectType": "代码超范围实现", "defectId": "D03" },
-    { "id": "CL-063", "source": "api-service", "requirementCode": "", "codeFile": "NotificationController.java", "method": "autoReply", "label": "defective", "defectType": "代码超范围实现", "defectId": "API-002" },
-    { "id": "CL-064", "source": "api-service", "requirementCode": "", "codeFile": "NotificationController.java", "method": "send", "label": "defective", "defectType": "需求缺失", "defectId": "API-001" },
-    { "id": "CL-065", "source": "exam-system", "requirementCode": "", "codeFile": "ExamService.java", "method": "generateStudyPlan", "label": "defective", "defectType": "代码超范围实现", "defectId": "EX-002" }
-  ],
-  "summary": {
-    "total": 65,
-    "inScope": 55,
-    "consistent": 29,
-    "defective": 26,
-    "excluded_scope": 5,
-    "out_of_scope": 5,
-    "by_source": { "ecommerce-order": 22, "api-service": 22, "exam-system": 21 }
+ "description": "GAP-007 需求-代码一致性标注集（M=60，一致:缺陷 ≈ 7:3）。label=consistent 表示该需求-代码对一致；label=defective 表示该对存在缺陷，defectType 为 GAP-020 四类口径，defectId 关联 defect-ground-truth.json。AUD-02 修正（2026-08-21）：(1) 仅含基础代码缺陷的对标记 scope=exclude，移出四类口径评测（CL-009/032/033/034/046）；(2) 按代码内【缺陷】注释修正误标对：CL-002/020/049→需求缺失、CL-038→业务逻辑不一致、CL-041→约束条件不满足；(3) 消除 createExam 重复矛盾（CL-041 与 CL-053 同判约束条件不满足）。AUD-02 二次修正（2026-08-22，LLM 语义判定复核）：按需求原文+代码注释将 9 个原标 consistent 但需求明确要求而代码确实缺失的对改判 defective——CL-021/025→约束条件不满足（与 CL-024/026 同方法同缺陷，defectId=API-005/API-006）、CL-001/019/029→约束条件不满足、CL-014/016→业务逻辑不一致（与 CL-013/006 同类）、CL-028/030→需求缺失；CL-036/039 因标注对挂载方法与缺陷位置错位保持 consistent。AUD-02 三次修正（2026-08-22，LLM 复核+代码核对）：CL-002 改回 consistent——createOrder 已校验 customerId 非空（原 defectId=D02 指向 grantPoints 属误映射，REQ-002 满足）。AUD-02 四次修正（2026-08-22）：CL-057 requirementCode 由 REQ-006 改为 REQ-009——reviewGrade 方法 javadoc 明确为成绩复核（REQ-009），原挂 REQ-006（人工阅卷）属映射错误。 A4 扩容（2026-09-03）：新增 ticket-system/library-system 两个样本域共 65 对（split=validation 纯 hold-out 验证集，未参与任何阈值/权重调参），既有 65 对 split=tune（调参集）；secondAnnotator 字段为双评留位（κ 待第二标注人复标后回填）。 A4 修正（2026-09-03）：剔除 6 个字段/辅助能力对（CL-122/124/126/127/221/226，非方法级实现主体，LLM 盲评按方法职责边界判'需求缺失'佐证其不属于方法级一致性口径），与此前剔除 11 个字段级对同一规则。",
+ "pairs": [
+  {
+   "id": "CL-001",
+   "source": "ecommerce-order",
+   "requirementCode": "REQ-001",
+   "codeFile": "OrderValidator.java",
+   "method": "validateAmount",
+   "label": "defective",
+   "defectType": "约束条件不满足",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "defective",
+    "defectType": "约束条件不满足",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-002",
+   "source": "ecommerce-order",
+   "requirementCode": "REQ-002",
+   "codeFile": "OrderService.java",
+   "method": "createOrder",
+   "label": "consistent",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-003",
+   "source": "ecommerce-order",
+   "requirementCode": "REQ-003",
+   "codeFile": "OrderService.java",
+   "method": "completeOrder",
+   "label": "defective",
+   "defectType": "业务逻辑不一致",
+   "defectId": "D04",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "defective",
+    "defectType": "业务逻辑不一致",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-004",
+   "source": "ecommerce-order",
+   "requirementCode": "REQ-004",
+   "codeFile": "OrderService.java",
+   "method": "payOrder",
+   "label": "defective",
+   "defectType": "约束条件不满足",
+   "defectId": "D05",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "defective",
+    "defectType": "约束条件不满足",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-005",
+   "source": "ecommerce-order",
+   "requirementCode": "REQ-005",
+   "codeFile": "InventoryManager.java",
+   "method": "deduct",
+   "label": "consistent",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-006",
+   "source": "ecommerce-order",
+   "requirementCode": "REQ-006",
+   "codeFile": "OrderService.java",
+   "method": "refundOrder",
+   "label": "defective",
+   "defectType": "业务逻辑不一致",
+   "defectId": "D09",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "defective",
+    "defectType": "业务逻辑不一致",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-007",
+   "source": "ecommerce-order",
+   "requirementCode": "REQ-007",
+   "codeFile": "OrderService.java",
+   "method": "cancelOrder",
+   "label": "consistent",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-008",
+   "source": "ecommerce-order",
+   "requirementCode": "REQ-008",
+   "codeFile": "OrderService.java",
+   "method": "queryById",
+   "label": "consistent",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-009",
+   "source": "ecommerce-order",
+   "requirementCode": "REQ-009",
+   "codeFile": "OrderService.java",
+   "method": "queryByCustomer",
+   "label": "consistent",
+   "scope": "exclude",
+   "split": "tune",
+   "secondAnnotator": null
+  },
+  {
+   "id": "CL-010",
+   "source": "ecommerce-order",
+   "requirementCode": "REQ-010",
+   "codeFile": "OrderService.java",
+   "method": "queryByStatus",
+   "label": "consistent",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-011",
+   "source": "ecommerce-order",
+   "requirementCode": "REQ-011",
+   "codeFile": "OrderService.java",
+   "method": "getDailyCount",
+   "label": "consistent",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-012",
+   "source": "ecommerce-order",
+   "requirementCode": "REQ-012",
+   "codeFile": "OrderService.java",
+   "method": "getTotalAmount",
+   "label": "consistent",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-013",
+   "source": "ecommerce-order",
+   "requirementCode": "REQ-005",
+   "codeFile": "InventoryManager.java",
+   "method": "checkStock",
+   "label": "defective",
+   "defectType": "业务逻辑不一致",
+   "defectId": "D11",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "defective",
+    "defectType": "业务逻辑不一致",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-014",
+   "source": "ecommerce-order",
+   "requirementCode": "REQ-005",
+   "codeFile": "InventoryManager.java",
+   "method": "reserveStock",
+   "label": "defective",
+   "defectType": "业务逻辑不一致",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "defective",
+    "defectType": "业务逻辑不一致",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-015",
+   "source": "ecommerce-order",
+   "requirementCode": "REQ-003",
+   "codeFile": "OrderValidator.java",
+   "method": "validateOrderParams",
+   "label": "consistent",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-016",
+   "source": "ecommerce-order",
+   "requirementCode": "REQ-006",
+   "codeFile": "PaymentService.java",
+   "method": "processRefund",
+   "label": "defective",
+   "defectType": "业务逻辑不一致",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "defective",
+    "defectType": "业务逻辑不一致",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-017",
+   "source": "ecommerce-order",
+   "requirementCode": "REQ-004",
+   "codeFile": "PaymentService.java",
+   "method": "processPayment",
+   "label": "consistent",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-018",
+   "source": "ecommerce-order",
+   "requirementCode": "REQ-003",
+   "codeFile": "OrderService.java",
+   "method": "autoConfirmReceipt",
+   "label": "defective",
+   "defectType": "约束条件不满足",
+   "defectId": "D10",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "defective",
+    "defectType": "业务逻辑不一致",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-019",
+   "source": "ecommerce-order",
+   "requirementCode": "REQ-001",
+   "codeFile": "OrderValidator.java",
+   "method": "validateOrderParams",
+   "label": "defective",
+   "defectType": "约束条件不满足",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "defective",
+    "defectType": "约束条件不满足",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-020",
+   "source": "ecommerce-order",
+   "requirementCode": "REQ-009",
+   "codeFile": "OrderService.java",
+   "method": "getOrderCount",
+   "label": "defective",
+   "defectType": "需求缺失",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "defective",
+    "defectType": "需求缺失",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-021",
+   "source": "api-service",
+   "requirementCode": "REQ-001",
+   "codeFile": "NotificationController.java",
+   "method": "send",
+   "label": "defective",
+   "defectType": "约束条件不满足",
+   "defectId": "API-005",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "defective",
+    "defectType": "约束条件不满足",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-022",
+   "source": "api-service",
+   "requirementCode": "REQ-002",
+   "codeFile": "NotificationService.java",
+   "method": "checkIdempotent",
+   "label": "defective",
+   "defectType": "业务逻辑不一致",
+   "defectId": "API-004",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "defective",
+    "defectType": "业务逻辑不一致",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-023",
+   "source": "api-service",
+   "requirementCode": "REQ-003",
+   "codeFile": "NotificationService.java",
+   "method": "checkRateLimit",
+   "label": "defective",
+   "defectType": "业务逻辑不一致",
+   "defectId": "API-003",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "defective",
+    "defectType": "业务逻辑不一致",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-024",
+   "source": "api-service",
+   "requirementCode": "REQ-001",
+   "codeFile": "NotificationService.java",
+   "method": "validateParams",
+   "label": "defective",
+   "defectType": "约束条件不满足",
+   "defectId": "API-005",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "defective",
+    "defectType": "约束条件不满足",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-025",
+   "source": "api-service",
+   "requirementCode": "REQ-004",
+   "codeFile": "TemplateManager.java",
+   "method": "create",
+   "label": "defective",
+   "defectType": "约束条件不满足",
+   "defectId": "API-006",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": false
+   }
+  },
+  {
+   "id": "CL-026",
+   "source": "api-service",
+   "requirementCode": "REQ-004",
+   "codeFile": "TemplateManager.java",
+   "method": "validate",
+   "label": "defective",
+   "defectType": "约束条件不满足",
+   "defectId": "API-006",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "defective",
+    "defectType": "业务逻辑不一致",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-027",
+   "source": "api-service",
+   "requirementCode": "REQ-001",
+   "codeFile": "NotificationService.java",
+   "method": "doSend",
+   "label": "consistent",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-028",
+   "source": "api-service",
+   "requirementCode": "REQ-005",
+   "codeFile": "NotificationService.java",
+   "method": "queryHistory",
+   "label": "defective",
+   "defectType": "需求缺失",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "defective",
+    "defectType": "约束条件不满足",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-029",
+   "source": "api-service",
+   "requirementCode": "REQ-006",
+   "codeFile": "NotificationService.java",
+   "method": "batchProcess",
+   "label": "defective",
+   "defectType": "约束条件不满足",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": false
+   }
+  },
+  {
+   "id": "CL-030",
+   "source": "api-service",
+   "requirementCode": "REQ-007",
+   "codeFile": "NotificationService.java",
+   "method": "updateDeliveryStatus",
+   "label": "defective",
+   "defectType": "需求缺失",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "defective",
+    "defectType": "需求缺失",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-031",
+   "source": "api-service",
+   "requirementCode": "REQ-008",
+   "codeFile": "BlacklistManager.java",
+   "method": "contains",
+   "label": "consistent",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-032",
+   "source": "api-service",
+   "requirementCode": "REQ-009",
+   "codeFile": "NotificationService.java",
+   "method": "retryWithBackoff",
+   "label": "consistent",
+   "scope": "exclude",
+   "split": "tune",
+   "secondAnnotator": null
+  },
+  {
+   "id": "CL-033",
+   "source": "api-service",
+   "requirementCode": "REQ-010",
+   "codeFile": "NotificationService.java",
+   "method": "getChannelDistribution",
+   "label": "consistent",
+   "scope": "exclude",
+   "split": "tune",
+   "secondAnnotator": null
+  },
+  {
+   "id": "CL-034",
+   "source": "api-service",
+   "requirementCode": "REQ-004",
+   "codeFile": "TemplateManager.java",
+   "method": "render",
+   "label": "consistent",
+   "scope": "exclude",
+   "split": "tune",
+   "secondAnnotator": null
+  },
+  {
+   "id": "CL-035",
+   "source": "api-service",
+   "requirementCode": "REQ-008",
+   "codeFile": "BlacklistManager.java",
+   "method": "add",
+   "label": "consistent",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-036",
+   "source": "api-service",
+   "requirementCode": "REQ-006",
+   "codeFile": "NotificationService.java",
+   "method": "getBatchProgress",
+   "label": "consistent",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-037",
+   "source": "api-service",
+   "requirementCode": "REQ-007",
+   "codeFile": "NotificationController.java",
+   "method": "handleCallback",
+   "label": "consistent",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-038",
+   "source": "api-service",
+   "requirementCode": "REQ-010",
+   "codeFile": "NotificationService.java",
+   "method": "getSuccessRate",
+   "label": "defective",
+   "defectType": "业务逻辑不一致",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": false
+   }
+  },
+  {
+   "id": "CL-039",
+   "source": "api-service",
+   "requirementCode": "REQ-002",
+   "codeFile": "NotificationService.java",
+   "method": "cleanIdempotentCache",
+   "label": "consistent",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-040",
+   "source": "api-service",
+   "requirementCode": "REQ-008",
+   "codeFile": "BlacklistManager.java",
+   "method": "listAll",
+   "label": "consistent",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-041",
+   "source": "exam-system",
+   "requirementCode": "REQ-001",
+   "codeFile": "ExamService.java",
+   "method": "createExam",
+   "label": "defective",
+   "defectType": "约束条件不满足",
+   "defectId": "EX-006",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "defective",
+    "defectType": "约束条件不满足",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-042",
+   "source": "exam-system",
+   "requirementCode": "REQ-002",
+   "codeFile": "QuestionBank.java",
+   "method": "addQuestion",
+   "label": "consistent",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-043",
+   "source": "exam-system",
+   "requirementCode": "REQ-003",
+   "codeFile": "ExamService.java",
+   "method": "generatePaper",
+   "label": "consistent",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-044",
+   "source": "exam-system",
+   "requirementCode": "REQ-004",
+   "codeFile": "ExamService.java",
+   "method": "submitExam",
+   "label": "defective",
+   "defectType": "业务逻辑不一致",
+   "defectId": "EX-004",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "defective",
+    "defectType": "业务逻辑不一致",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-045",
+   "source": "exam-system",
+   "requirementCode": "REQ-004",
+   "codeFile": "ExamService.java",
+   "method": "autoGrade",
+   "label": "defective",
+   "defectType": "约束条件不满足",
+   "defectId": "EX-005",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": false
+   }
+  },
+  {
+   "id": "CL-046",
+   "source": "exam-system",
+   "requirementCode": "REQ-005",
+   "codeFile": "GradingService.java",
+   "method": "gradeSingleChoice",
+   "label": "consistent",
+   "scope": "exclude",
+   "split": "tune",
+   "secondAnnotator": null
+  },
+  {
+   "id": "CL-047",
+   "source": "exam-system",
+   "requirementCode": "REQ-006",
+   "codeFile": "GradingService.java",
+   "method": "gradeEssay",
+   "label": "consistent",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "defective",
+    "defectType": "业务逻辑不一致",
+    "agreement": false
+   }
+  },
+  {
+   "id": "CL-048",
+   "source": "exam-system",
+   "requirementCode": "REQ-007",
+   "codeFile": "ExamService.java",
+   "method": "getStatistics",
+   "label": "defective",
+   "defectType": "业务逻辑不一致",
+   "defectId": "EX-003",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "defective",
+    "defectType": "业务逻辑不一致",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-049",
+   "source": "exam-system",
+   "requirementCode": "REQ-008",
+   "codeFile": "ExamService.java",
+   "method": "detectCheating",
+   "label": "defective",
+   "defectType": "需求缺失",
+   "defectId": "EX-011",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "defective",
+    "defectType": "约束条件不满足",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-050",
+   "source": "exam-system",
+   "requirementCode": "REQ-009",
+   "codeFile": "GradingService.java",
+   "method": "appealGrade",
+   "label": "consistent",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-051",
+   "source": "exam-system",
+   "requirementCode": "REQ-010",
+   "codeFile": "ExamService.java",
+   "method": "exportResults",
+   "label": "consistent",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-052",
+   "source": "exam-system",
+   "requirementCode": "REQ-011",
+   "codeFile": "QuestionBank.java",
+   "method": "importQuestions",
+   "label": "consistent",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "defective",
+    "defectType": "约束条件不满足",
+    "agreement": false
+   }
+  },
+  {
+   "id": "CL-053",
+   "source": "exam-system",
+   "requirementCode": "REQ-001",
+   "codeFile": "ExamService.java",
+   "method": "createExam",
+   "label": "defective",
+   "defectType": "约束条件不满足",
+   "defectId": "EX-006",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "defective",
+    "defectType": "约束条件不满足",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-054",
+   "source": "exam-system",
+   "requirementCode": "REQ-002",
+   "codeFile": "QuestionBank.java",
+   "method": "removeQuestion",
+   "label": "consistent",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-055",
+   "source": "exam-system",
+   "requirementCode": "REQ-005",
+   "codeFile": "ScoreCalculator.java",
+   "method": "gradeExam",
+   "label": "consistent",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "defective",
+    "defectType": "需求缺失",
+    "agreement": false
+   }
+  },
+  {
+   "id": "CL-056",
+   "source": "exam-system",
+   "requirementCode": "REQ-007",
+   "codeFile": "ScoreCalculator.java",
+   "method": "calculateStatistics",
+   "label": "consistent",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-057",
+   "source": "exam-system",
+   "requirementCode": "REQ-009",
+   "codeFile": "GradingService.java",
+   "method": "reviewGrade",
+   "label": "consistent",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-058",
+   "source": "exam-system",
+   "requirementCode": "REQ-009",
+   "codeFile": "GradingService.java",
+   "method": "processAppeal",
+   "label": "consistent",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-059",
+   "source": "exam-system",
+   "requirementCode": "REQ-003",
+   "codeFile": "QuestionBank.java",
+   "method": "getRandomQuestions",
+   "label": "consistent",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "defective",
+    "defectType": "约束条件不满足",
+    "agreement": false
+   }
+  },
+  {
+   "id": "CL-060",
+   "source": "exam-system",
+   "requirementCode": "REQ-008",
+   "codeFile": "ExamService.java",
+   "method": "recordTabSwitch",
+   "label": "consistent",
+   "split": "tune",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-061",
+   "source": "ecommerce-order",
+   "requirementCode": "",
+   "codeFile": "OrderService.java",
+   "method": "grantPoints",
+   "label": "defective",
+   "defectType": "需求缺失",
+   "defectId": "D02",
+   "split": "tune",
+   "secondAnnotator": null
+  },
+  {
+   "id": "CL-062",
+   "source": "ecommerce-order",
+   "requirementCode": "",
+   "codeFile": "OrderService.java",
+   "method": "batchExportOrders",
+   "label": "defective",
+   "defectType": "代码超范围实现",
+   "defectId": "D03",
+   "split": "tune",
+   "secondAnnotator": null
+  },
+  {
+   "id": "CL-063",
+   "source": "api-service",
+   "requirementCode": "",
+   "codeFile": "NotificationController.java",
+   "method": "autoReply",
+   "label": "defective",
+   "defectType": "代码超范围实现",
+   "defectId": "API-002",
+   "split": "tune",
+   "secondAnnotator": null
+  },
+  {
+   "id": "CL-064",
+   "source": "api-service",
+   "requirementCode": "",
+   "codeFile": "NotificationController.java",
+   "method": "send",
+   "label": "defective",
+   "defectType": "需求缺失",
+   "defectId": "API-001",
+   "split": "tune",
+   "secondAnnotator": null
+  },
+  {
+   "id": "CL-065",
+   "source": "exam-system",
+   "requirementCode": "",
+   "codeFile": "ExamService.java",
+   "method": "generateStudyPlan",
+   "label": "defective",
+   "defectType": "代码超范围实现",
+   "defectId": "EX-002",
+   "split": "tune",
+   "secondAnnotator": null
+  },
+  {
+   "id": "CL-101",
+   "source": "ticket-system",
+   "requirementCode": "REQ-T003",
+   "codeFile": "TicketService.java",
+   "method": "createTicket",
+   "label": "consistent",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-102",
+   "source": "ticket-system",
+   "requirementCode": "REQ-T004",
+   "codeFile": "TicketStateValidator.java",
+   "method": "validateTransition",
+   "label": "consistent",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "defective",
+    "defectType": "业务逻辑不一致",
+    "agreement": false
+   }
+  },
+  {
+   "id": "CL-103",
+   "source": "ticket-system",
+   "requirementCode": "REQ-T006",
+   "codeFile": "TicketStateValidator.java",
+   "method": "canAccept",
+   "label": "consistent",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-104",
+   "source": "ticket-system",
+   "requirementCode": "REQ-T019",
+   "codeFile": "TicketService.java",
+   "method": "resolveTicket",
+   "label": "consistent",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-105",
+   "source": "ticket-system",
+   "requirementCode": "REQ-T020",
+   "codeFile": "TicketService.java",
+   "method": "batchImport",
+   "label": "consistent",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-106",
+   "source": "ticket-system",
+   "requirementCode": "REQ-T012",
+   "codeFile": "TicketQueryService.java",
+   "method": "queryById",
+   "label": "consistent",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-107",
+   "source": "ticket-system",
+   "requirementCode": "REQ-T013",
+   "codeFile": "TicketQueryService.java",
+   "method": "queryByStatus",
+   "label": "consistent",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-108",
+   "source": "ticket-system",
+   "requirementCode": "REQ-T015",
+   "codeFile": "TicketQueryService.java",
+   "method": "countByDate",
+   "label": "consistent",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-109",
+   "source": "ticket-system",
+   "requirementCode": "REQ-T021",
+   "codeFile": "TicketQueryService.java",
+   "method": "searchByKeyword",
+   "label": "consistent",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-110",
+   "source": "ticket-system",
+   "requirementCode": "REQ-T017",
+   "codeFile": "TicketQueryService.java",
+   "method": "queryPaged",
+   "label": "consistent",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   },
+   "note": "困难负例：需求表述分页规则，实现为分页参数裁剪，措辞迥异语义一致"
+  },
+  {
+   "id": "CL-111",
+   "source": "ticket-system",
+   "requirementCode": "REQ-T018",
+   "codeFile": "TicketValidator.java",
+   "method": "containsSensitiveWord",
+   "label": "consistent",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   },
+   "note": "困难负例：需求'敏感词过滤'，实现为本地词表匹配"
+  },
+  {
+   "id": "CL-112",
+   "source": "ticket-system",
+   "requirementCode": "REQ-T022",
+   "codeFile": "TicketValidator.java",
+   "method": "hasDeletePermission",
+   "label": "consistent",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-113",
+   "source": "ticket-system",
+   "requirementCode": "REQ-T024",
+   "codeFile": "TicketValidator.java",
+   "method": "validateAttachmentSize",
+   "label": "consistent",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-114",
+   "source": "ticket-system",
+   "requirementCode": "REQ-T016",
+   "codeFile": "SlaCalculator.java",
+   "method": "countSlaBreaches",
+   "label": "consistent",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   },
+   "note": "困难负例：SLA常量缺陷归属 computeDeadlineHours（单点归因），统计逻辑自身一致"
+  },
+  {
+   "id": "CL-115",
+   "source": "ticket-system",
+   "requirementCode": "REQ-T026",
+   "codeFile": "TicketArchiveService.java",
+   "method": "archiveExpiredTickets",
+   "label": "consistent",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-116",
+   "source": "ticket-system",
+   "requirementCode": "REQ-T016",
+   "codeFile": "SlaCalculator.java",
+   "method": "isBreached",
+   "label": "consistent",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   },
+   "note": "困难负例：超时判断逻辑自身一致，时限常量缺陷归属他处"
+  },
+  {
+   "id": "CL-117",
+   "source": "ticket-system",
+   "requirementCode": "REQ-T002",
+   "codeFile": "TicketService.java",
+   "method": "createTicket",
+   "label": "consistent",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   },
+   "note": "入口委托校验模式（镜像既有 CL-002 口径）"
+  },
+  {
+   "id": "CL-118",
+   "source": "ticket-system",
+   "requirementCode": "REQ-T018",
+   "codeFile": "TicketService.java",
+   "method": "createTicket",
+   "label": "consistent",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-130",
+   "source": "ticket-system",
+   "requirementCode": "REQ-T001",
+   "codeFile": "TicketValidator.java",
+   "method": "validateTitle",
+   "label": "defective",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "defective",
+    "defectType": "约束条件不满足",
+    "agreement": true
+   },
+   "defectType": "业务逻辑不一致",
+   "defectId": "D-T01",
+   "note": "困难负例：结构语义高度对齐，仅数值 100≠50"
+  },
+  {
+   "id": "CL-131",
+   "source": "ticket-system",
+   "requirementCode": "REQ-T002",
+   "codeFile": "TicketValidator.java",
+   "method": "validatePriority",
+   "label": "defective",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "defective",
+    "defectType": "约束条件不满足",
+    "agreement": true
+   },
+   "defectType": "约束条件不满足",
+   "defectId": "D-T03"
+  },
+  {
+   "id": "CL-132",
+   "source": "ticket-system",
+   "requirementCode": "REQ-T005",
+   "codeFile": "SlaCalculator.java",
+   "method": "computeDeadlineHours",
+   "label": "defective",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "defective",
+    "defectType": "业务逻辑不一致",
+    "agreement": true
+   },
+   "defectType": "业务逻辑不一致",
+   "defectId": "D-T09",
+   "note": "困难负例：分支齐备仅数值 4h≠2h"
+  },
+  {
+   "id": "CL-133",
+   "source": "ticket-system",
+   "requirementCode": "REQ-T007",
+   "codeFile": "TicketService.java",
+   "method": "assignTicket",
+   "label": "defective",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "defective",
+    "defectType": "业务逻辑不一致",
+    "agreement": true
+   },
+   "defectType": "业务逻辑不一致",
+   "defectId": "D-T05"
+  },
+  {
+   "id": "CL-134",
+   "source": "ticket-system",
+   "requirementCode": "REQ-T008",
+   "codeFile": "TicketStateValidator.java",
+   "method": "canClose",
+   "label": "defective",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "defective",
+    "defectType": "约束条件不满足",
+    "agreement": true
+   },
+   "defectType": "约束条件不满足",
+   "defectId": "D-T07"
+  },
+  {
+   "id": "CL-135",
+   "source": "ticket-system",
+   "requirementCode": "REQ-T008",
+   "codeFile": "TicketService.java",
+   "method": "closeTicket",
+   "label": "defective",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "defective",
+    "defectType": "业务逻辑不一致",
+    "agreement": true
+   },
+   "defectType": "业务逻辑不一致",
+   "defectId": "D-T06"
+  },
+  {
+   "id": "CL-136",
+   "source": "ticket-system",
+   "requirementCode": "REQ-T009",
+   "codeFile": "TicketService.java",
+   "method": "reopenTicket",
+   "label": "defective",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "defective",
+    "defectType": "约束条件不满足",
+    "agreement": true
+   },
+   "defectType": "约束条件不满足",
+   "defectId": "D-T04"
+  },
+  {
+   "id": "CL-137",
+   "source": "ticket-system",
+   "requirementCode": "REQ-T010",
+   "codeFile": "TicketService.java",
+   "method": "escalateIfOverdue",
+   "label": "defective",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "defective",
+    "defectType": "业务逻辑不一致",
+    "agreement": true
+   },
+   "defectType": "业务逻辑不一致",
+   "defectId": "D-T08"
+  },
+  {
+   "id": "CL-138",
+   "source": "ticket-system",
+   "requirementCode": "REQ-T011",
+   "codeFile": "NotificationService.java",
+   "method": "notifyAssignee",
+   "label": "defective",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "defective",
+    "defectType": "业务逻辑不一致",
+    "agreement": true
+   },
+   "defectType": "业务逻辑不一致",
+   "defectId": "D-T11"
+  },
+  {
+   "id": "CL-139",
+   "source": "ticket-system",
+   "requirementCode": "REQ-T014",
+   "codeFile": "TicketQueryService.java",
+   "method": "queryByAssignee",
+   "label": "defective",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "defective",
+    "defectType": "约束条件不满足",
+    "agreement": true
+   },
+   "defectType": "约束条件不满足",
+   "defectId": "D-T10"
+  },
+  {
+   "id": "CL-140",
+   "source": "ticket-system",
+   "requirementCode": "REQ-T001",
+   "codeFile": "TicketService.java",
+   "method": "createTicket",
+   "label": "consistent",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   },
+   "note": "入口委托校验模式：标题校验缺陷归属 validateTitle"
+  },
+  {
+   "id": "CL-150",
+   "source": "ticket-system",
+   "requirementCode": "",
+   "codeFile": "TicketQueryService.java",
+   "method": "dumpDebugSnapshot",
+   "label": "defective",
+   "split": "validation",
+   "secondAnnotator": null,
+   "defectType": "代码超范围实现",
+   "defectId": "D-T12"
+  },
+  {
+   "id": "CL-151",
+   "source": "ticket-system",
+   "requirementCode": "",
+   "codeFile": "TicketArchiveService.java",
+   "method": "notifyArchiveResultByMail",
+   "label": "defective",
+   "split": "validation",
+   "secondAnnotator": null,
+   "defectType": "代码超范围实现",
+   "defectId": "D-T13"
+  },
+  {
+   "id": "CL-201",
+   "source": "library-system",
+   "requirementCode": "REQ-L004",
+   "codeFile": "BorrowService.java",
+   "method": "borrowBook",
+   "label": "consistent",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   },
+   "note": "困难负例：多步流程（扣库存/生成记录/更新在借数）依次完成"
+  },
+  {
+   "id": "CL-202",
+   "source": "library-system",
+   "requirementCode": "REQ-L005",
+   "codeFile": "BorrowService.java",
+   "method": "borrowBook",
+   "label": "consistent",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-203",
+   "source": "library-system",
+   "requirementCode": "REQ-L007",
+   "codeFile": "FineCalculator.java",
+   "method": "computeFine",
+   "label": "consistent",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   },
+   "note": "困难负例：费率与封顶分两段需求文字，实现以常量+min封顶表达，措辞迥异语义一致"
+  },
+  {
+   "id": "CL-204",
+   "source": "library-system",
+   "requirementCode": "REQ-L011",
+   "codeFile": "FineCalculator.java",
+   "method": "isCreditBlockedByDebt",
+   "label": "consistent",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-205",
+   "source": "library-system",
+   "requirementCode": "REQ-L013",
+   "codeFile": "LibraryQueryService.java",
+   "method": "reserveBook",
+   "label": "consistent",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-206",
+   "source": "library-system",
+   "requirementCode": "REQ-L014",
+   "codeFile": "LibraryQueryService.java",
+   "method": "cancelReservation",
+   "label": "consistent",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-207",
+   "source": "library-system",
+   "requirementCode": "REQ-L015",
+   "codeFile": "LibraryQueryService.java",
+   "method": "queryBorrowingByReader",
+   "label": "consistent",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-208",
+   "source": "library-system",
+   "requirementCode": "REQ-L017",
+   "codeFile": "LibraryQueryService.java",
+   "method": "countBorrowingByCategory",
+   "label": "consistent",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-209",
+   "source": "library-system",
+   "requirementCode": "REQ-L018",
+   "codeFile": "LibraryQueryService.java",
+   "method": "searchByIsbn",
+   "label": "consistent",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   },
+   "note": "英文需求对"
+  },
+  {
+   "id": "CL-210",
+   "source": "library-system",
+   "requirementCode": "REQ-L019",
+   "codeFile": "BorrowService.java",
+   "method": "reissueCard",
+   "label": "consistent",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-211",
+   "source": "library-system",
+   "requirementCode": "REQ-L020",
+   "codeFile": "BookManageService.java",
+   "method": "addBook",
+   "label": "consistent",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-212",
+   "source": "library-system",
+   "requirementCode": "REQ-L020",
+   "codeFile": "BorrowValidator.java",
+   "method": "validateBookInfo",
+   "label": "consistent",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-213",
+   "source": "library-system",
+   "requirementCode": "REQ-L003",
+   "codeFile": "BorrowValidator.java",
+   "method": "validateStock",
+   "label": "consistent",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-214",
+   "source": "library-system",
+   "requirementCode": "REQ-L003",
+   "codeFile": "BorrowService.java",
+   "method": "borrowBook",
+   "label": "consistent",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   },
+   "note": "入口委托库存校验"
+  },
+  {
+   "id": "CL-215",
+   "source": "library-system",
+   "requirementCode": "REQ-L002",
+   "codeFile": "BorrowService.java",
+   "method": "borrowBook",
+   "label": "consistent",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   },
+   "note": "入口委托额度校验（额度常量缺陷归属 validateQuota）"
+  },
+  {
+   "id": "CL-216",
+   "source": "library-system",
+   "requirementCode": "REQ-L001",
+   "codeFile": "BorrowService.java",
+   "method": "borrowBook",
+   "label": "consistent",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   },
+   "note": "入口委托读者证校验（有效期缺陷归属 validateCardValidity）"
+  },
+  {
+   "id": "CL-230",
+   "source": "library-system",
+   "requirementCode": "REQ-L002",
+   "codeFile": "BorrowValidator.java",
+   "method": "validateQuota",
+   "label": "defective",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "defective",
+    "defectType": "约束条件不满足",
+    "agreement": true
+   },
+   "defectType": "业务逻辑不一致",
+   "defectId": "D-L01",
+   "note": "困难负例：校验结构完整仅数值 3≠5"
+  },
+  {
+   "id": "CL-231",
+   "source": "library-system",
+   "requirementCode": "REQ-L006",
+   "codeFile": "BorrowService.java",
+   "method": "returnBook",
+   "label": "defective",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "defective",
+    "defectType": "需求缺失",
+    "agreement": true
+   },
+   "defectType": "业务逻辑不一致",
+   "defectId": "D-L02"
+  },
+  {
+   "id": "CL-232",
+   "source": "library-system",
+   "requirementCode": "REQ-L008",
+   "codeFile": "BorrowService.java",
+   "method": "returnBook",
+   "label": "defective",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "defective",
+    "defectType": "业务逻辑不一致",
+    "agreement": true
+   },
+   "defectType": "业务逻辑不一致",
+   "defectId": "D-L03"
+  },
+  {
+   "id": "CL-233",
+   "source": "library-system",
+   "requirementCode": "REQ-L009",
+   "codeFile": "BorrowService.java",
+   "method": "renewBook",
+   "label": "defective",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "defective",
+    "defectType": "业务逻辑不一致",
+    "agreement": true
+   },
+   "defectType": "业务逻辑不一致",
+   "defectId": "D-L04"
+  },
+  {
+   "id": "CL-234",
+   "source": "library-system",
+   "requirementCode": "REQ-L010",
+   "codeFile": "BorrowService.java",
+   "method": "renewBook",
+   "label": "defective",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "defective",
+    "defectType": "约束条件不满足",
+    "agreement": true
+   },
+   "defectType": "约束条件不满足",
+   "defectId": "D-L05"
+  },
+  {
+   "id": "CL-235",
+   "source": "library-system",
+   "requirementCode": "REQ-L001",
+   "codeFile": "BorrowValidator.java",
+   "method": "validateCardValidity",
+   "label": "defective",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "defective",
+    "defectType": "约束条件不满足",
+    "agreement": true
+   },
+   "defectType": "约束条件不满足",
+   "defectId": "D-L06"
+  },
+  {
+   "id": "CL-236",
+   "source": "library-system",
+   "requirementCode": "REQ-L012",
+   "codeFile": "FineCalculator.java",
+   "method": "isCreditBlockedByOverdue",
+   "label": "defective",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "defective",
+    "defectType": "业务逻辑不一致",
+    "agreement": true
+   },
+   "defectType": "业务逻辑不一致",
+   "defectId": "D-L07",
+   "note": "困难负例：仅数值 30≠15"
+  },
+  {
+   "id": "CL-237",
+   "source": "library-system",
+   "requirementCode": "REQ-L016",
+   "codeFile": "LibraryQueryService.java",
+   "method": "queryOverdue",
+   "label": "defective",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "defective",
+    "defectType": "业务逻辑不一致",
+    "agreement": true
+   },
+   "defectType": "业务逻辑不一致",
+   "defectId": "D-L08",
+   "note": "细节困难例：排序方向反转"
+  },
+  {
+   "id": "CL-238",
+   "source": "library-system",
+   "requirementCode": "REQ-L011",
+   "codeFile": "BorrowService.java",
+   "method": "borrowBook",
+   "label": "defective",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "defective",
+    "defectType": "业务逻辑不一致",
+    "agreement": true
+   },
+   "defectType": "约束条件不满足",
+   "defectId": "D-L09",
+   "note": "冻结/欠款检查缺失，检查职责归属借书入口"
+  },
+  {
+   "id": "CL-250",
+   "source": "library-system",
+   "requirementCode": "",
+   "codeFile": "BookManageService.java",
+   "method": "sendOverdueReminder",
+   "label": "defective",
+   "split": "validation",
+   "secondAnnotator": null,
+   "defectType": "代码超范围实现",
+   "defectId": "D-L10"
+  },
+  {
+   "id": "CL-251",
+   "source": "library-system",
+   "requirementCode": "",
+   "codeFile": "BookManageService.java",
+   "method": "compressCoverImage",
+   "label": "defective",
+   "split": "validation",
+   "secondAnnotator": null,
+   "defectType": "代码超范围实现",
+   "defectId": "D-L11"
+  },
+  {
+   "id": "CL-123",
+   "source": "ticket-system",
+   "requirementCode": "REQ-T006",
+   "codeFile": "TicketService.java",
+   "method": "acceptTicket",
+   "label": "consistent",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   },
+   "note": "受理主实现：校验+状态置 OPEN"
+  },
+  {
+   "id": "CL-152",
+   "source": "ticket-system",
+   "requirementCode": "",
+   "codeFile": "Ticket.java",
+   "method": "getFinishEvaluation",
+   "label": "defective",
+   "defectType": "需求缺失",
+   "defectId": "D-T14",
+   "split": "validation",
+   "secondAnnotator": null,
+   "note": "需求缺失锚点（不进四类矩阵）"
+  },
+  {
+   "id": "CL-125",
+   "source": "ticket-system",
+   "requirementCode": "REQ-T029",
+   "codeFile": "NotificationService.java",
+   "method": "clearUnreadNotices",
+   "label": "consistent",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "defective",
+    "defectType": "业务逻辑不一致",
+    "agreement": false
+   }
+  },
+  {
+   "id": "CL-223",
+   "source": "library-system",
+   "requirementCode": "REQ-L023",
+   "codeFile": "LibraryReportService.java",
+   "method": "countLifetimeBorrows",
+   "label": "consistent",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-224",
+   "source": "library-system",
+   "requirementCode": "REQ-L024",
+   "codeFile": "LibraryReportService.java",
+   "method": "hasActiveReservation",
+   "label": "consistent",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "defective",
+    "defectType": "业务逻辑不一致",
+    "agreement": false
+   }
+  },
+  {
+   "id": "CL-225",
+   "source": "library-system",
+   "requirementCode": "REQ-L025",
+   "codeFile": "LibraryQueryService.java",
+   "method": "searchByAuthor",
+   "label": "consistent",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   }
+  },
+  {
+   "id": "CL-227",
+   "source": "library-system",
+   "requirementCode": "REQ-L006",
+   "codeFile": "FineCalculator.java",
+   "method": "computeFine",
+   "label": "consistent",
+   "split": "validation",
+   "secondAnnotator": {
+    "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+    "label": "consistent",
+    "defectType": "",
+    "agreement": true
+   },
+   "note": "归属分离对：费率与封顶实现正确，罚款入账缺陷归 returnBook（D-L02）"
+  },
+  {
+   "id": "CL-222",
+   "source": "library-system",
+   "requirementCode": "REQ-L016",
+   "codeFile": "Book.java",
+   "method": "getDueDate",
+   "label": "consistent",
+   "split": "validation",
+   "secondAnnotator": null,
+   "note": "逾期判定依赖应还日期字段"
   }
+ ],
+ "summary": {
+  "total": 131,
+  "inScope": 116,
+  "consistent": 71,
+  "defective": 45,
+  "excluded_scope": 5,
+  "out_of_scope": 10,
+  "by_source": {
+   "ecommerce-order": 22,
+   "api-service": 22,
+   "exam-system": 21,
+   "ticket-system": 34,
+   "library-system": 32
+  },
+  "by_split": {
+   "tune": 65,
+   "validation": 66
+  },
+  "by_source_split": {
+   "ecommerce-order": {
+    "tune": 22,
+    "validation": 0
+   },
+   "api-service": {
+    "tune": 22,
+    "validation": 0
+   },
+   "exam-system": {
+    "tune": 21,
+    "validation": 0
+   },
+   "ticket-system": {
+    "tune": 0,
+    "validation": 34
+   },
+   "library-system": {
+    "tune": 0,
+    "validation": 32
+   }
+  }
+ }
 }

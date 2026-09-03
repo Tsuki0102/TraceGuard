@@ -1,55 +1,607 @@
 {
-  "description": "GAP-007 缺陷 Ground Truth：聚合 GAP-035 三样例工程 defects.json（统一 schema，供评测对齐）。三工程原始清单分别位于 ../ecommerce-order/defects.json、../api-service/defects.json、../exam-system/defects.json。P2-2（2026-09-02）：为语义型缺陷补 line（缺陷所在源文件行号，命中=行差<=2），供行号定位准确率评测（-Ddefect.loc.eval=true）基线追踪。",
-  "sources": [
-    "../ecommerce-order/defects.json",
-    "../api-service/defects.json",
-    "../exam-system/defects.json"
-  ],
-  "defects": [
-    { "id": "D01", "project": "ecommerce-order", "file": "OrderService.java", "method": "loadDiscountConfig", "line": 99, "type": "约束条件不满足", "subType": "资源未释放", "relatedReq": "REQ-003" },
-    { "id": "D02", "project": "ecommerce-order", "file": "OrderService.java", "method": "grantPoints", "line": 89, "type": "需求缺失", "subType": "未定义功能实现", "relatedReq": "" },
-    { "id": "D03", "project": "ecommerce-order", "file": "OrderService.java", "method": "batchExportOrders", "line": 371, "type": "代码超范围实现", "subType": "未定义功能实现", "relatedReq": "" },
-    { "id": "D04", "project": "ecommerce-order", "file": "OrderService.java", "method": "completeOrder", "line": 173, "type": "业务逻辑不一致", "subType": "阈值条件反转", "relatedReq": "REQ-003" },
-    { "id": "D05", "project": "ecommerce-order", "file": "OrderService.java", "method": "payOrder", "line": 123, "type": "约束条件不满足", "subType": "缺少空值校验", "relatedReq": "REQ-004" },
-    { "id": "D06", "project": "ecommerce-order", "file": "OrderService.java", "method": "queryByCustomer", "line": 259, "type": "基础代码缺陷", "subType": "空指针风险", "relatedReq": "REQ-009" },
-    { "id": "D07", "project": "ecommerce-order", "file": "OrderService.java", "method": "createOrder", "line": 82, "type": "基础代码缺陷", "subType": "空catch块", "relatedReq": "REQ-001" },
-    { "id": "D08", "project": "ecommerce-order", "file": "OrderService.java", "method": "validateOrder", "line": 328, "type": "基础代码缺陷", "subType": "数组越界风险", "relatedReq": "REQ-002" },
-    { "id": "D09", "project": "ecommerce-order", "file": "OrderService.java", "method": "refundOrder", "line": 235, "type": "业务逻辑不一致", "subType": "计算逻辑错误", "relatedReq": "REQ-006" },
-    { "id": "D10", "project": "ecommerce-order", "file": "OrderService.java", "method": "autoConfirmReceipt", "line": 395, "type": "约束条件不满足", "subType": "状态流转违规", "relatedReq": "REQ-003" },
-    { "id": "D11", "project": "ecommerce-order", "file": "InventoryManager.java", "method": "checkStock", "line": 45, "type": "业务逻辑不一致", "subType": "业务规则不完整", "relatedReq": "REQ-005" },
-    { "id": "D12", "project": "ecommerce-order", "file": "PaymentProcessor.java", "method": "refund", "line": 65, "type": "基础代码缺陷", "subType": "空指针风险", "relatedReq": "REQ-006" },
-    { "id": "API-001", "project": "api-service", "file": "NotificationController.java", "method": "send", "line": 44, "type": "需求缺失", "subType": "审计日志无需求依据", "relatedReq": "" },
-    { "id": "API-002", "project": "api-service", "file": "NotificationController.java", "method": "autoReply", "line": 367, "type": "代码超范围实现", "subType": "自动回复无需求依据", "relatedReq": "" },
-    { "id": "API-003", "project": "api-service", "file": "NotificationService.java", "method": "checkRateLimit", "line": 160, "type": "业务逻辑不一致", "subType": "限流阈值不一致", "relatedReq": "REQ-003" },
-    { "id": "API-004", "project": "api-service", "file": "NotificationService.java", "method": "checkIdempotent", "line": 137, "type": "业务逻辑不一致", "subType": "幂等窗口不一致", "relatedReq": "REQ-002" },
-    { "id": "API-005", "project": "api-service", "file": "NotificationService.java", "method": "validateParams", "line": 118, "type": "约束条件不满足", "subType": "参数校验不完整", "relatedReq": "REQ-001" },
-    { "id": "API-006", "project": "api-service", "file": "TemplateManager.java", "method": "validate", "line": 225, "type": "约束条件不满足", "subType": "模板长度限制不一致", "relatedReq": "REQ-004" },
-    { "id": "API-007", "project": "api-service", "file": "NotificationService.java", "method": "retryWithBackoff", "line": 283, "type": "基础代码缺陷", "subType": "空catch块", "relatedReq": "REQ-009" },
-    { "id": "API-008", "project": "api-service", "file": "BlacklistManager.java", "method": "batchAdd", "line": 110, "type": "基础代码缺陷", "subType": "空catch块", "relatedReq": "REQ-008" },
-    { "id": "API-009", "project": "api-service", "file": "TemplateManager.java", "method": "render", "line": 201, "type": "基础代码缺陷", "subType": "变量注入风险", "relatedReq": "REQ-004" },
-    { "id": "API-010", "project": "api-service", "file": "NotificationService.java", "method": "getChannelDistribution", "line": 398, "type": "基础代码缺陷", "subType": "空指针风险", "relatedReq": "REQ-010" },
-    { "id": "EX-001", "project": "exam-system", "file": "Exam.java", "method": "field declaration", "line": 41, "type": "需求缺失", "subType": "考试提醒无需求依据", "relatedReq": "" },
-    { "id": "EX-002", "project": "exam-system", "file": "ExamService.java", "method": "generateStudyPlan", "line": 336, "type": "代码超范围实现", "subType": "学习计划无需求依据", "relatedReq": "" },
-    { "id": "EX-003", "project": "exam-system", "file": "ExamService.java", "method": "getStatistics", "line": 258, "type": "业务逻辑不一致", "subType": "及格判断逻辑反转", "relatedReq": "REQ-007" },
-    { "id": "EX-004", "project": "exam-system", "file": "ExamService.java", "method": "submitExam", "line": 134, "type": "业务逻辑不一致", "subType": "超时判断逻辑反转", "relatedReq": "REQ-004" },
-    { "id": "EX-005", "project": "exam-system", "file": "ExamService.java", "method": "autoGrade", "line": 177, "type": "约束条件不满足", "subType": "缺少空值校验", "relatedReq": "REQ-004" },
-    { "id": "EX-006", "project": "exam-system", "file": "ExamService.java", "method": "createExam", "line": 46, "type": "约束条件不满足", "subType": "缺少合法性校验", "relatedReq": "REQ-001" },
-    { "id": "EX-007", "project": "exam-system", "file": "QuestionBank.java", "method": "batchImport", "line": 114, "type": "基础代码缺陷", "subType": "空catch块", "relatedReq": "REQ-011" },
-    { "id": "EX-008", "project": "exam-system", "file": "ExamService.java", "method": "calculateRanking", "line": 216, "type": "基础代码缺陷", "subType": "比较器传递性违反", "relatedReq": "REQ-007" },
-    { "id": "EX-009", "project": "exam-system", "file": "ExamService.java", "method": "detectCheating", "line": 305, "type": "基础代码缺陷", "subType": "数组越界", "relatedReq": "REQ-008" },
-    { "id": "EX-010", "project": "exam-system", "file": "GradingService.java", "method": "gradeSingleChoice", "line": 16, "type": "约束条件不满足", "subType": "缺少空值校验", "relatedReq": "REQ-005" },
-    { "id": "EX-011", "project": "exam-system", "file": "ExamService.java", "method": "detectCheating", "line": 317, "type": "需求缺失", "subType": "阈值无需求依据", "relatedReq": "REQ-008" },
-    { "id": "EX-012", "project": "exam-system", "file": "GradingService.java", "method": "gradeTrueFalse", "line": 57, "type": "基础代码缺陷", "subType": "缺少空值校验", "relatedReq": "REQ-005" }
-  ],
-  "summary": {
-    "total": 34,
-    "by_project": { "ecommerce-order": 12, "api-service": 10, "exam-system": 12 },
-    "by_type": {
-      "需求缺失": 4,
-      "代码超范围实现": 3,
-      "业务逻辑不一致": 7,
-      "约束条件不满足": 8,
-      "基础代码缺陷": 12
-    }
+ "description": "GAP-007 缺陷 Ground Truth：聚合 GAP-035 三样例工程 defects.json（统一 schema，供评测对齐）。三工程原始清单分别位于 ../ecommerce-order/defects.json、../api-service/defects.json、../exam-system/defects.json。P2-2（2026-09-02）：为语义型缺陷补 line（缺陷所在源文件行号，命中=行差<=2），供行号定位准确率评测（-Ddefect.loc.eval=true）基线追踪。 A4 扩容（2026-09-03）：新增 ticket-system/library-system 缺陷真值 24 条（含困难负例：数值错配型 D-T01/D-T09/D-L01/D-L07、排序反转 D-L08、归属歧义型计数对 CL-114/116）。 A4 扩容（2026-09-03）：新增 ticket-system/library-system 缺陷真值 24 条（含困难负例：数值错配型 D-T01/D-T09/D-L01/D-L07、排序反转 D-L08、归属歧义型计数对 CL-114/116）。",
+ "sources": [
+  "../ecommerce-order/defects.json",
+  "../api-service/defects.json",
+  "../exam-system/defects.json"
+ ],
+ "defects": [
+  {
+   "id": "D01",
+   "project": "ecommerce-order",
+   "file": "OrderService.java",
+   "method": "loadDiscountConfig",
+   "line": 99,
+   "type": "约束条件不满足",
+   "subType": "资源未释放",
+   "relatedReq": "REQ-003"
+  },
+  {
+   "id": "D02",
+   "project": "ecommerce-order",
+   "file": "OrderService.java",
+   "method": "grantPoints",
+   "line": 89,
+   "type": "需求缺失",
+   "subType": "未定义功能实现",
+   "relatedReq": ""
+  },
+  {
+   "id": "D03",
+   "project": "ecommerce-order",
+   "file": "OrderService.java",
+   "method": "batchExportOrders",
+   "line": 371,
+   "type": "代码超范围实现",
+   "subType": "未定义功能实现",
+   "relatedReq": ""
+  },
+  {
+   "id": "D04",
+   "project": "ecommerce-order",
+   "file": "OrderService.java",
+   "method": "completeOrder",
+   "line": 173,
+   "type": "业务逻辑不一致",
+   "subType": "阈值条件反转",
+   "relatedReq": "REQ-003"
+  },
+  {
+   "id": "D05",
+   "project": "ecommerce-order",
+   "file": "OrderService.java",
+   "method": "payOrder",
+   "line": 123,
+   "type": "约束条件不满足",
+   "subType": "缺少空值校验",
+   "relatedReq": "REQ-004"
+  },
+  {
+   "id": "D06",
+   "project": "ecommerce-order",
+   "file": "OrderService.java",
+   "method": "queryByCustomer",
+   "line": 259,
+   "type": "基础代码缺陷",
+   "subType": "空指针风险",
+   "relatedReq": "REQ-009"
+  },
+  {
+   "id": "D07",
+   "project": "ecommerce-order",
+   "file": "OrderService.java",
+   "method": "createOrder",
+   "line": 82,
+   "type": "基础代码缺陷",
+   "subType": "空catch块",
+   "relatedReq": "REQ-001"
+  },
+  {
+   "id": "D08",
+   "project": "ecommerce-order",
+   "file": "OrderService.java",
+   "method": "validateOrder",
+   "line": 328,
+   "type": "基础代码缺陷",
+   "subType": "数组越界风险",
+   "relatedReq": "REQ-002"
+  },
+  {
+   "id": "D09",
+   "project": "ecommerce-order",
+   "file": "OrderService.java",
+   "method": "refundOrder",
+   "line": 235,
+   "type": "业务逻辑不一致",
+   "subType": "计算逻辑错误",
+   "relatedReq": "REQ-006"
+  },
+  {
+   "id": "D10",
+   "project": "ecommerce-order",
+   "file": "OrderService.java",
+   "method": "autoConfirmReceipt",
+   "line": 395,
+   "type": "约束条件不满足",
+   "subType": "状态流转违规",
+   "relatedReq": "REQ-003"
+  },
+  {
+   "id": "D11",
+   "project": "ecommerce-order",
+   "file": "InventoryManager.java",
+   "method": "checkStock",
+   "line": 45,
+   "type": "业务逻辑不一致",
+   "subType": "业务规则不完整",
+   "relatedReq": "REQ-005"
+  },
+  {
+   "id": "D12",
+   "project": "ecommerce-order",
+   "file": "PaymentProcessor.java",
+   "method": "refund",
+   "line": 65,
+   "type": "基础代码缺陷",
+   "subType": "空指针风险",
+   "relatedReq": "REQ-006"
+  },
+  {
+   "id": "API-001",
+   "project": "api-service",
+   "file": "NotificationController.java",
+   "method": "send",
+   "line": 44,
+   "type": "需求缺失",
+   "subType": "审计日志无需求依据",
+   "relatedReq": ""
+  },
+  {
+   "id": "API-002",
+   "project": "api-service",
+   "file": "NotificationController.java",
+   "method": "autoReply",
+   "line": 367,
+   "type": "代码超范围实现",
+   "subType": "自动回复无需求依据",
+   "relatedReq": ""
+  },
+  {
+   "id": "API-003",
+   "project": "api-service",
+   "file": "NotificationService.java",
+   "method": "checkRateLimit",
+   "line": 160,
+   "type": "业务逻辑不一致",
+   "subType": "限流阈值不一致",
+   "relatedReq": "REQ-003"
+  },
+  {
+   "id": "API-004",
+   "project": "api-service",
+   "file": "NotificationService.java",
+   "method": "checkIdempotent",
+   "line": 137,
+   "type": "业务逻辑不一致",
+   "subType": "幂等窗口不一致",
+   "relatedReq": "REQ-002"
+  },
+  {
+   "id": "API-005",
+   "project": "api-service",
+   "file": "NotificationService.java",
+   "method": "validateParams",
+   "line": 118,
+   "type": "约束条件不满足",
+   "subType": "参数校验不完整",
+   "relatedReq": "REQ-001"
+  },
+  {
+   "id": "API-006",
+   "project": "api-service",
+   "file": "TemplateManager.java",
+   "method": "validate",
+   "line": 225,
+   "type": "约束条件不满足",
+   "subType": "模板长度限制不一致",
+   "relatedReq": "REQ-004"
+  },
+  {
+   "id": "API-007",
+   "project": "api-service",
+   "file": "NotificationService.java",
+   "method": "retryWithBackoff",
+   "line": 283,
+   "type": "基础代码缺陷",
+   "subType": "空catch块",
+   "relatedReq": "REQ-009"
+  },
+  {
+   "id": "API-008",
+   "project": "api-service",
+   "file": "BlacklistManager.java",
+   "method": "batchAdd",
+   "line": 110,
+   "type": "基础代码缺陷",
+   "subType": "空catch块",
+   "relatedReq": "REQ-008"
+  },
+  {
+   "id": "API-009",
+   "project": "api-service",
+   "file": "TemplateManager.java",
+   "method": "render",
+   "line": 201,
+   "type": "基础代码缺陷",
+   "subType": "变量注入风险",
+   "relatedReq": "REQ-004"
+  },
+  {
+   "id": "API-010",
+   "project": "api-service",
+   "file": "NotificationService.java",
+   "method": "getChannelDistribution",
+   "line": 398,
+   "type": "基础代码缺陷",
+   "subType": "空指针风险",
+   "relatedReq": "REQ-010"
+  },
+  {
+   "id": "EX-001",
+   "project": "exam-system",
+   "file": "Exam.java",
+   "method": "field declaration",
+   "line": 41,
+   "type": "需求缺失",
+   "subType": "考试提醒无需求依据",
+   "relatedReq": ""
+  },
+  {
+   "id": "EX-002",
+   "project": "exam-system",
+   "file": "ExamService.java",
+   "method": "generateStudyPlan",
+   "line": 336,
+   "type": "代码超范围实现",
+   "subType": "学习计划无需求依据",
+   "relatedReq": ""
+  },
+  {
+   "id": "EX-003",
+   "project": "exam-system",
+   "file": "ExamService.java",
+   "method": "getStatistics",
+   "line": 258,
+   "type": "业务逻辑不一致",
+   "subType": "及格判断逻辑反转",
+   "relatedReq": "REQ-007"
+  },
+  {
+   "id": "EX-004",
+   "project": "exam-system",
+   "file": "ExamService.java",
+   "method": "submitExam",
+   "line": 134,
+   "type": "业务逻辑不一致",
+   "subType": "超时判断逻辑反转",
+   "relatedReq": "REQ-004"
+  },
+  {
+   "id": "EX-005",
+   "project": "exam-system",
+   "file": "ExamService.java",
+   "method": "autoGrade",
+   "line": 177,
+   "type": "约束条件不满足",
+   "subType": "缺少空值校验",
+   "relatedReq": "REQ-004"
+  },
+  {
+   "id": "EX-006",
+   "project": "exam-system",
+   "file": "ExamService.java",
+   "method": "createExam",
+   "line": 46,
+   "type": "约束条件不满足",
+   "subType": "缺少合法性校验",
+   "relatedReq": "REQ-001"
+  },
+  {
+   "id": "EX-007",
+   "project": "exam-system",
+   "file": "QuestionBank.java",
+   "method": "batchImport",
+   "line": 114,
+   "type": "基础代码缺陷",
+   "subType": "空catch块",
+   "relatedReq": "REQ-011"
+  },
+  {
+   "id": "EX-008",
+   "project": "exam-system",
+   "file": "ExamService.java",
+   "method": "calculateRanking",
+   "line": 216,
+   "type": "基础代码缺陷",
+   "subType": "比较器传递性违反",
+   "relatedReq": "REQ-007"
+  },
+  {
+   "id": "EX-009",
+   "project": "exam-system",
+   "file": "ExamService.java",
+   "method": "detectCheating",
+   "line": 305,
+   "type": "基础代码缺陷",
+   "subType": "数组越界",
+   "relatedReq": "REQ-008"
+  },
+  {
+   "id": "EX-010",
+   "project": "exam-system",
+   "file": "GradingService.java",
+   "method": "gradeSingleChoice",
+   "line": 16,
+   "type": "约束条件不满足",
+   "subType": "缺少空值校验",
+   "relatedReq": "REQ-005"
+  },
+  {
+   "id": "EX-011",
+   "project": "exam-system",
+   "file": "ExamService.java",
+   "method": "detectCheating",
+   "line": 317,
+   "type": "需求缺失",
+   "subType": "阈值无需求依据",
+   "relatedReq": "REQ-008"
+  },
+  {
+   "id": "EX-012",
+   "project": "exam-system",
+   "file": "GradingService.java",
+   "method": "gradeTrueFalse",
+   "line": 57,
+   "type": "基础代码缺陷",
+   "subType": "缺少空值校验",
+   "relatedReq": "REQ-005"
+  },
+  {
+   "id": "D-T01",
+   "project": "ticket-system",
+   "file": "TicketValidator.java",
+   "method": "validateTitle",
+   "type": "业务逻辑不一致",
+   "subType": "长度阈值不符",
+   "relatedReq": "REQ-T001",
+   "line": 21
+  },
+  {
+   "id": "D-T03",
+   "project": "ticket-system",
+   "file": "TicketValidator.java",
+   "method": "validatePriority",
+   "type": "约束条件不满足",
+   "subType": "优先级枚举校验缺失",
+   "relatedReq": "REQ-T002",
+   "line": 29
+  },
+  {
+   "id": "D-T04",
+   "project": "ticket-system",
+   "file": "TicketService.java",
+   "method": "reopenTicket",
+   "type": "约束条件不满足",
+   "subType": "重开次数上限缺失",
+   "relatedReq": "REQ-T009",
+   "line": 76
+  },
+  {
+   "id": "D-T05",
+   "project": "ticket-system",
+   "file": "TicketService.java",
+   "method": "assignTicket",
+   "type": "业务逻辑不一致",
+   "subType": "状态流转错误",
+   "relatedReq": "REQ-T007",
+   "line": 56
+  },
+  {
+   "id": "D-T06",
+   "project": "ticket-system",
+   "file": "TicketService.java",
+   "method": "closeTicket",
+   "type": "业务逻辑不一致",
+   "subType": "关闭时间未记录",
+   "relatedReq": "REQ-T008",
+   "line": 65
+  },
+  {
+   "id": "D-T07",
+   "project": "ticket-system",
+   "file": "TicketStateValidator.java",
+   "method": "canClose",
+   "type": "约束条件不满足",
+   "subType": "关闭状态校验缺失",
+   "relatedReq": "REQ-T008",
+   "line": 32
+  },
+  {
+   "id": "D-T08",
+   "project": "ticket-system",
+   "file": "TicketService.java",
+   "method": "escalateIfOverdue",
+   "type": "业务逻辑不一致",
+   "subType": "升级时限不符",
+   "relatedReq": "REQ-T010",
+   "line": 104
+  },
+  {
+   "id": "D-T09",
+   "project": "ticket-system",
+   "file": "SlaCalculator.java",
+   "method": "computeDeadlineHours",
+   "type": "业务逻辑不一致",
+   "subType": "SLA时限不符",
+   "relatedReq": "REQ-T005",
+   "line": 17
+  },
+  {
+   "id": "D-T10",
+   "project": "ticket-system",
+   "file": "TicketQueryService.java",
+   "method": "queryByAssignee",
+   "type": "约束条件不满足",
+   "subType": "查询权限校验缺失",
+   "relatedReq": "REQ-T014",
+   "line": 37
+  },
+  {
+   "id": "D-T11",
+   "project": "ticket-system",
+   "file": "NotificationService.java",
+   "method": "notifyAssignee",
+   "type": "业务逻辑不一致",
+   "subType": "重试次数不足",
+   "relatedReq": "REQ-T011",
+   "line": 18
+  },
+  {
+   "id": "D-T12",
+   "project": "ticket-system",
+   "file": "TicketQueryService.java",
+   "method": "dumpDebugSnapshot",
+   "type": "代码超范围实现",
+   "subType": "未在需求内的调试快照",
+   "relatedReq": "",
+   "line": 90
+  },
+  {
+   "id": "D-T13",
+   "project": "ticket-system",
+   "file": "TicketArchiveService.java",
+   "method": "notifyArchiveResultByMail",
+   "type": "代码超范围实现",
+   "subType": "未在需求内的邮件通知",
+   "relatedReq": "",
+   "line": 30
+  },
+  {
+   "id": "D-T14",
+   "project": "ticket-system",
+   "file": "Ticket.java",
+   "method": "getFinishEvaluation",
+   "type": "需求缺失",
+   "subType": "满意度评价未实现",
+   "relatedReq": "REQ-T025",
+   "line": 56
+  },
+  {
+   "id": "D-L01",
+   "project": "library-system",
+   "file": "BorrowValidator.java",
+   "method": "validateQuota",
+   "type": "业务逻辑不一致",
+   "subType": "借阅上限不符",
+   "relatedReq": "REQ-L002",
+   "line": 19
+  },
+  {
+   "id": "D-L02",
+   "project": "library-system",
+   "file": "BorrowService.java",
+   "method": "returnBook",
+   "type": "业务逻辑不一致",
+   "subType": "罚款未计入欠款",
+   "relatedReq": "REQ-L006",
+   "line": 61
+  },
+  {
+   "id": "D-L03",
+   "project": "library-system",
+   "file": "BorrowService.java",
+   "method": "returnBook",
+   "type": "业务逻辑不一致",
+   "subType": "借阅记录未核销",
+   "relatedReq": "REQ-L008",
+   "line": 52
+  },
+  {
+   "id": "D-L04",
+   "project": "library-system",
+   "file": "BorrowService.java",
+   "method": "renewBook",
+   "type": "业务逻辑不一致",
+   "subType": "续借次数上限不符",
+   "relatedReq": "REQ-L009",
+   "line": 69
+  },
+  {
+   "id": "D-L05",
+   "project": "library-system",
+   "file": "BorrowService.java",
+   "method": "renewBook",
+   "type": "约束条件不满足",
+   "subType": "预约占用检查缺失",
+   "relatedReq": "REQ-L010",
+   "line": 68
+  },
+  {
+   "id": "D-L06",
+   "project": "library-system",
+   "file": "BorrowValidator.java",
+   "method": "validateCardValidity",
+   "type": "约束条件不满足",
+   "subType": "读者证有效期校验缺失",
+   "relatedReq": "REQ-L001",
+   "line": 27
+  },
+  {
+   "id": "D-L07",
+   "project": "library-system",
+   "file": "FineCalculator.java",
+   "method": "isCreditBlockedByOverdue",
+   "type": "业务逻辑不一致",
+   "subType": "逾期冻结阈值不符",
+   "relatedReq": "REQ-L012",
+   "line": 15
+  },
+  {
+   "id": "D-L08",
+   "project": "library-system",
+   "file": "LibraryQueryService.java",
+   "method": "queryOverdue",
+   "type": "业务逻辑不一致",
+   "subType": "排序方向反转",
+   "relatedReq": "REQ-L016",
+   "line": 45
+  },
+  {
+   "id": "D-L09",
+   "project": "library-system",
+   "file": "BorrowService.java",
+   "method": "borrowBook",
+   "type": "约束条件不满足",
+   "subType": "冻结资格检查缺失",
+   "relatedReq": "REQ-L011",
+   "line": 27
+  },
+  {
+   "id": "D-L10",
+   "project": "library-system",
+   "file": "BookManageService.java",
+   "method": "sendOverdueReminder",
+   "type": "代码超范围实现",
+   "subType": "未在需求内的逾期提醒",
+   "relatedReq": "",
+   "line": 26
+  },
+  {
+   "id": "D-L11",
+   "project": "library-system",
+   "file": "BookManageService.java",
+   "method": "compressCoverImage",
+   "type": "代码超范围实现",
+   "subType": "未在需求内的图片压缩",
+   "relatedReq": "",
+   "line": 31
   }
+ ],
+ "summary": {
+  "total": 58,
+  "by_project": {
+   "ecommerce-order": 12,
+   "api-service": 10,
+   "exam-system": 12,
+   "ticket-system": 13,
+   "library-system": 11
+  },
+  "by_type": {
+   "约束条件不满足": 15,
+   "需求缺失": 5,
+   "代码超范围实现": 7,
+   "业务逻辑不一致": 19,
+   "基础代码缺陷": 12
+  }
+ }
 }

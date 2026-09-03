@@ -1,0 +1,751 @@
+{
+ "annotator": "llm:qwen2.5-coder:14b-blind(judgeDual)",
+ "mode": "生产双判定管线 judgeDual（变体A/B 交叉 + 规则仲裁 + 数值归属过滤）；盲评全程未读第一评 label/defectType 字段",
+ "generatedAt": "2026-09-03T20:05:12.040898800",
+ "verdicts": {
+  "CL-004": {
+   "consistent": false,
+   "defectType": "约束条件不满足",
+   "reason": "缺少null检查，orderId不存在会NPE(分歧仲裁:risk=0.35)",
+   "decisionPath": "LLM_ARBITRATION_DEFECT"
+  },
+  "CL-005": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/库存检查和扣减逻辑一致",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-006": {
+   "consistent": false,
+   "defectType": "业务逻辑不一致",
+   "reason": "退款金额计算错误：扣除了10%手续费(分歧仲裁:risk=0.35)",
+   "decisionPath": "LLM_ARBITRATION_DEFECT"
+  },
+  "CL-007": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/取消逻辑与需求一致",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-008": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/查询职责已实现",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-001": {
+   "consistent": false,
+   "defectType": "约束条件不满足",
+   "reason": "未校验订单金额大于0/未校验金额大于0",
+   "decisionPath": "LLM_CONSENSUS_DEFECT"
+  },
+  "CL-002": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/客户ID校验已实现",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-003": {
+   "consistent": false,
+   "defectType": "业务逻辑不一致",
+   "reason": "状态流转判断逻辑错误/状态判断逻辑错误",
+   "decisionPath": "LLM_CONSENSUS_DEFECT"
+  },
+  "CL-015": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/参数校验职责已实现",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-016": {
+   "consistent": false,
+   "defectType": "业务逻辑不一致",
+   "reason": "订单状态未验证为PAID/未验证订单状态为PAID",
+   "decisionPath": "LLM_CONSENSUS_DEFECT"
+  },
+  "CL-017": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/支付状态校验已实现",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-018": {
+   "consistent": false,
+   "defectType": "业务逻辑不一致",
+   "reason": "状态流转跳过SHIPPED",
+   "decisionPath": "LLM_CONSENSUS_DEFECT"
+  },
+  "CL-019": {
+   "consistent": false,
+   "defectType": "约束条件不满足",
+   "reason": "订单金额大于0的校验缺失/未校验订单金额大于0",
+   "decisionPath": "LLM_CONSENSUS_DEFECT"
+  },
+  "CL-010": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/查询职责已实现",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-011": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/统计逻辑符合需求",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-012": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/统计逻辑符合需求",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-013": {
+   "consistent": false,
+   "defectType": "业务逻辑不一致",
+   "reason": "未考虑已预留的数量/未考虑预留库存",
+   "decisionPath": "LLM_CONSENSUS_DEFECT"
+  },
+  "CL-014": {
+   "consistent": false,
+   "defectType": "业务逻辑不一致",
+   "reason": "库存检查未减去已预留量/未减去已预留量导致超卖",
+   "decisionPath": "LLM_CONSENSUS_DEFECT"
+  },
+  "CL-020": {
+   "consistent": false,
+   "defectType": "需求缺失",
+   "reason": "未实现按客户ID查询订单列表的功能/缺少按客户ID查询订单列表的方法",
+   "decisionPath": "LLM_CONSENSUS_DEFECT"
+  },
+  "CL-026": {
+   "consistent": false,
+   "defectType": "业务逻辑不一致",
+   "reason": "模板内容校验长度不一致/模板内容长度校验不符",
+   "decisionPath": "LLM_CONSENSUS_DEFECT"
+  },
+  "CL-027": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/参数校验职责已实现",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-028": {
+   "consistent": false,
+   "defectType": "约束条件不满足",
+   "reason": "缺少分页功能/缺少分页和每页条数限制",
+   "decisionPath": "LLM_CONSENSUS_DEFECT"
+  },
+  "CL-029": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "(双判定分歧按一致保留)",
+   "decisionPath": "LLM_ARBITRATION_KEEP"
+  },
+  "CL-021": {
+   "consistent": false,
+   "defectType": "约束条件不满足",
+   "reason": "缺少对必填参数的校验(分歧仲裁:risk=0.60)",
+   "decisionPath": "LLM_ARBITRATION_DEFECT"
+  },
+  "CL-022": {
+   "consistent": false,
+   "defectType": "业务逻辑不一致",
+   "reason": "时间窗口不一致，需求60秒，代码30秒/时间窗口60秒与实现30秒不符",
+   "decisionPath": "LLM_CONSENSUS_DEFECT"
+  },
+  "CL-023": {
+   "consistent": false,
+   "defectType": "业务逻辑不一致",
+   "reason": "限流阈值与需求不符/限流阈值20与需求10不符",
+   "decisionPath": "LLM_CONSENSUS_DEFECT"
+  },
+  "CL-024": {
+   "consistent": false,
+   "defectType": "约束条件不满足",
+   "reason": "缺少 channel 和 content 的校验/channel 和 content 校验缺失",
+   "decisionPath": "LLM_CONSENSUS_DEFECT"
+  },
+  "CL-025": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "(双判定分歧按一致保留)",
+   "decisionPath": "LLM_ARBITRATION_KEEP"
+  },
+  "CL-037": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/回调处理职责已实现",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-038": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/发送成功率计算逻辑正确",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-039": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "(数值归属修正:IDEMPOTENT_WINDOW_SECONDS)",
+   "decisionPath": "LLM_OWNER_OVERRIDE"
+  },
+  "CL-030": {
+   "consistent": false,
+   "defectType": "需求缺失",
+   "reason": "缺少签名验证",
+   "decisionPath": "LLM_CONSENSUS_DEFECT"
+  },
+  "CL-031": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/检查职责已实现",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-035": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/添加功能已实现",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-036": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/进度查询职责已实现",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-040": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/查询功能已实现",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-060": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "(双判定分歧按一致保留)",
+   "decisionPath": "LLM_ARBITRATION_KEEP"
+  },
+  "CL-048": {
+   "consistent": false,
+   "defectType": "业务逻辑不一致",
+   "reason": "及格率统计逻辑反转/及格率逻辑反转",
+   "decisionPath": "LLM_CONSENSUS_DEFECT"
+  },
+  "CL-049": {
+   "consistent": false,
+   "defectType": "约束条件不满足",
+   "reason": "标签切换阈值硬编码且未在需求中定义/标签切换阈值5与需求不符",
+   "decisionPath": "LLM_CONSENSUS_DEFECT"
+  },
+  "CL-041": {
+   "consistent": false,
+   "defectType": "约束条件不满足",
+   "reason": "缺少 duration > 0 校验",
+   "decisionPath": "LLM_CONSENSUS_DEFECT"
+  },
+  "CL-042": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "(双判定分歧按一致保留)",
+   "decisionPath": "LLM_ARBITRATION_KEEP"
+  },
+  "CL-043": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/职责已实现",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-044": {
+   "consistent": false,
+   "defectType": "业务逻辑不一致",
+   "reason": "超时判断逻辑反转",
+   "decisionPath": "LLM_CONSENSUS_DEFECT"
+  },
+  "CL-045": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/客观题评分职责已实现",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-047": {
+   "consistent": false,
+   "defectType": "业务逻辑不一致",
+   "reason": "评分逻辑不一致/非空即给一半分不符合人工阅卷需求",
+   "decisionPath": "LLM_CONSENSUS_DEFECT"
+  },
+  "CL-059": {
+   "consistent": false,
+   "defectType": "约束条件不满足",
+   "reason": "缺少难度级别的筛选/未按难度和类型筛选",
+   "decisionPath": "LLM_CONSENSUS_DEFECT"
+  },
+  "CL-051": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "(双判定分歧按一致保留)",
+   "decisionPath": "LLM_ARBITRATION_KEEP"
+  },
+  "CL-052": {
+   "consistent": false,
+   "defectType": "约束条件不满足",
+   "reason": "缺少格式校验",
+   "decisionPath": "LLM_CONSENSUS_DEFECT"
+  },
+  "CL-053": {
+   "consistent": false,
+   "defectType": "约束条件不满足",
+   "reason": "缺少 duration > 0 校验",
+   "decisionPath": "LLM_CONSENSUS_DEFECT"
+  },
+  "CL-054": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/移除题目职责已实现",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-055": {
+   "consistent": false,
+   "defectType": "需求缺失",
+   "reason": "未实现自动评分逻辑",
+   "decisionPath": "LLM_SINGLE"
+  },
+  "CL-056": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/统计职责已实现",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-057": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "(双判定分歧按一致保留)",
+   "decisionPath": "LLM_ARBITRATION_KEEP"
+  },
+  "CL-058": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/申诉处理职责已实现",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-050": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "(双判定分歧按一致保留)",
+   "decisionPath": "LLM_ARBITRATION_KEEP"
+  },
+  "CL-103": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/状态校验已实现",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-104": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/处理人填写解决方案说明并置为RESOLVED状态",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-105": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/逐条校验并拒绝整批符合需求",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-106": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/职责已实现",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-107": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/查询职责已实现",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-108": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/统计职责已实现",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-109": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/搜索功能已实现",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-101": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/初始状态校验由其他方法负责",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-102": {
+   "consistent": false,
+   "defectType": "业务逻辑不一致",
+   "reason": "状态机顺序未完全实现/状态机顺序未完整实现",
+   "decisionPath": "LLM_CONSENSUS_DEFECT"
+  },
+  "CL-114": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/统计职责已实现",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-115": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/归档逻辑与需求一致",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-116": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/超时判断职责已实现",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-117": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/校验器方法缺陷，创建职责已完成",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-118": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/敏感词过滤职责已实现",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-110": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/分页逻辑符合需求",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-111": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/敏感词过滤职责已实现",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-112": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/权限校验职责已实现",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-113": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/校验逻辑符合需求",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-125": {
+   "consistent": false,
+   "defectType": "业务逻辑不一致",
+   "reason": "未检查工单是否已关闭(分歧仲裁:risk=0.30)",
+   "decisionPath": "LLM_ARBITRATION_DEFECT"
+  },
+  "CL-126": {
+   "consistent": false,
+   "defectType": "需求缺失",
+   "reason": "未实现工单转派处理逻辑(分歧仲裁:risk=0.30)",
+   "decisionPath": "LLM_ARBITRATION_DEFECT"
+  },
+  "CL-127": {
+   "consistent": false,
+   "defectType": "需求缺失",
+   "reason": "未实现敏感词校验和附件大小校验/缺少敏感词校验",
+   "decisionPath": "LLM_CONSENSUS_DEFECT"
+  },
+  "CL-122": {
+   "consistent": false,
+   "defectType": "业务逻辑不一致",
+   "reason": "状态流转未按需求顺序进行/状态流转未实现顺序检查",
+   "decisionPath": "LLM_CONSENSUS_DEFECT"
+  },
+  "CL-123": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "(双判定分歧按一致保留)",
+   "decisionPath": "LLM_ARBITRATION_KEEP"
+  },
+  "CL-124": {
+   "consistent": false,
+   "defectType": "需求缺失",
+   "reason": "未实现按日期统计新建工单数量的功能/未实现按日期统计新建工单数量功能",
+   "decisionPath": "LLM_CONSENSUS_DEFECT"
+  },
+  "CL-136": {
+   "consistent": false,
+   "defectType": "约束条件不满足",
+   "reason": "未实现“重新打开次数不得超过3次”的限制/未实现重新打开次数不得超过3次的限制",
+   "decisionPath": "LLM_CONSENSUS_DEFECT"
+  },
+  "CL-137": {
+   "consistent": false,
+   "defectType": "业务逻辑不一致",
+   "reason": "48小时判断错误，HIGH升档越界/48小时判断错误",
+   "decisionPath": "LLM_CONSENSUS_DEFECT"
+  },
+  "CL-138": {
+   "consistent": false,
+   "defectType": "业务逻辑不一致",
+   "reason": "重试次数和间隔不符合需求/重试次数与需求不符",
+   "decisionPath": "LLM_CONSENSUS_DEFECT"
+  },
+  "CL-139": {
+   "consistent": false,
+   "defectType": "约束条件不满足",
+   "reason": "未实现权限校验/权限校验缺失",
+   "decisionPath": "LLM_CONSENSUS_DEFECT"
+  },
+  "CL-130": {
+   "consistent": false,
+   "defectType": "约束条件不满足",
+   "reason": "标题长度校验应为50，代码实现为100/标题长度校验应为50，现为100",
+   "decisionPath": "LLM_CONSENSUS_DEFECT"
+  },
+  "CL-131": {
+   "consistent": false,
+   "defectType": "约束条件不满足",
+   "reason": "优先级合法性校验缺失/优先级校验缺失",
+   "decisionPath": "LLM_CONSENSUS_DEFECT"
+  },
+  "CL-132": {
+   "consistent": false,
+   "defectType": "业务逻辑不一致",
+   "reason": "HIGH优先级时限应为2小时，代码实现为4小时/HIGH优先级时限为4小时，需求为2小时",
+   "decisionPath": "LLM_CONSENSUS_DEFECT"
+  },
+  "CL-133": {
+   "consistent": false,
+   "defectType": "业务逻辑不一致",
+   "reason": "状态被错误置为RESOLVED，缺少处理人非空校验/状态置为RESOLVED而非IN_PROGRESS",
+   "decisionPath": "LLM_CONSENSUS_DEFECT"
+  },
+  "CL-134": {
+   "consistent": false,
+   "defectType": "约束条件不满足",
+   "reason": "未校验状态，任意状态均可关闭",
+   "decisionPath": "LLM_CONSENSUS_DEFECT"
+  },
+  "CL-135": {
+   "consistent": false,
+   "defectType": "业务逻辑不一致",
+   "reason": "关闭后未记录关闭时间/未记录关闭时间",
+   "decisionPath": "LLM_CONSENSUS_DEFECT"
+  },
+  "CL-140": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/标题校验职责已实现",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-224": {
+   "consistent": false,
+   "defectType": "业务逻辑不一致",
+   "reason": "未判断预约是否有效(分歧仲裁:risk=0.30)",
+   "decisionPath": "LLM_ARBITRATION_DEFECT"
+  },
+  "CL-225": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/按作者名搜索功能已实现",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-226": {
+   "consistent": false,
+   "defectType": "需求缺失",
+   "reason": "未实现判断图书是否存在有效预约的功能/未实现判断预约是否存在",
+   "decisionPath": "LLM_CONSENSUS_DEFECT"
+  },
+  "CL-227": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/费率与封顶逻辑一致",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-221": {
+   "consistent": false,
+   "defectType": "需求缺失",
+   "reason": "未实现按图书分类统计借出数量的功能/缺少统计借出数量的实现",
+   "decisionPath": "LLM_CONSENSUS_DEFECT"
+  },
+  "CL-223": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/统计功能已实现",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-235": {
+   "consistent": false,
+   "defectType": "约束条件不满足",
+   "reason": "未实现有效期校验/未校验读者证有效期",
+   "decisionPath": "LLM_CONSENSUS_DEFECT"
+  },
+  "CL-236": {
+   "consistent": false,
+   "defectType": "业务逻辑不一致",
+   "reason": "逾期天数阈值应为15天，但代码中为30天/阈值30天与需求15天不符",
+   "decisionPath": "LLM_CONSENSUS_DEFECT"
+  },
+  "CL-237": {
+   "consistent": false,
+   "defectType": "业务逻辑不一致",
+   "reason": "排序方向错误，应为降序/排序方向错误",
+   "decisionPath": "LLM_CONSENSUS_DEFECT"
+  },
+  "CL-238": {
+   "consistent": false,
+   "defectType": "业务逻辑不一致",
+   "reason": "缺少欠款超10元冻结检查/欠款检查与冻结逻辑缺失",
+   "decisionPath": "LLM_CONSENSUS_DEFECT"
+  },
+  "CL-230": {
+   "consistent": false,
+   "defectType": "约束条件不满足",
+   "reason": "校验最大借阅数量为3本，需求为5本/借阅上限3与需求5不符",
+   "decisionPath": "LLM_CONSENSUS_DEFECT"
+  },
+  "CL-231": {
+   "consistent": false,
+   "defectType": "需求缺失",
+   "reason": "未核销借阅记录，未将罚款计入读者欠款/罚款未计入读者欠款",
+   "decisionPath": "LLM_CONSENSUS_DEFECT"
+  },
+  "CL-232": {
+   "consistent": false,
+   "defectType": "业务逻辑不一致",
+   "reason": "未核销借阅记录（状态置为已归还）",
+   "decisionPath": "LLM_CONSENSUS_DEFECT"
+  },
+  "CL-233": {
+   "consistent": false,
+   "defectType": "业务逻辑不一致",
+   "reason": "续借次数判断错误",
+   "decisionPath": "LLM_CONSENSUS_DEFECT"
+  },
+  "CL-234": {
+   "consistent": false,
+   "defectType": "约束条件不满足",
+   "reason": "缺少'被预约图书不可续借'的预约检查/缺少被预约图书不可续借的检查",
+   "decisionPath": "LLM_CONSENSUS_DEFECT"
+  },
+  "CL-202": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/应还日期计算符合需求",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-203": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/封顶逻辑已实现",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-204": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/冻结阈值与需求一致",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-205": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/职责已实现",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-206": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/释放名额职责已实现",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-207": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/查询在借图书符合需求",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-208": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/统计职责已实现",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-209": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/实现一致",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-201": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/职责已实现",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-213": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/库存校验已实现",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-214": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/库存校验已实现",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-215": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "(双判定分歧按一致保留)",
+   "decisionPath": "LLM_ARBITRATION_KEEP"
+  },
+  "CL-216": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/读者证有效期校验已实现",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-210": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/职责已实现",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-211": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/校验职责已实现",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  },
+  "CL-212": {
+   "consistent": true,
+   "defectType": "",
+   "reason": "/ISBN不为空且价格>0校验已实现",
+   "decisionPath": "LLM_CONSENSUS_CONSISTENT"
+  }
+ },
+ "summary": {
+  "n": 115,
+  "agreement_rate": 0.9043,
+  "kappa": 0.8016,
+  "first_defective": 45,
+  "second_defective": 48,
+  "validation_llm": {
+   "M": 60,
+   "acc": 0.95,
+   "miss": 0.0,
+   "fpr": 0.0732,
+   "TP": 19,
+   "FP": 3,
+   "FN": 0,
+   "TN": 38
+  },
+  "excluded_ids_note": "CL-122/124/126/127/221/226 已从标注集剔除（非方法级实现主体），其盲评记录保留于 verdicts"
+ }
+}

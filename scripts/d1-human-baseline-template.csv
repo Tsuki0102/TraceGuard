@@ -1,0 +1,3 @@
+participant,project,req_id,file,method,verdict,defect_type,start_time,end_time,notes
+P1,ecommerce-order,REQ-001,OrderValidator.java,validateAmount,defective,约束条件不满足,00:00,12:30,示例行（按实际填写）
+P1,ecommerce-order,REQ-002,OrderService.java,createOrder,consistent,,12:30,15:00,

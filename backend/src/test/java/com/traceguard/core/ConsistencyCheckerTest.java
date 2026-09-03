@@ -466,9 +466,9 @@ class ConsistencyCheckerTest {
         Defect d = defects.stream()
                 .filter(def -> !"需求缺失".equals(def.getDefectType())
                         && !"代码超范围实现".equals(def.getDefectType())).findFirst().orElseThrow();
-        // 状态类（或约束类）缺陷应定位到方法体内含关键词的代码行（含 status/if 行），绝对行号落在 [50,52]
+        // 状态类（或约束类）缺陷定位到方法体内状态赋值行（A5 v3：STATE 策略锚 setStatus 行），绝对行号 [50,53]
         assertThat(d.getDefectLine()).isNotNull();
-        assertThat(d.getDefectLine()).isBetween(50, 52);
+        assertThat(d.getDefectLine()).isBetween(50, 53);
     }
 
     @Test

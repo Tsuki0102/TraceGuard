@@ -34,7 +34,9 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATASET = os.path.join(ROOT, "samples", "dataset")
 SAMPLES = os.path.join(ROOT, "samples")
 
-SOURCES = {"ecommerce-order", "api-service", "exam-system"}
+# A4 扩容（2026-09-03）：新增 ticket-system / library-system 验证域
+SOURCES = {"ecommerce-order", "api-service", "exam-system", "ticket-system", "library-system"}
+TUNE_SOURCES = {"ecommerce-order", "api-service", "exam-system"}  # 调参集（split=tune）
 # GAP-020 四类口径（一致性缺陷）+ 基础代码缺陷（GAP-007 排除口径）
 FOUR_TYPES = {"需求缺失", "业务逻辑不一致", "约束条件不满足", "代码超范围实现"}
 GROUND_TRUTH_TYPES = FOUR_TYPES | {"基础代码缺陷"}
@@ -188,9 +190,12 @@ def main():
     assert_unique(det_ids, "检出记录")
     # 与 consistency-labels 全集对齐（含 exclude 与范围外对）
     label_ids = set(ids)
+    tune_ids = {p["id"] for p in pairs if p.get("split", "tune") == "tune"}
+    val_ids = {p["id"] for p in pairs if p.get("split") == "validation"}
     det_id_set = set(det_ids)
-    check(label_ids == det_id_set,
-          f"检出记录覆盖全部标注对（缺: {sorted(label_ids - det_id_set)[:10] if label_ids - det_id_set else '无'}；多余: {sorted(det_id_set - label_ids)[:10] if det_id_set - label_ids else '无'}）")
+    check(tune_ids <= det_id_set,
+          f"检出记录覆盖 tune 调参集（缺: {sorted(tune_ids - det_id_set)[:10] if tune_ids - det_id_set else '无'}；"
+          f"validation 待回填 {len(val_ids - det_id_set)} 条，由评测批次逐批补齐）")
     check(all(isinstance(r.get("detected"), bool) for r in results), "detected 为布尔值")
     bad_dt = [
         r["id"] for r in results
@@ -209,7 +214,7 @@ def main():
     check(all(isinstance(p.get("keyElements"), list) and p.get("keyElements") for p in sc_pairs),
           "keyElements 非空数组")
     check(40 <= len(sc_pairs) <= 60, f"样本数 N={len(sc_pairs)} 落在 40~60 达标区间")
-    sc_by_source = {s: sum(1 for p in sc_pairs if p.get("source") == s) for s in SOURCES}
+    sc_by_source = {s: sum(1 for p in sc_pairs if p.get("source") == s) for s in {p.get("source") for p in sc_pairs}}
     assert_summary(spec.get("summary", {}), {
         "total": len(sc_pairs), "by_source": sc_by_source,
     }, "spec-conversion-pairs")
