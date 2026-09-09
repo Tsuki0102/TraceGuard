@@ -56,4 +56,7 @@ tools/
 Thumbs.db
 Desktop.ini
 .DS_Store
+
+# ===== 本地演示数据导出（含用户表与业务数据，禁止入库） =====
+scripts/traceguard-demo-data-*.sql
 /target/
