@@ -110,16 +110,25 @@ traceguard:
       code-explain: deepseek
       defect-explain: deepseek
       consistency-check: qwen
+      # 智能体对话（Agent 多轮工具调用；默认指向本地 Ollama，零外部依赖；路由缺失时业务层自动回退 code-explain）
+      agent: codellama
     models:
       requirement: glm-5.3
       alloy: deepseek-v4-flash
       code-explain: deepseek-v4-flash
       defect-explain: deepseek-v4-flash
       consistency-check: qwen-max
+      agent: qwen2.5-coder:14b
     max-concurrent-calls: 4
     max-calls-per-stage: 200
     # SEC-02：生产环境必须通过环境变量注入 LLM_CONFIG_KEY，无默认回退（缺失时启动即失败）
     config-encrypt-key: ${LLM_CONFIG_KEY}
+
+  # 三期：质量巡检智能体（默认关闭控制 LLM 成本；开启后按 cron 定时巡检，管理员手动触发不受此开关限制）
+  agent:
+    patrol:
+      enabled: ${AGENT_PATROL_ENABLED:false}
+      cron: ${AGENT_PATROL_CRON:0 0 9 * * ?}
 
 knife4j:
   enable: false

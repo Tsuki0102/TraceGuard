@@ -238,9 +238,9 @@
             <el-icon :size="17"><Search /></el-icon>
             <span>搜索页面</span>
           </button>
-          <button v-if="isAdmin" type="button" class="mobile-menu__act" @click="openAi">
+          <button type="button" class="mobile-menu__act" @click="openAi">
             <el-icon :size="17"><MagicStick /></el-icon>
-            <span>AI 助手</span>
+            <span>智能助手</span>
           </button>
           <button type="button" class="mobile-menu__act mobile-menu__act--danger" @click="handleCommand('logout')">
             <el-icon :size="17"><SwitchButton /></el-icon>
@@ -523,27 +523,8 @@ onBeforeUnmount(() => {
   vertical-align: 1px;
 }
 
-/* W5：一级菜单扩到 8 项后的响应式收缩（避免与右侧操作区重叠） */
-@media (max-width: 1560px) {
-  .top-menu :deep(.el-menu-item),
-  .top-menu :deep(.el-sub-menu__title) {
-    padding: 0 11px;
-    font-size: 13.5px;
-  }
-}
-
-@media (max-width: 1460px) {
-  .top-menu :deep(.el-menu-item),
-  .top-menu :deep(.el-sub-menu__title) {
-    padding: 0 9px;
-    font-size: 13px;
-  }
-
-  /* 搜索/AI 助手按钮只留图标 */
-  .cmd-trigger .cmd-trigger__label {
-    display: none;
-  }
-}
+/* W5：一级菜单扩到 8 项后的响应式收缩（有效规则见基础样式之后的媒体查询区；
+   此处不再重复声明——媒体查询不提升优先级，置于基础规则之前会被同特异性后置规则覆盖而失效） */
 
 /* ===== 顶部菜单：轻量胶囊（无下划线、无重色底） ===== */
 .top-menu {
@@ -552,6 +533,9 @@ onBeforeUnmount(() => {
   height: 64px;
   display: flex;
   align-items: center;
+  /* 溢出保护：极端缩放下仅裁剪自身，绝不叠加到右侧操作区 */
+  min-width: 0;
+  overflow: hidden;
 }
 
 .top-menu :deep(.el-menu-item),
@@ -606,6 +590,57 @@ onBeforeUnmount(() => {
   border-radius: 10px;
   background: transparent;
   color: var(--tg-text-primary);
+}
+
+/* ===== 响应式收缩（必须置于基础规则之后：媒体查询不提升优先级） ===== */
+@media (max-width: 1560px) {
+  .top-menu :deep(.el-menu-item),
+  .top-menu :deep(.el-sub-menu__title) {
+    padding: 0 11px;
+    font-size: 13.5px;
+  }
+
+  /* 子菜单标题：箭头为绝对定位（EP 默认 right:20px），收窄 padding 时须同步右移箭头，否则压住文字 */
+  .top-menu :deep(.el-sub-menu__title) {
+    padding: 0 30px 0 11px;
+  }
+
+  .top-menu :deep(.el-sub-menu__icon-arrow) {
+    right: 11px;
+  }
+}
+
+@media (max-width: 1460px) {
+  .top-menu :deep(.el-menu-item),
+  .top-menu :deep(.el-sub-menu__title) {
+    padding: 0 9px;
+    font-size: 13px;
+  }
+
+  .top-menu :deep(.el-sub-menu__title) {
+    padding: 0 26px 0 9px;
+  }
+
+  .top-menu :deep(.el-sub-menu__icon-arrow) {
+    right: 9px;
+  }
+
+  /* 搜索/AI 助手按钮只留图标 */
+  .cmd-trigger .cmd-trigger__label {
+    display: none;
+  }
+}
+
+/* 中窄屏（浏览器高倍缩放 / 半屏窗口）：横向菜单收进抽屉，从根源避免与右侧操作区重叠；
+   抽屉导航（汉堡 + el-drawer）与本就 ≤768px 的移动端方案同一套，无新增状态 */
+@media (max-width: 1280px) {
+  .hamburger {
+    display: inline-flex;
+  }
+
+  .top-menu {
+    display: none !important;
+  }
 }
 
 /* ===== 右上角命令面板入口（W1-08/O14） ===== */

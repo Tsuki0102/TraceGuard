@@ -578,6 +578,39 @@ export const llmApi = {
   }
 }
 
+/** 智能体助手（一期：只读工具 + SSE 流式对话；流式接口在组件内以 fetch 直连） */
+export const agentApi = {
+  /** 智能体状态：{enabled, tools:[...]} */
+  status() {
+    return request({ url: '/agent/status', method: 'get' })
+  },
+  /** 重置会话（清空服务端多轮历史） */
+  reset(sessionId) {
+    return request({ url: '/agent/reset', method: 'post', data: { sessionId } })
+  },
+  /** 确认/取消待确认动作：{success, message} */
+  confirm(sessionId, token, approve) {
+    return request({ url: '/agent/confirm', method: 'post', data: { sessionId, token, approve } })
+  },
+  /** 手动触发质量巡检（仅管理员，同步执行可能 30~120s） */
+  patrolRun() {
+    return request({ url: '/agent/patrol/run', method: 'post', timeout: 120000 })
+  },
+  /** 最近一次巡检报告（仅管理员） */
+  patrolLatest() {
+    return request({ url: '/agent/patrol/latest', method: 'get' })
+  },
+  /** SSE 流式对话端点（fetch 直连，返回 Response 供组件解析事件流） */
+  stream(sessionId, message) {
+    return fetch('/api/agent/chat/stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ sessionId, message })
+    })
+  }
+}
+
 /** W5 波：质量洞察接口（缺陷趋势/工单看板/组合简报/模式库） */
 export const insightApi = {
   /** 跨项目缺陷趋势：days=7..90，projectId 可选 */

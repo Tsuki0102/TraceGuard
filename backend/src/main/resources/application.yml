@@ -142,12 +142,15 @@ traceguard:
       code-explain: deepseek
       defect-explain: deepseek
       consistency-check: qwen
+      # 智能体对话（Agent 多轮工具调用；默认指向本地 Ollama，零外部依赖；路由缺失时业务层自动回退 code-explain）
+      agent: codellama
     models:
       requirement: glm-5.3
       alloy: deepseek-v4-flash
       code-explain: deepseek-v4-flash
       defect-explain: deepseek-v4-flash
       consistency-check: qwen-max
+      agent: qwen2.5-coder:14b
     max-concurrent-calls: 4
     max-calls-per-stage: 200
     # GAP-046 候选复核：LLM 二审只评审候选对（规则可疑/灰色带/高风险/一致池抽检），硬上限 200 对
@@ -174,6 +177,11 @@ traceguard:
       model-path: ${EMBEDDING_MODEL_PATH:../models/bge-small-zh-v1.5/onnx/model.onnx}
       model-dim: ${EMBEDDING_MODEL_DIM:512}   # bge-small 系列=512，bge-base=768，依模型而定
       normalize: ${EMBEDDING_NORMALIZE:true}   # BGE 默认对输出做 L2 归一化
+  # 三期：质量巡检智能体（默认关闭控制 LLM 成本；开启后按 cron 定时巡检，管理员手动触发不受此开关限制）
+  agent:
+    patrol:
+      enabled: ${AGENT_PATROL_ENABLED:false}
+      cron: ${AGENT_PATROL_CRON:0 0 9 * * ?}
   # GAP-009：第三方项目管理工具集成
   integration:
     jira:

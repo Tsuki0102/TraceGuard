@@ -332,12 +332,15 @@ const saving = ref(false)
 const testingKey = ref('')
 const testResult = ref(null)
 
-/** 环节定义（GAP-021 路由键）：需求→GLM、Alloy/代码/缺陷→DeepSeek 为推荐默认 */
+/** 环节定义（GAP-021 路由键 + 智能体扩展）：须与后端 Stage 枚举 configKey 完全一致，
+ *  否则保存时未列出的环节键会从路由表中被抹除（保存为全量替换语义） */
 const stageList = [
   { key: 'requirement', label: '需求分析' },
   { key: 'alloy', label: 'Alloy 规约' },
   { key: 'code-explain', label: '代码解释' },
-  { key: 'defect-explain', label: '缺陷解释' }
+  { key: 'defect-explain', label: '缺陷解释' },
+  { key: 'consistency-check', label: '一致性判定' },
+  { key: 'agent', label: '智能体对话' }
 ]
 
 const cfg = reactive({
@@ -918,8 +921,9 @@ const onLlmResize = () => {
 
 .provider-card__foot {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: 6px 10px;
   min-height: 32px;
 }
 
@@ -928,6 +932,11 @@ const onLlmResize = () => {
   align-items: center;
   gap: 5px;
   font-size: 12px;
+  /* 防御性占位：结果文字永远独占文档流，绝不与按钮叠印 */
+  position: static;
+  flex-shrink: 0;
+  max-width: 100%;
+  word-break: break-all;
 }
 
 .test-reply.ok {

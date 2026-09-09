@@ -14,7 +14,9 @@ public enum Stage {
     /** 缺陷解释增强 */
     DEFECT_EXPLAIN("defect-explain"),
     /** AUD-02：需求-代码一致性语义判定（LLM 二审） */
-    CONSISTENCY_CHECK("consistency-check");
+    CONSISTENCY_CHECK("consistency-check"),
+    /** 智能体对话（Agent 多轮工具调用循环；路由缺失时业务层回退 code-explain） */
+    AGENT_CHAT("agent");
 
     /** 配置文件中的键名（routing/models 表的 key） */
     private final String configKey;
