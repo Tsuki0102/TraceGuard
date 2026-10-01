@@ -52,6 +52,9 @@ hs_err_pid*
 backend/llm-verdicts.json
 tools/
 
+# ===== 本地演示会话产物（登录 cookie / 令牌，禁止入库） =====
+demo-cases/tools/cookies.txt
+
 # ===== OS =====
 Thumbs.db
 Desktop.ini
