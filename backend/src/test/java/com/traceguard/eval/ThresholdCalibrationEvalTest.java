@@ -12,6 +12,7 @@ import com.traceguard.service.impl.LocalBgeEmbeddingClient;
 import com.traceguard.util.CodeDefectPatternDetector;
 import com.traceguard.util.JavaCodeParserUtil;
 import com.traceguard.util.SemanticVectorUtil;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -317,6 +318,7 @@ class ThresholdCalibrationEvalTest {
 
         assertTrue(bestAcc >= 0 && bestAcc <= 1, "准确率应为合法概率值");
         assertTrue(bestT1 > 0 && bestT1 < 1, "推荐 t1 应位于 (0,1)");
+        assumeBgeBaseline();
         // B2 规则链路基线门禁上调（2026-09-03）：A2 去共线性 + 风险门控双通道重标定后
         // acc 80.0%/fpr 6.9%（旧链 65.5%/24.1%）。门禁按 B2 验收线留余量：acc≥68%、fpr≤18%。
         // 若某改动使最优 t1 准确率跌破 68% 或误报率突破 18%，说明规则链路发生明显退化，须排查后再提交。
@@ -380,6 +382,7 @@ class ThresholdCalibrationEvalTest {
             }
         }
         // 防回归门禁（非性能承诺）：验证集上规则链显著退化时阻断。
+        assumeBgeBaseline();
         // 已知跨域短板（A4 复测暴露，留档）：风险词表过拟合 tune 域 -> validation FP 主要由
         // risk 通道在"高语义对齐对"上误触发（FP 明细见上方 [A4-FP] 输出；semGuard 网格数据
         // 见 -Dcal.riskgate 输出：守卫在 tune 上损失 11 TP 不可取）。迭代靶标：风险词表域中性化。
@@ -1281,6 +1284,18 @@ class ThresholdCalibrationEvalTest {
     }
 
     /** 构造本地 BGE 客户端（FUN-04①）：从 EMBEDDING_MODEL_PATH / 固定候选路径加载模型，加载失败返回 null（回退 TF-IDF） */
+    /**
+     * B2 基线门禁前置条件：acc≥68% / 验证集≥60% 的基线均以本地 BGE 语义向量为前提
+     * （models/ 目录已 gitignore，CI 与全新克隆环境默认缺失）。模型缺席时走 TF-IDF+jieba 降级路径，
+     * 准确率约 52%，与基线不可比——此时跳过门禁而非误报"链路退化"
+     * （CI 已配置 scripts/download_bge_model.sh best-effort 下载；下载成功时门禁照常真跑）。
+     */
+    private static void assumeBgeBaseline() {
+        Assumptions.assumeTrue(bgeEnabled,
+                "[GAP-023] B2 基线门禁需要本地 BGE 模型（EMBEDDING_MODEL_PATH 或 ../models/bge-small-zh-v1.5/onnx/model.onnx）；"
+                        + "当前为 TF-IDF 降级路径，基线不可比，已跳过。本机恢复方式：bash scripts/download_bge_model.sh");
+    }
+
     private static LocalBgeEmbeddingClient buildLocalBgeClient() {
         String modelPath = System.getenv("EMBEDDING_MODEL_PATH");
         if (modelPath == null || modelPath.trim().isEmpty()) {
