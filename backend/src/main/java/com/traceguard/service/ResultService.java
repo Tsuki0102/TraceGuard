@@ -49,6 +49,9 @@ public class ResultService {
     @Autowired(required = false)
     private AuditLogMapper auditLogMapper;
 
+    @Autowired
+    private DataChangeLogService dataChangeLogService;
+
     // GAP-009：第三方集成（可选注入，enabled=false时不存在）
     @Autowired(required = false)
     private JiraClient jiraClient;
@@ -652,6 +655,16 @@ public class ResultService {
 
         // 写审计日志
         auditLogWriteOld(defectId, oldStatus, newStatus);
+
+        // 写数据变更日志（2.8 FR-PLAT-004）：字段级 status diff，覆盖页面/工单/智能体/集成同步全部入口
+        try {
+            Map<String, String> oldMap = Collections.singletonMap("status", oldStatus);
+            Map<String, String> newMap = Collections.singletonMap("status", newStatus);
+            dataChangeLogService.recordFieldChanges("defect", String.valueOf(defectId), defect.getProjectId(),
+                    oldMap, newMap, Collections.singletonList("status"));
+        } catch (Exception e) {
+            log.warn("缺陷状态数据变更日志写入失败: {}", e.getMessage());
+        }
 
         // GAP-009：状态联动钩子（旁路，失败不影响本地流转）
         triggerStatusTransition(defect, newStatus);

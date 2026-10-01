@@ -305,6 +305,10 @@ export const auditApi = {
 }
 
 export const dataChangeLogApi = {
+  /** 查询全部变更日志（管理员全量；普通用户限本人项目） */
+  pageAll(params) {
+    return request({ url: '/data-change-log/all', method: 'get', params })
+  },
   /** 2.8 整改：按项目查询字段级变更日志 */
   pageByProject(projectId, params) {
     return request({ url: `/data-change-log/project/${projectId}`, method: 'get', params })

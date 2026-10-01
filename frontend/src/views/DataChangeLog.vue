@@ -55,7 +55,7 @@
         </div>
         <div class="cfg-stat__foot">
           <span class="cfg-stat__bar"><i :style="{ width: '100%' }"></i></span>
-          <span class="cfg-stat__ratio">{{ queryMode === 'project' ? '项目 #' + (projectId ?? '—') : '实体 #' + (entityId || '—') }}</span>
+          <span class="cfg-stat__ratio">{{ queryMode === 'all' ? '全部项目 · 系统级记录' : queryMode === 'project' ? '项目 #' + (projectId ?? '—') : '实体 #' + (entityId || '—') }}</span>
         </div>
       </div>
       <div class="cfg-stat cfg-stat--rich">
@@ -105,6 +105,7 @@
     <section class="query-card tg-fade-up" style="animation-delay: 140ms">
       <div class="query-card__inner">
         <el-radio-group v-model="queryMode" @change="onModeChange" class="query-card__mode">
+          <el-radio-button label="all">全部记录</el-radio-button>
           <el-radio-button label="project">按项目</el-radio-button>
           <el-radio-button label="entity">按实体</el-radio-button>
         </el-radio-group>
@@ -114,10 +115,14 @@
             <el-option v-for="p in projects" :key="p.id" :label="p.projectName" :value="p.id" />
           </el-select>
         </template>
-        <template v-else>
+        <template v-else-if="queryMode === 'entity'">
           <el-select v-model="entityType" placeholder="实体类型" class="query-card__type" @change="loadData">
-            <el-option label="用户(user)" value="user" />
             <el-option label="项目(project)" value="project" />
+            <el-option label="需求(requirement)" value="requirement" />
+            <el-option label="缺陷(defect)" value="defect" />
+            <el-option label="用户(user)" value="user" />
+            <el-option label="系统配置(system_config)" value="system_config" />
+            <el-option label="大模型配置(llm_config)" value="llm_config" />
           </el-select>
           <el-input
             v-model="entityId"
@@ -272,7 +277,7 @@ import {
 import EmptyArt from '@/components/EmptyArt.vue'
 import { dataChangeLogApi, projectApi } from '@/api'
 
-const queryMode = ref('project')
+const queryMode = ref('all')
 const projectId = ref(null)
 const entityType = ref('user')
 const entityId = ref('')
@@ -305,7 +310,7 @@ const timelineItems = computed(() => records.value.slice(0, 50))
 const loadProjects = async () => {
   try {
     projects.value = await projectApi.list()
-    if (projects.value.length && !projectId.value) {
+    if (queryMode.value === 'project' && projects.value.length && !projectId.value) {
       projectId.value = projects.value[0].id
     }
   } catch (e) {
@@ -322,7 +327,9 @@ const loadData = async () => {
   loading.value = true
   try {
     let res
-    if (queryMode.value === 'project') {
+    if (queryMode.value === 'all') {
+      res = await dataChangeLogApi.pageAll({ pageNum: pageNum.value, pageSize: pageSize.value })
+    } else if (queryMode.value === 'project') {
       if (!projectId.value) {
         records.value = []
         total.value = 0

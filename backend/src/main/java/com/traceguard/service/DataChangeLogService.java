@@ -109,6 +109,23 @@ public class DataChangeLogService {
         return mapper.selectPage(new Page<>(pageNum, pageSize), wrapper);
     }
 
+    /**
+     * 分页查询全部变更历史。
+     * visibleProjectIds 非空时仅限这些项目（普通用户可见范围）；为 null 时不过滤（管理员全量）。
+     * 注意：project_id 为空的记录（user/system_config/llm_config 等系统级日志）仅管理员可见。
+     */
+    public Page<DataChangeLog> pageAll(List<Long> visibleProjectIds, int pageNum, int pageSize) {
+        LambdaQueryWrapper<DataChangeLog> wrapper = new LambdaQueryWrapper<>();
+        if (visibleProjectIds != null) {
+            if (visibleProjectIds.isEmpty()) {
+                return new Page<>(pageNum, pageSize);
+            }
+            wrapper.in(DataChangeLog::getProjectId, visibleProjectIds);
+        }
+        wrapper.orderByDesc(DataChangeLog::getChangeTime);
+        return mapper.selectPage(new Page<>(pageNum, pageSize), wrapper);
+    }
+
     private String truncate(String s) {
         if (s == null) return null;
         return s.length() > MAX_VALUE_LEN ? s.substring(0, MAX_VALUE_LEN) : s;

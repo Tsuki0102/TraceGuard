@@ -11,6 +11,8 @@ import io.swagger.annotations.ApiOperation;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/data-change-log")
 @Api(tags = "07-数据变更日志")
@@ -33,6 +35,21 @@ public class DataChangeLogController {
                                                        @RequestParam(defaultValue = "20") int pageSize) {
         projectService.checkOwnership(projectId);
         return Result.success(changeLogService.pageByProject(projectId, pageNum, pageSize));
+    }
+
+    /**
+     * 查询全部变更日志（默认视图）：管理员全量；普通用户仅限本人可见项目（系统级日志除外）。
+     */
+    @ApiOperation(value = "查询全部数据变更日志", notes = "管理员全量；普通用户仅限本人项目的变更记录")
+    @GetMapping("/all")
+    public Result<IPage<DataChangeLog>> pageAll(@RequestParam(defaultValue = "1") int pageNum,
+                                                 @RequestParam(defaultValue = "20") int pageSize) {
+        if (UserContext.isAdmin()) {
+            return Result.success(changeLogService.pageAll(null, pageNum, pageSize));
+        }
+        List<Long> visibleIds = projectService.list(UserContext.getUserId())
+                .stream().map(p -> p.getId()).collect(java.util.stream.Collectors.toList());
+        return Result.success(changeLogService.pageAll(visibleIds, pageNum, pageSize));
     }
 
     /**
