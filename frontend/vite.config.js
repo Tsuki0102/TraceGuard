@@ -53,7 +53,19 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:8080',
         changeOrigin: true,
-        ws: true
+        ws: true,
+        configure: (proxy) => {
+          // 局域网设备（手机）访问时，浏览器会带 Origin: http://<局域网IP>:3000，
+          // 而后端 CORS 白名单只放行 localhost，登录 POST 会被 403 Invalid CORS request 拒绝。
+          // dev 代理统一把 Origin 改写为白名单内的 localhost，后端安全白名单保持不变。
+          const rewriteOrigin = (proxyReq) => {
+            if (proxyReq.getHeader('origin')) {
+              proxyReq.setHeader('origin', 'http://localhost:3000')
+            }
+          }
+          proxy.on('proxyReq', rewriteOrigin)
+          proxy.on('proxyReqWs', rewriteOrigin) // WebSocket 握手（通知推送）同样校验 Origin
+        }
       }
     }
   }
