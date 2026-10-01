@@ -95,15 +95,26 @@ public class FileStorageUtil {
             case "markdown":
             case "txt":
             case "java":
-                // SEC-09：.java 源码与文本文件同一校验口径——含 NUL 等二进制控制字符即拒绝（防伪造扩展名）
+            case "py":
+            case "c":
+            case "h":
+            case "cpp":
+            case "cc":
+            case "cxx":
+            case "hpp":
+            case "hh":
+            case "go":
+                // SEC-09：.java/.py/.c/.cpp 等源码与文本文件同一校验口径——含 NUL 等二进制控制字符即拒绝（防伪造扩展名）
                 if (hasBinaryControl(header, len)) {
                     throw new BusinessException(400, "文件[" + originalName + "]不是合法的"
-                            + (ext.equals("java") ? " Java 源文件" : "文本文件") + "（包含二进制控制字符，疑似伪造扩展名）");
+                            + (ext.equals("java") ? " Java 源文件" : ext.equals("py") ? " Python 源文件"
+                            : "文本文件")
+                            + "（包含二进制控制字符，疑似伪造扩展名）");
                 }
                 break;
             default:
                 throw new BusinessException(400, "不支持的文件类型: ." + ext
-                        + "（仅支持 .docx/.pdf/.md/.markdown/.txt 需求文档与 .zip/.jar/.war 代码压缩包与 .java 源码）");
+                        + "（仅支持 .docx/.pdf/.md/.markdown/.txt 需求文档与 .zip/.jar/.war 代码压缩包与 .java/.py/.c/.cpp 等源码）");
         }
     }
 

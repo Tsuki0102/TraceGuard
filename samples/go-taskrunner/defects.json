@@ -1,0 +1,56 @@
+[
+  {
+    "id": "D01",
+    "file": "runner.go",
+    "line": 33,
+    "type": "约束条件不满足",
+    "subtype": "错误未处理",
+    "relatedReq": "REQ-004",
+    "description": "RunTask 中 os.ReadFile 返回的 err 未经 if err != nil 检查直接使用 data，文件不存在时返回错误内容长度，违反 REQ-004"
+  },
+  {
+    "id": "D02",
+    "file": "runner.go",
+    "line": 42,
+    "type": "约束条件不满足",
+    "subtype": "资源未释放",
+    "relatedReq": "REQ-005",
+    "description": "LoadConfig 中 os.Open 打开文件后既无 defer f.Close() 也无 Close()，函数返回即泄漏句柄，违反 REQ-005"
+  },
+  {
+    "id": "D03",
+    "file": "runner.go",
+    "line": 51,
+    "type": "约束条件不满足",
+    "subtype": "锁未释放",
+    "relatedReq": "REQ-006",
+    "description": "UpdateCounter 中 mu.Lock() 加锁后无 defer mu.Unlock()，临界区内 panic/return 路径将永久死锁，违反 REQ-006"
+  },
+  {
+    "id": "D04",
+    "file": "runner.go",
+    "line": 62,
+    "type": "业务逻辑不一致",
+    "subtype": "阈值条件反转",
+    "relatedReq": "REQ-008",
+    "description": "MaybeFlush 使用 size <= threshold 判断触发落盘，条件反转：缓冲越小越刷盘、超过阈值反而不触发，违反 REQ-008"
+  },
+  {
+    "id": "D05",
+    "file": "runner.go",
+    "line": 76,
+    "type": "约束条件不满足",
+    "subtype": "错误被忽略",
+    "relatedReq": "REQ-009",
+    "description": "Cleanup 使用 _, _ = 丢弃返回的 error，清理失败无法感知，违反 REQ-009 不允许静默丢弃"
+  },
+  {
+    "id": "D06",
+    "file": "util.go",
+    "line": 11,
+    "type": "约束条件不满足",
+    "subtype": "panic 滥用",
+    "relatedReq": "REQ-010",
+    "description": "ParseSize 对空输入直接 panic 而非返回 error，调用方无法以常规错误处理路径恢复，违反 REQ-010"
+  }
+]

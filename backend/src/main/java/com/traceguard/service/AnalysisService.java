@@ -417,14 +417,19 @@ public class AnalysisService {
     }
 
     /**
-     * FR-CODE-001 规则4（2.4 整改项）：单 Java 文件批量导入入口。
-     * 适用于零散 .java 源文件场景：多选批量上传，保存到项目独立代码目录（明文，供解析），
+     * FR-CODE-001 规则4（2.4 整改项）：单源码文件批量导入入口（T11 多语言：按项目语言校验扩展名）。
+     * 适用于零散源文件场景：多选批量上传，保存到项目独立代码目录（明文，供解析），
      * 更新 project.codeProjectPath 并失效旧代码产物。与 ZIP 代码工程上传互为补充。
      */
     public String uploadCodeFiles(MultipartFile[] files, Long projectId) {
         if (files == null || files.length == 0) {
-            throw new BusinessException(400, "请至少选择一个 Java 文件");
+            throw new BusinessException(400, "请至少选择一个源码文件");
         }
+        // T11 多语言：按项目语言取源文件扩展名白名单（未注册语言回退全局配置/Java）
+        Project langProject = projectId != null ? projectMapper.selectById(projectId) : null;
+        String lang = resolveCodeLanguage(langProject);
+        List<String> extensions = parserRegistry.getCodeParser(lang).sourceExtensions();
+        String extHint = String.join("/", extensions);
         List<MultipartFile> validFiles = new ArrayList<>();
         for (MultipartFile file : files) {
             String name = file.getOriginalFilename();
@@ -432,23 +437,25 @@ public class AnalysisService {
                 continue;
             }
             String cleanName = new File(name).getName();
-            if (!cleanName.toLowerCase().endsWith(".java")) {
-                throw new BusinessException(400, "仅支持 .java 源文件：" + name);
+            String lower = cleanName.toLowerCase();
+            boolean allowed = extensions.stream().anyMatch(lower::endsWith);
+            if (!allowed) {
+                throw new BusinessException(400, "仅支持 " + extHint + " 源文件：" + name);
             }
             if (file.isEmpty()) {
                 continue;
             }
-            // SEC-09：与 ZIP/需求文档链路统一魔数校验（文本检测），防伪造 .java 扩展名上传二进制文件
+            // SEC-09：与 ZIP/需求文档链路统一魔数校验（文本检测），防伪造源码扩展名上传二进制文件
             try {
                 FileStorageUtil.validateFileType(file);
             } catch (IOException e) {
-                throw new BusinessException(400, "Java 源文件校验失败：" + name + " - " + e.getMessage());
+                throw new BusinessException(400, "源码文件校验失败：" + name + " - " + e.getMessage());
             }
             validateCodeFileSize(file.getSize(), cleanName);
             validFiles.add(file);
         }
         if (validFiles.isEmpty()) {
-            throw new BusinessException(400, "未选择有效的 Java 文件");
+            throw new BusinessException(400, "未选择有效的源码文件（" + extHint + "）");
         }
         invalidateCodeArtifacts(projectId);
         String dir = uploadPath + "code/" + projectId + "/single_" + IdUtil.simpleUUID();
@@ -554,7 +561,7 @@ public class AnalysisService {
             generateFormalSpecs(task, requirements, log, llmUsage);
             phaseTimings.put("generateFormalSpecs", System.currentTimeMillis() - phaseStart);
             task.setProgress(45);
-            task.setCurrentStep("解析Java代码");
+            task.setCurrentStep("解析代码");
             updateAndPush(task);
             phaseStart = System.currentTimeMillis();
             List<CodeUnit> codeUnits = parseCode(task, project, log, llmUsage);
@@ -1302,6 +1309,9 @@ public class AnalysisService {
         if (codePath == null || !new File(codePath).exists()) {
             throw new Exception("代码项目不存在，请先上传代码工程");
         }
+        // T11 多语言：解析语言 = 项目 techStack（已注册解析器时）优先，回退全局配置 traceguard.analysis.code-language
+        String lang = resolveCodeLanguage(project);
+        com.traceguard.spi.CodeParser parser = parserRegistry.getCodeParser(lang);
         // P2-5：已有解析结果（含上传新代码后保留的旧行）时，按文件内容哈希做增量解析；
         // 关闭增量开关时回退历史"断点续跑：直接复用"行为
         List<CodeUnit> existing = codeUnitMapper.selectList(
@@ -1310,12 +1320,12 @@ public class AnalysisService {
             if (!incrementalCodeEnabled) {
                 log.append("[").append(LocalDateTime.now()).append("] 检测到已有代码解析结果（").append(existing.size())
                         .append("个方法单元），断点续跑：跳过代码解析（incremental-code=off）\n");
-                refreshCodeDefects(task, project, codePath, log);
+                refreshCodeDefects(task, project, codePath, log, parser);
                 task.setExecutionLog(log.toString());
                 taskMapper.updateById(task);
                 return existing;
             }
-            List<CodeUnit> merged = incrementalParseCode(task, project, existing, codePath, log, usage);
+            List<CodeUnit> merged = incrementalParseCode(task, project, existing, codePath, log, usage, parser);
             if (merged != null) {
                 return merged;
             }
@@ -1327,13 +1337,15 @@ public class AnalysisService {
             codeDefectMapper.delete(new LambdaQueryWrapper<CodeDefect>()
                     .eq(CodeDefect::getProjectId, project.getId()));
         }
-        log.append("[").append(LocalDateTime.now()).append("] 开始解析Java代码...\n");
-        // GAP-003：任务级 Soot 源码编译一次并缓存，供 parseFile 判定（避免每个文件重复编译）
-        SootCfgBuilderUtil.CompileResult sootCompile = prepareSootCompile(task, codePath, log);
+        log.append("[").append(LocalDateTime.now()).append("] 开始解析代码（语言=").append(lang).append("）...\n");
+        // GAP-003：任务级 Soot 源码编译一次并缓存，供 parseFile 判定（避免每个文件重复编译）；仅 Java 链路需要编译
+        SootCfgBuilderUtil.CompileResult sootCompile = "java".equals(lang) ? prepareSootCompile(task, codePath, log) : null;
         try {
             // GAP-014：单文件隔离解析——任一文件异常仅跳过并计入 failures（key 为源码相对路径），不中断整体解析
-            JavaCodeParserUtil.ProjectParseResult parseResult = parserRegistry.getCodeParser(codeLanguage)
-                    .parseProject(codePath, sootCompile != null && sootCompile.isSuccess() ? sootCompile : null);
+            com.traceguard.spi.CompileResult compile = sootCompile != null && sootCompile.isSuccess()
+                    ? com.traceguard.spi.CompileResult.of(sootCompile, true, sootCompile.getErrors())
+                    : com.traceguard.spi.CompileResult.none();
+            com.traceguard.spi.ProjectParseResult parseResult = parser.parseProject(codePath, compile);
             List<CodeUnit> codeUnits = parseResult.codeUnits;
             if (!parseResult.failures.isEmpty()) {
                 appendCodeParseFailures(project, parseResult.failures, log);
@@ -1345,7 +1357,7 @@ public class AnalysisService {
                 codeUnitMapper.insert(unit);
             }
             log.append("[").append(LocalDateTime.now()).append("] 代码解析完成，共提取").append(codeUnits.size()).append("个方法单元\n");
-            detectCodeDefects(task, project, codePath, log);
+            detectCodeDefects(task, project, codePath, log, parser);
             task.setExecutionLog(log.toString());
             taskMapper.updateById(task);
             return codeUnits;
@@ -1365,7 +1377,8 @@ public class AnalysisService {
      */
     private List<CodeUnit> incrementalParseCode(AnalysisTask task, Project project,
                                                 List<CodeUnit> existing, String codePath,
-                                                StringBuilder log, LlmUsage usage) throws Exception {
+                                                StringBuilder log, LlmUsage usage,
+                                                com.traceguard.spi.CodeParser parser) throws Exception {
         // 老数据兼容：任一存量行无 contentHash -> 全量重解析（回退由调用方处理）
         for (CodeUnit u : existing) {
             if (u.getFilePath() == null || u.getContentHash() == null || u.getContentHash().isEmpty()) {
@@ -1379,7 +1392,7 @@ public class AnalysisService {
                 oldHashByFile.put(u.getFilePath(), u.getContentHash());
             }
         }
-        Map<String, String> curHashByFile = javaCodeParserUtil.scanContentHashes(codePath);
+        Map<String, String> curHashByFile = parser.scanContentHashes(codePath);
         // P2-5：diff 决策抽为可单测纯函数（IncrementalDiff），此处仅消费其计划
         IncrementalDiff.Plan plan = IncrementalDiff.plan(oldHashByFile, curHashByFile);
         List<String> changed = plan.changed;   // 变更/新增文件
@@ -1387,7 +1400,7 @@ public class AnalysisService {
         if (plan.isEmpty()) {
             log.append("[").append(LocalDateTime.now()).append("] 增量比对：全部 ")
                     .append(existing.size()).append(" 个方法单元内容未变更，跳过代码解析（复用存量结果）\n");
-            refreshCodeDefects(task, project, codePath, log);
+            refreshCodeDefects(task, project, codePath, log, parser);
             task.setExecutionLog(log.toString());
             taskMapper.updateById(task);
             return existing;
@@ -1395,17 +1408,21 @@ public class AnalysisService {
         log.append("[").append(LocalDateTime.now()).append("] 开始增量代码解析：变更/新增文件 ")
                 .append(changed.size()).append(" 个，移除 ").append(removed.size())
                 .append(" 个，未变更复用 ").append(plan.unchangedCount(curHashByFile.size())).append(" 个文件\n");
-        // GAP-003：任务级 Soot 编译一次，供变更文件构建字节码级 CFG
-        SootCfgBuilderUtil.CompileResult sootCompile = prepareSootCompile(task, codePath, log);
+        // GAP-003：任务级 Soot 编译一次，供变更文件构建字节码级 CFG；仅 Java 链路需要编译
+        SootCfgBuilderUtil.CompileResult sootCompile = "java".equals(parser.language())
+                ? prepareSootCompile(task, codePath, log) : null;
+        com.traceguard.spi.CompileResult compile = sootCompile != null && sootCompile.isSuccess()
+                ? com.traceguard.spi.CompileResult.of(sootCompile, true, sootCompile.getErrors())
+                : com.traceguard.spi.CompileResult.none();
         try {
-            Map<String, File> fileByRel = indexCodeFiles(codePath);
+            Map<String, File> fileByRel = indexCodeFiles(codePath, parser);
             List<CodeUnit> parsed = new ArrayList<>();
             for (String rel : changed) {
                 File f = fileByRel.get(rel);
                 if (f == null) {
                     continue;
                 }
-                parsed.addAll(javaCodeParserUtil.parseFileForAnalysis(f, codePath, sootCompile));
+                parsed.addAll(parser.parseFileForAnalysis(f, codePath, compile));
             }
             if (!parsed.isEmpty()) {
                 applyLogicEnrichment(task, parsed, log, usage);
@@ -1433,7 +1450,7 @@ public class AnalysisService {
             log.append("[").append(LocalDateTime.now()).append("] 增量解析完成：复用 ")
                     .append(existing.size() - deletedOld).append(" 个、新解析/替换 ").append(parsed.size())
                     .append(" 个方法单元，共 ").append(merged.size()).append(" 个\n");
-            refreshCodeDefects(task, project, codePath, log);
+            refreshCodeDefects(task, project, codePath, log, parser);
             task.setExecutionLog(log.toString());
             taskMapper.updateById(task);
             return merged;
@@ -1445,10 +1462,9 @@ public class AnalysisService {
     }
 
     /** P2-5：按相对工程路径索引当前代码文件（与 JavaCodeParserUtil.relativePath 同口径） */
-    private Map<String, File> indexCodeFiles(String codePath) {
+    private Map<String, File> indexCodeFiles(String codePath, com.traceguard.spi.CodeParser parser) {
         Map<String, File> map = new HashMap<>();
-        List<File> files = new ArrayList<>();
-        collectJavaFiles(new File(codePath), files);
+        List<File> files = parser.collectSourceFiles(new File(codePath));
         String base = codePath.replace("\\", "/");
         if (!base.endsWith("/")) base = base + "/";
         for (File f : files) {
@@ -1460,10 +1476,11 @@ public class AnalysisService {
     }
 
     /** P2-5：清理项目旧基础缺陷并按本次任务重新检测（与一致性/缺陷同 taskId 口径，避免统计错乱） */
-    private void refreshCodeDefects(AnalysisTask task, Project project, String codePath, StringBuilder log) {
+    private void refreshCodeDefects(AnalysisTask task, Project project, String codePath, StringBuilder log,
+                                    com.traceguard.spi.CodeParser parser) {
         codeDefectMapper.delete(new LambdaQueryWrapper<CodeDefect>()
                 .eq(CodeDefect::getProjectId, project.getId()));
-        detectCodeDefects(task, project, codePath, log);
+        detectCodeDefects(task, project, codePath, log, parser);
     }
 
     /** GAP-001 + GAP-006：对方法单元执行 LLM 逻辑描述增强 + CodeLogicDescriber 结构化分析（全量/增量共用） */
@@ -1674,19 +1691,34 @@ public class AnalysisService {
         }
     }
 
-    private void detectCodeDefects(AnalysisTask task, Project project, String codePath, StringBuilder log) {
-        log.append("[").append(LocalDateTime.now()).append("] 开始代码基础缺陷检测...\n");
-        List<File> javaFiles = new java.util.ArrayList<>();
-        collectJavaFiles(new File(codePath), javaFiles);
+    private void detectCodeDefects(AnalysisTask task, Project project, String codePath, StringBuilder log,
+                                   com.traceguard.spi.CodeParser parser) {
+        log.append("[").append(LocalDateTime.now()).append("] 开始代码基础缺陷检测（语言=").append(parser.language()).append("）...\n");
+        List<File> sourceFiles = parser.collectSourceFiles(new File(codePath));
         int defectCount = 0;
-        for (File file : javaFiles) {
-            List<CodeDefect> defects = javaCodeParserUtil.detectBasicDefects(file, codePath, project.getId(), task.getId());
+        for (File file : sourceFiles) {
+            List<CodeDefect> defects = parser.detectBasicDefects(file, codePath, project.getId(), task.getId());
             for (CodeDefect d : defects) {
                 codeDefectMapper.insert(d);
                 defectCount++;
             }
         }
         log.append("[").append(LocalDateTime.now()).append("] 基础缺陷检测完成，发现").append(defectCount).append("个潜在缺陷\n");
+    }
+
+    /** T11 多语言：解析语言 = 项目 techStack（注册表已支持时，如 Java/Python/C/C++）优先，回退全局配置 */
+    private String resolveCodeLanguage(Project project) {
+        String techStack = project != null ? project.getTechStack() : null;
+        if (techStack != null && !techStack.isBlank()) {
+            String normalized = techStack.trim().toLowerCase();
+            if ("c++".equals(normalized) || "cplus".equals(normalized)) {
+                normalized = "cpp"; // 常见写法归一化
+            }
+            if (parserRegistry.isSupported(normalized)) {
+                return normalized;
+            }
+        }
+        return codeLanguage;
     }
 
     private void collectJavaFiles(File dir, List<File> files) {

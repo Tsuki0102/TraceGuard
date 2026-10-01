@@ -1,0 +1,56 @@
+[
+  {
+    "id": "D01",
+    "file": "store.py",
+    "line": 19,
+    "type": "约束条件不满足",
+    "subtype": "可变默认参数",
+    "relatedReq": "REQ-001",
+    "description": "add_stock_record 的 cache 参数默认值为列表字面量，Python 默认参数跨调用共享同一对象，多次调用状态串扰"
+  },
+  {
+    "id": "D02",
+    "file": "store.py",
+    "line": 23,
+    "type": "约束条件不满足",
+    "subtype": "SQL注入拼接",
+    "relatedReq": "REQ-001",
+    "description": "INSERT 语句使用 f-string 拼接 name/qty 变量，商品名称含单引号即可逃逸字符串边界造成 SQL 注入，应使用参数化查询"
+  },
+  {
+    "id": "D03",
+    "file": "store.py",
+    "line": 56,
+    "type": "约束条件不满足",
+    "subtype": "资源未释放",
+    "relatedReq": "REQ-007",
+    "description": "save_log 中 open() 打开日志文件后未使用 with 语句也未调用 close()，异常路径下文件句柄泄漏，违反 REQ-007 日志写入约束"
+  },
+  {
+    "id": "D04",
+    "file": "service.py",
+    "line": 47,
+    "type": "业务逻辑不一致",
+    "subtype": "阈值条件反转",
+    "relatedReq": "REQ-003",
+    "description": "outbound 使用 record.qty < qty 判断后才执行出库，条件反转：库存不足时反而允许出库、库存充足时拒绝，违反 REQ-003"
+  },
+  {
+    "id": "D05",
+    "file": "service.py",
+    "line": 74,
+    "type": "业务逻辑不一致",
+    "subtype": "无退出条件循环",
+    "relatedReq": "",
+    "description": "flush_cache_with_retry 的 while True 循环无 break/return/raise 退出路径，远端永久不可达时将无限轮询"
+  },
+  {
+    "id": "D06",
+    "file": "service.py",
+    "line": 88,
+    "type": "约束条件不满足",
+    "subtype": "异常吞没",
+    "relatedReq": "REQ-008",
+    "description": "load_threshold_config 使用裸 except 吞掉所有异常（含配置格式错误），故障被静默隐藏，应捕获具体异常类型并记录"
+  }
+]

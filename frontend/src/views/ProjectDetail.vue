@@ -203,7 +203,7 @@
                   <span class="upload-section__step">02</span>
                   <h3>上传代码工程</h3>
                 </div>
-                <p class="tip">请将Java Maven/Gradle项目打包为ZIP格式后上传</p>
+                <p class="tip">请将代码工程打包为 ZIP 格式后上传（支持 Java Maven/Gradle 工程、Python 工程；按项目技术栈自动选择解析器）</p>
                 <el-upload
                   class="upload-demo"
                   drag
@@ -230,9 +230,9 @@
                 <el-alert v-if="project.codeProjectPath" type="success" :closable="false" style="margin-top: 15px">
                   代码工程已上传并解压
                 </el-alert>
-                <!-- FR-CODE-001 规则4（2.4 整改项）：单 Java 文件批量导入入口（零散源文件场景） -->
-                <el-divider content-position="left">或批量导入单个 Java 文件</el-divider>
-                <p class="tip">适用于零散 Java 源文件场景；导入后将替换当前代码工程</p>
+                <!-- FR-CODE-001 规则4（2.4 整改项）：单源码文件批量导入入口（零散源文件场景，T11 支持多语言） -->
+                <el-divider content-position="left">或批量导入单个源文件</el-divider>
+                <p class="tip">适用于零散源文件场景（.java/.py，按项目技术栈校验）；导入后将替换当前代码工程</p>
                 <el-upload
                   class="upload-demo"
                   multiple
@@ -240,15 +240,15 @@
                   :on-change="handleCodeFilesChange"
                   :on-remove="handleCodeFilesRemove"
                   :file-list="codeFilesList"
-                  accept=".java"
+                  accept=".java,.py"
                 >
-                  <el-button><el-icon><Upload /></el-icon> 选择 .java 源文件</el-button>
+                  <el-button><el-icon><Upload /></el-icon> 选择源文件（.java/.py）</el-button>
                   <template #tip>
                     <div class="el-upload__tip">支持多选批量导入（最多 50 个）；解析范围可在系统设置中按包/类/方法配置。</div>
                   </template>
                 </el-upload>
                 <el-button type="primary" plain round :loading="uploadingCodeFiles" :disabled="codeFilesList.length === 0" @click="uploadCodeFiles" style="margin-top: 10px">
-                  导入 Java 文件
+                  导入源文件
                 </el-button>
               </div>
 

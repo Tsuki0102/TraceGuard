@@ -10,6 +10,13 @@
 | [ecommerce-order](./ecommerce-order/) | 电商订单管理 | 业务型：订单创建/支付/状态流转/库存/退款 | ~400 行，~30 方法 | 12 条 | 12 个 |
 | [api-service](./api-service/) | 统一通知开放接口 | 接口型：Controller-Service 分层，参数校验/幂等/限流 | ~300 行，~25 方法 | 10 条 | 10 个 |
 | [exam-system](./exam-system/) | 在线考试系统 | 中英混合：需求文档中英条目并存，代码含英文注释 | ~350 行，~32 方法 | 11 条 | 12 个 |
+| [python-inventory](./python-inventory/) | 仓库库存管理（**Python**） | T11 多语言演示：tree-sitter 解析链路，含 5 类 Python 特有基础缺陷信号 | ~130 行，14 函数 | 10 条 | 6 个 |
+| [cpp-loglib](./cpp-loglib/) | 简易日志库（**C/C++**） | T11 多语言演示：C++ 类方法 + 纯 C 文件混编，含 5 类 C/C++ 特有基础缺陷信号（内存泄漏/危险函数等） | ~140 行，12 函数 | 10 条 | 6 个 |
+| [go-taskrunner](./go-taskrunner/) | 任务执行器（**Go**） | T11 多语言演示：Go 特色信号（错误未处理/错误被 _ 丢弃/锁未释放/panic 滥用） | ~150 行，11 函数 | 10 条 | 6 个 |
+
+> python-inventory / cpp-loglib / go-taskrunner 为 T11 多语言扩展（2026-09-21）新增：创建项目时技术栈填
+> `Python` / `C++`（或 `C`）/ `Go` 即自动路由到对应 tree-sitter 解析器，全流程（一致性校验/缺陷定位/
+> 追溯矩阵/报告导出）与 Java 工程一致，无需改全局配置。
 
 ## 使用说明
 

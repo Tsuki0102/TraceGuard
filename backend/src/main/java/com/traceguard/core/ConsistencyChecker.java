@@ -193,7 +193,9 @@ public class ConsistencyChecker {
                     CodeDefectPatternDetector.commonCodeBugComponent(code.getCodeContent()),
                     CodeDefectPatternDetector.nullDereferenceComponent(code.getCodeContent())});
             SimilarityScorer.CfgFeatures cf = SimilarityScorer.extractCfgFeatures(code.getCfgData());
-            cfgFeaturesCache.put(code.getId(), cf); // 全量占位（含 null）
+            // T11 兜底：cfgData 解析失败（返回 null）时放默认空特征——ConcurrentHashMap 不允许 null value，
+            // 且任何语言的 CFG 异常不应中断整个任务
+            cfgFeaturesCache.put(code.getId(), cf != null ? cf : new SimilarityScorer.CfgFeatures()); // 全量占位（异常时空特征）
         }
         // GAP-025：一致性计算按需求分块（每块 N 条需求），块内并行、块间串行（保证结果顺序与内存可控）
         // CQ-05：复用共享线程池，避免每次 checkConsistency 创建/销毁线程池

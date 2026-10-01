@@ -1,0 +1,56 @@
+[
+  {
+    "id": "D01",
+    "file": "util.c",
+    "line": 8,
+    "type": "约束条件不满足",
+    "subtype": "内存泄漏",
+    "relatedReq": "REQ-002",
+    "description": "init_prefix 中 malloc(64) 分配的 tmp 缓冲既未 free 也未转移所有权，每次调用泄漏 64 字节堆内存"
+  },
+  {
+    "id": "D02",
+    "file": "util.c",
+    "line": 13,
+    "type": "约束条件不满足",
+    "subtype": "危险函数调用",
+    "relatedReq": "REQ-002",
+    "description": "strcpy 向 16 字节静态缓冲 g_prefix 复制时无边界检查，module 超过 15 字节将栈/静态区溢出（CWE-120），应改用 strncpy/snprintf"
+  },
+  {
+    "id": "D03",
+    "file": "logger.cpp",
+    "line": 23,
+    "type": "约束条件不满足",
+    "subtype": "资源未释放",
+    "relatedReq": "REQ-006",
+    "description": "open_file 中 fopen 成功后句柄仅在 close() 关闭，写入失败或异常路径下句柄长期保持打开状态"
+  },
+  {
+    "id": "D04",
+    "file": "logger.cpp",
+    "line": 31,
+    "type": "约束条件不满足",
+    "subtype": "缺少空值校验",
+    "relatedReq": "REQ-010",
+    "description": "write_line 中 malloc(512) 返回值未判空直接 snprintf 解引用，系统内存不足时空指针崩溃"
+  },
+  {
+    "id": "D05",
+    "file": "logger.cpp",
+    "line": 55,
+    "type": "约束条件不满足",
+    "subtype": "异常吞没",
+    "relatedReq": "REQ-010",
+    "description": "flush 使用裸 catch (...) 捕获所有异常且不做任何记录，违反 REQ-010 不允许静默忽略错误的要求"
+  },
+  {
+    "id": "D06",
+    "file": "logger.cpp",
+    "line": 45,
+    "type": "业务逻辑不一致",
+    "subtype": "阈值条件反转",
+    "relatedReq": "REQ-008",
+    "description": "maybe_flush 使用 buffer_size_ < kFlushThreshold 判断触发落盘，条件反转：缓冲越小越刷盘、超过 1024 反而不触发，违反 REQ-008"
+  }
+]
