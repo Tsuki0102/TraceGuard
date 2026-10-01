@@ -1,0 +1,11 @@
+# gitleaks 配置（CI SEC-01 密钥扫描）
+# 继承默认全部规则，仅追加本地演示历史残留的允许清单。
+[extend]
+useDefault = true
+
+[allowlist]
+description = "demo-cases/cookies.txt 为本地演示会话 cookie：令牌签发用仓库内公开 dev 密钥、2026-09-02 当天过期，且已随 164ec6f 移出版本库（路径现已 gitignore）。仅豁免该历史路径，不影响其他扫描。"
+paths = [
+    '''demo-cases/cookies\.txt''',
+    '''demo-cases/tools/cookies\.txt''',
+]
